@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-11-21
 ---
 
@@ -77,10 +77,12 @@ verification rule.
   - Android downloads, verifies and hands the APK to the system installer
     with `ota_update`. This needs a stable release keystore in CI.
   - iOS shows the notice and links to the release page.
-- **Owner decisions still open:** where the signing key lives, and approval
-  of the new dependencies (`ota_update`, `cryptography` or
-  `ed25519_edwards`, `crypto`, `pub_semver`, `package_info_plus`,
-  `url_launcher`).
+- **Owner decisions (2026-11-21):** the owner approved the dependencies
+  (`ota_update`, `cryptography`, `crypto`, `pub_semver`, `package_info_plus`,
+  `url_launcher`). The owner creates both signing keys on their own computer
+  and stores them in the GitHub environment `release`
+  (`docs/runbooks/release-signing-keys.md`). Releases are distributed on
+  GitHub only; no paid developer accounts for now.
 
 Exception to the 200-line rule: no maintained package checks GitHub
 Releases, verifies a pinned Ed25519 signature and renders in litse-ui on
