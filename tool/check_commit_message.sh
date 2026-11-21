@@ -22,7 +22,13 @@ if (( ${#subject} > 72 )); then
   echo "The subject is longer than 72 characters." >&2
   exit 1
 fi
-if grep -Eiq '^(co-authored-by|generated-by):|generated (with|by) ' "$message_file"; then
-  echo "Commits have one author: remove Co-authored-by and Generated with lines." >&2
+# The owner allows exactly one co-author: Claude, whose noreply address is
+# linked to GitHub's `claude` account (decision of 2026-11-21).
+if grep -Ei '^co-authored-by:' "$message_file" | grep -Eivq '^co-authored-by: claude[^<]*<noreply@anthropic\.com>$'; then
+  echo "The only allowed co-author is: Co-authored-by: Claude <noreply@anthropic.com>." >&2
+  exit 1
+fi
+if grep -Eiq '^generated-by:|generated (with|by) ' "$message_file"; then
+  echo "Remove Generated with/by lines." >&2
   exit 1
 fi
