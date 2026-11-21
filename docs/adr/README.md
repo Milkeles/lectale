@@ -27,3 +27,4 @@ Spec defects that need a decision are tracked in
 | [0011](0011-course-outline-dto-for-clients.md) | CourseOutline DTO for reader clients | proposed |
 | [0012](0012-source-serif-4-reading-face.md) | Source Serif 4 as the reading face | accepted |
 | [0013](0013-client-update-notices.md) | Client update notices from GitHub releases, verified before download | accepted |
+| [0014](0014-static-site-and-app-under-app-path.md) | Static HTML site at `/`, Flutter web app under `/app/` | accepted |
