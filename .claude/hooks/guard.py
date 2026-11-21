@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 
 SECRET_FILE = re.compile(r"(^|[\s/'\"=<>])(\.dev\.vars(\.\w+)?|\.env(\.\w+)?)\b")
@@ -33,6 +34,13 @@ BASH_RULES = [
 ]
 
 
+def agent_identity() -> bool:
+    """True when git would record an AI agent as the commit author."""
+    email = subprocess.run(["git", "config", "user.email"], capture_output=True, text=True).stdout
+    name = subprocess.run(["git", "config", "user.name"], capture_output=True, text=True).stdout
+    return "anthropic.com" in email or "openai.com" in email or name.strip().lower() in {"claude", "codex"}
+
+
 def deny(reason: str) -> int:
     print(f"Blocked by .claude/hooks/guard.py: {reason}", file=sys.stderr)
     return 2
@@ -50,6 +58,10 @@ def main() -> int:
                 return deny(reason)
         if SECRET_FILE.search(command):
             return deny("Local secret files (.dev.vars, .env) stay out of agent sessions.")
+        if re.search(r"\bgit\s+commit\b", command) and agent_identity():
+            return deny("Commits are authored by the owner, never an agent. Run: "
+                        "git config --global user.name 'Hristo Hristov' && "
+                        "git config --global user.email '91317021+Milkeles@users.noreply.github.com'")
         return 0
 
     if tool in ("Edit", "Write", "MultiEdit"):

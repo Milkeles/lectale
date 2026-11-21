@@ -50,7 +50,7 @@ Before any task, read in this order:
 | | |
 |---|---|
 | **Branches** | `feat/<topic>`, `fix/<topic>`; agent sessions use `claude/<topic>` |
-| **Commits** | Conventional Commits, subject at most 72 characters, explain why in the body, one author: no `Co-authored-by` lines |
+| **Commits** | Conventional Commits, subject at most 72 characters, explain why in the body. The owner is the only author: never commit as an agent and never add `Co-authored-by` lines |
 | **Pull requests** | Squash merge; CI green; for security-sensitive changes, a security review and a Codex review attached |
 
 ## 5. Boundaries
