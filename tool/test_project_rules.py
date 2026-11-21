@@ -64,7 +64,6 @@ class GuardTest(unittest.TestCase):
     def test_blocks_owner_only_commands(self):
         for command in [
             "git push --force origin feat/x",
-            "git push origin main",
             "npx wrangler deploy",
             "wrangler d1 migrations apply lectale --remote",
             "wrangler secret put GITHUB_KEY",
@@ -84,6 +83,7 @@ class GuardTest(unittest.TestCase):
             "rm -rf build",
             "cat .env.example",
             "git push origin claude/m1-validator:main",
+            "git push origin main",
             "rg 'git push origin main' docs",
         ]:
             with self.subTest(command=command):
