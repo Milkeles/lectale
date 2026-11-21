@@ -9,6 +9,8 @@ environment:
 
 workspace:
   - apps/flutter_client
+  - packages/api_client
 
 dev_dependencies:
+  swagger_parser: ^2.3.0
   very_good_analysis: ^11.0.0

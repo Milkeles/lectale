@@ -185,6 +185,59 @@ class OpenApiContractTest(unittest.TestCase):
             with self.subTest(schema=name):
                 Draft202012Validator.check_schema(schema)
 
+    def test_outline_is_the_reader_contract(self):
+        def response_schema(method, path):
+            return self.operations[(method, path)]["responses"]["200"]["content"]["application/json"]["schema"]
+
+        schemas = self.document["components"]["schemas"]
+        preview_ref = {"$ref": "#/components/schemas/CoursePreview"}
+        outline_ref = {"$ref": "#/components/schemas/CourseOutline"}
+        self.assertEqual(response_schema("post", "/courses/import"), preview_ref)
+        self.assertEqual(response_schema("get", "/courses/{courseId}/manifest"), outline_ref)
+        self.assertEqual(schemas["CoursePreview"]["properties"]["outline"], outline_ref)
+        self.assertEqual(set(schemas["CoursePreview"]["properties"]), {
+            "repoId", "sha", "outline", "readmePresent",
+        })
+
+        pending = ["CoursePreview"]
+        visited = set()
+        while pending:
+            name = pending.pop()
+            if name in visited:
+                continue
+            visited.add(name)
+            for reference in references(schemas[name]):
+                self.assertTrue(reference.startswith("#/components/schemas/"), reference)
+                pending.append(reference.rsplit("/", 1)[1])
+
+        validator = Draft202012Validator(dict(preview_ref, components={"schemas": schemas}))
+        sha = "a" * 40
+        resource = {
+            "id": "slides", "kind": "pdf", "title": "Slides",
+            "href": f"/api/preview/42/{sha}/content/lesson/slides",
+        }
+        preview = {
+            "repoId": 42, "sha": sha, "readmePresent": True,
+            "outline": {
+                "course": {
+                    "id": "course", "title": "Course", "summary": "Summary",
+                    "version": "1.0.0", "language": "en",
+                },
+                "nodes": [{
+                    "id": "lesson", "kind": "lesson", "title": "Lesson",
+                    "children": [], "resources": [resource],
+                }],
+                "assignments": [],
+            },
+        }
+        validator.validate(preview)
+        resource["href"] = "/api/courses/course/content/assignment~practice/slides"
+        validator.validate(preview)
+        resource["href"] = None
+        validator.validate(preview)
+        del resource["href"]
+        self.assertFalse(validator.is_valid(preview))
+
 
 if __name__ == "__main__":
     unittest.main()

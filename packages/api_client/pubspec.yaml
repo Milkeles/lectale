@@ -1,0 +1,16 @@
+name: lectale_api_client
+description: Dio client for Lectale's API, generated from spec/errata/openapi.yaml.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.14.0
+
+resolution: workspace
+
+dependencies:
+  dio: ^5.11.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

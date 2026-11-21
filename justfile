@@ -41,9 +41,10 @@ lint: check-rules
 check-rules:
     python3 tool/check_rules.py
 
-# Regenerate API clients (milestone M1 adds the OpenAPI codegen)
+# Regenerate the Dart API client from the corrected OpenAPI contract
 generate:
-    @echo "Nothing is generated yet; M1 adds openapi-typescript and swagger_parser."
+    dart run swagger_parser -f contracts/swagger_parser.yaml
+    dart format packages/api_client
 
 # Build the web app and serve it with the Worker on localhost:8787
 run-web:

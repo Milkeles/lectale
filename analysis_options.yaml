@@ -9,6 +9,8 @@ analyzer:
     - "**/build/**"
     - "**/lib/src/data/api/**"
     - "**/lib/src/l10n/gen/**"
+    # swagger_parser owns these sources. CI regenerates and tests them.
+    - "packages/api_client/lib/src/generated/**"
     - "spec/**"
   language:
     strict-casts: true

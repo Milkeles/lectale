@@ -90,7 +90,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: $/.github/actions/litse-ui-access
+      - uses: ./.github/actions/litse-ui-access
         with:
           deploy-key: ${{ secrets.LITSE_UI_DEPLOY_KEY }}
       - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
@@ -100,9 +100,22 @@ jobs:
       # devchat_ui is in the pub cache now; nothing later needs the key.
       - run: rm -f ~/.ssh/litse_ui
         shell: bash
+      - name: Check generated Dart API client
+        shell: bash
+        run: |
+          dart run swagger_parser -f contracts/swagger_parser.yaml
+          dart format packages/api_client
+          changes="$(git status --porcelain --untracked-files=all -- packages/api_client)"
+          if [ -n "$changes" ]; then
+            printf '%s\n' "$changes"
+            exit 1
+          fi
       - run: dart format --output=none --set-exit-if-changed apps
       - run: dart analyze --fatal-infos
-      - run: cd apps/flutter_client && flutter test
+      - name: Test Flutter and the API client
+        run: |
+          (cd apps/flutter_client && flutter test)
+          (cd packages/api_client && flutter test)
 
   build:
     name: Build ${{ matrix.target }}
@@ -126,7 +139,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: $/.github/actions/litse-ui-access
+      - uses: ./.github/actions/litse-ui-access
         with:
           deploy-key: ${{ secrets.LITSE_UI_DEPLOY_KEY }}
       - if: matrix.target == 'linux'

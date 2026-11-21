@@ -1,0 +1,16 @@
+# Generates the Dart API client from the corrected contract. Run
+# `just generate` after changing spec/errata/openapi.yaml; the output is
+# committed so builds need no generation step (as in devchat-frontend).
+swagger_parser:
+  generation:
+    # Plain Dio methods and hand-written-style models: no build step.
+    http_client: dio
+    serializer: plain
+    body_positional: true
+    page_width: 80
+  inputs:
+    lectale:
+      schema_path: ../spec/errata/openapi.yaml
+      output_directory: ../packages/api_client/lib/src/generated
+      generation:
+        root_api_class_name: LectaleApi

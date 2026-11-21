@@ -24,3 +24,4 @@ Spec defects that need a decision are tracked in
 | [0008](0008-scoped-resource-addresses-and-public-preview-route.md) | Scoped resource addresses and a public preview route | accepted |
 | [0009](0009-agent-team-and-model-routing.md) | Agent team and model routing | accepted |
 | [0010](0010-feature-intake-gate-and-build-vs-buy.md) | Feature intake gate and build-versus-buy rule | accepted |
+| [0011](0011-course-outline-dto-for-clients.md) | CourseOutline DTO for reader clients | proposed |
