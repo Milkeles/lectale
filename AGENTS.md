@@ -21,7 +21,7 @@ Before any task, read in this order:
 
 | Task | Command |
 |---|---|
-| Install tools | `mise install`, then `just setup` |
+| Install tools | `mise install`, then `just setup`; in an agent sandbox also run `sh tool/install-git-hooks.sh` |
 | Bundled contract tests | `just test-spec` |
 | Worker tests | `just test-edge` |
 | One Worker test | `cd apps/edge_api && npx vitest run test/<file>.test.ts` |
@@ -82,3 +82,4 @@ Before any task, read in this order:
 - `devchat_ui` comes from the private `Milkeles/litse-ui-private` through a git dependency. CI needs the `LITSE_UI_DEPLOY_KEY` secret, so pull requests from forks skip the Flutter jobs.
 - `npx skills find` hides proxy errors as "No skills found". Use `curl 'https://skills.sh/api/search?q=…'` instead.
 - In the cloud sandbox, `flutter` warns about running as root; the warning is harmless.
+- The cloud sandbox resets git's global identity to an agent on every restart. Run `sh tool/install-git-hooks.sh` after cloning: it stores the owner's identity in the repository config and installs a pre-commit hook that refuses agent authors.

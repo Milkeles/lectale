@@ -8,6 +8,7 @@ default:
 
 # Get the packages and install the git hooks
 setup:
+    sh tool/install-git-hooks.sh
     flutter pub get
     cd apps/edge_api && npm ci
     prek install

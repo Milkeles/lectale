@@ -1,0 +1,11 @@
+#!/bin/sh
+# Lectale: the owner is the only commit author. This git hook runs on every
+# commit in every worktree, even when Claude Code's own hooks aren't loaded.
+ident=$(git var GIT_AUTHOR_IDENT)
+case "$ident" in
+  *anthropic.com*|*openai.com*|Claude\ *|Codex\ *)
+    echo "Refusing to commit as an agent ($ident). Set the owner's identity:" >&2
+    echo "  git config --global user.name 'Hristo Hristov'" >&2
+    echo "  git config --global user.email '91317021+Milkeles@users.noreply.github.com'" >&2
+    exit 1;;
+esac
