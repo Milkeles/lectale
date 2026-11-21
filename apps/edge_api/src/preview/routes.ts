@@ -1,19 +1,23 @@
 import type { Context, Hono } from "hono";
+import { isSafeRepoPath } from "../contract/repo-path";
 import type { components } from "../generated/api";
-import { commitShaPattern, GitHubReadError, isRepoId, type GitHubReader, type GitHubRepository } from "../github/reader";
+import { commitShaPattern, GitHubReadError, isRepoId, type GitHubReader } from "../github/reader";
+import { GitHubRestReader } from "../github/rest-reader";
 import { readBoundedBody } from "../net/bounded-body";
-import { matchPreviewCache, PINNED_CACHE_CONTROL, previewCacheKey, putPreviewCache, type PreviewCache } from "./cache";
+import { FILE_CACHE_CONTROL, PreviewMemo, PreviewStore, type PreviewCache } from "./cache";
 import { courseNotFound, PreviewError } from "./errors";
 import { servePinnedFile } from "./file";
-import { loadPinnedPreview, README_PATH, type CoursePreview, type PinnedPreview } from "./pinned";
+import { coursePreview, README_PATH, resourceTarget } from "./pinned";
+import { PreviewSource } from "./source";
 
-type WorkerEnv = { Bindings: Env };
-type RepoHead = Pick<CoursePreview, "repoId" | "sha">;
+export type PreviewBindings = Env & { GITHUB_PUBLIC_READ_TOKEN?: string };
+type WorkerEnv = { Bindings: PreviewBindings };
 type ImportCourseRequest = components["schemas"]["ImportCourseRequest"];
+type PreviewFolder = components["schemas"]["PreviewFolder"];
+type Limiter = Pick<RateLimit, "limit">;
 
-const REPOSITORY_URL = /^https:\/\/github\.com\/([A-Za-z0-9-]+)\/([A-Za-z0-9_.-]+)\/?$/u;
+const REPOSITORY_URL = /^https:\/\/github\.com\/([A-Za-z0-9-]{1,39})\/([A-Za-z0-9_.-]{1,104})\/?$/u;
 const MANIFEST_ID = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u;
-const REF_CACHE_CONTROL = "public, max-age=60";
 const MAX_IMPORT_BODY_BYTES = 4096;
 
 function invalidUrl(): PreviewError {
@@ -44,112 +48,114 @@ async function importCoordinates(request: Request): Promise<{ owner: string; nam
   const match = REPOSITORY_URL.exec(url);
   if (!match || match[0] !== url || !match[1] || !match[2]) throw invalidUrl();
   const name = match[2].replace(/\.git$/u, "");
-  if (!name || name === "." || name === "..") throw invalidUrl();
+  if (!name || name.length > 100 || name === "." || name === "..") throw invalidUrl();
   return { owner: match[1].toLowerCase(), name: name.toLowerCase() };
 }
 
-function pinnedKey(url: string, { repoId, sha }: RepoHead): Request {
-  return previewCacheKey(url, `public-course-outline:v1:${repoId}:${sha}`);
+function resourceAddress({ lessonId, resourceId }: { lessonId: string; resourceId: string }): string {
+  const scope = lessonId.startsWith("assignment~") ? lessonId.slice("assignment~".length) : lessonId;
+  if (scope.length > 80 || resourceId.length > 80 || MANIFEST_ID.exec(scope)?.[0] !== scope
+      || MANIFEST_ID.exec(resourceId)?.[0] !== resourceId) throw courseNotFound();
+  return `${lessonId}/${resourceId}`;
 }
 
-async function cachedJson<T>(cache: PreviewCache | undefined, key: Request): Promise<T | undefined> {
+function filePath(requestUrl: string): string {
+  // Hono decodes path parameters. Use the original suffix so an encoded
+  // separator cannot turn into a directory boundary before validation.
+  const raw = /^https?:\/\/[^/]+\/api\/preview\/[^/?]+\/[^/?]+\/files\/([^?#]+)/u.exec(requestUrl)?.[1];
+  if (!raw || raw.length > 1_500 || /%(?:2f|5c)/iu.test(raw)) throw courseNotFound();
+  let path: string;
   try {
-    return (await (await matchPreviewCache(cache, key))?.json()) as T | undefined;
+    path = decodeURIComponent(raw);
   } catch {
-    return undefined;
+    throw courseNotFound();
   }
+  if (!isSafeRepoPath(path)) throw courseNotFound();
+  return path;
 }
 
-function isManifestId(id: string): boolean {
-  return id.length <= 80 && MANIFEST_ID.test(id);
+async function admit(c: Context<WorkerEnv>, limiter: Limiter | undefined): Promise<void> {
+  if (!limiter) return;
+  const { success } = await limiter.limit({ key: c.req.header("CF-Connecting-IP") ?? "unknown" });
+  if (!success) throw new GitHubReadError("rate_limited", 60);
 }
 
 /** Registers public-only, read-only preview routes (V4-CORE-01, ADR-0008). */
 export function registerPreviewRoutes(
   app: Hono<WorkerEnv>,
-  reader: GitHubReader,
+  reader?: GitHubReader,
   cacheOverride?: PreviewCache,
+  importLimiter?: Limiter,
 ): void {
-  const getCache = () => cacheOverride ?? (typeof caches === "undefined" ? undefined : caches.default);
-
-  async function loadAndCache(
-    cache: PreviewCache | undefined,
-    key: Request,
-    repository: GitHubRepository,
-    sha: string,
-  ): Promise<PinnedPreview> {
-    const pinned = await loadPinnedPreview(reader, repository, sha);
-    if (cache) {
-      await putPreviewCache(cache, key, Response.json(pinned, {
-        headers: { "Cache-Control": PINNED_CACHE_CONTROL },
-      }));
-    }
-    return pinned;
+  const memo = new PreviewMemo();
+  const cooldown = { until: 0 };
+  function sourceFor(c: Context<WorkerEnv>): PreviewSource {
+    const cache = cacheOverride ?? (typeof caches === "undefined" ? undefined : caches.default);
+    const github = reader ?? new GitHubRestReader(async () => c.env?.GITHUB_PUBLIC_READ_TOKEN);
+    return new PreviewSource(new PreviewStore(c.req.url, cache, memo), github, cooldown);
   }
 
   app.post("/courses/import", async (c) => {
+    await admit(c, importLimiter ?? c.env?.IMPORT_RATE_LIMIT);
     const { owner, name } = await importCoordinates(c.req.raw);
-    const cache = getCache();
-    const refKey = previewCacheKey(c.req.url, `repo-preview:v1:${owner}:${name}`);
-    const head = await cachedJson<RepoHead>(cache, refKey);
-    if (head) {
-      const pinned = await cachedJson<PinnedPreview>(cache, pinnedKey(c.req.url, head));
-      if (pinned) return c.json(pinned.preview, 200);
-    }
-
-    const repository = await reader.resolveRepository(owner, name);
-    if (repository.private !== false) throw courseNotFound();
-    const sha = await reader.headCommit(repository.owner, repository.name);
-    if (!commitShaPattern.test(sha)) throw new GitHubReadError("upstream");
-
-    const resolved = { repoId: repository.id, sha };
-    const key = pinnedKey(c.req.url, resolved);
-    const pinned = await cachedJson<PinnedPreview>(cache, key) ?? await loadAndCache(cache, key, repository, sha);
-    if (cache) {
-      await putPreviewCache(cache, refKey, Response.json(resolved, {
-        headers: { "Cache-Control": REF_CACHE_CONTROL },
-      }));
-    }
-    return c.json(pinned.preview, 200);
+    const source = sourceFor(c);
+    await source.assertAvailable();
+    const repository = await source.repositoryByName(owner, name);
+    const sha = await source.head(repository);
+    const preview = await coursePreview(source, repository, sha);
+    await source.recordPin(repository.id, sha);
+    return c.json(preview, 200, { "Cache-Control": "no-store" });
   });
 
-  async function getFile(c: Context<WorkerEnv>, address: string): Promise<Response> {
+  app.use("/preview/*", async (c, next) => {
+    await admit(c, c.env?.PREVIEW_RATE_LIMIT);
+    await next();
+  });
+
+  async function authorize(c: Context<WorkerEnv>) {
     const id = c.req.param("repoId") ?? "";
     const sha = c.req.param("sha") ?? "";
     const repoId = Number(id);
-    if (!/^[1-9][0-9]*$/u.test(id) || !isRepoId(repoId) || !commitShaPattern.test(sha)) {
-      throw courseNotFound();
-    }
-
-    // Class B entries carry bytes and addresses, never current visibility.
-    const repository = await reader.resolveRepositoryById(repoId);
-    if (repository.id !== repoId || repository.private !== false) throw courseNotFound();
-    const cache = getCache();
-    const key = pinnedKey(c.req.url, { repoId, sha });
-    let pinned = await cachedJson<PinnedPreview>(cache, key);
-    if (!pinned) {
-      try {
-        pinned = await loadAndCache(cache, key, repository, sha);
-      } catch (error) {
-        // A content address for a commit without a valid preview is unavailable.
-        if (error instanceof PreviewError && (error.status === 413 || error.status === 422)) {
-          throw courseNotFound();
-        }
-        throw error;
-      }
-    }
-    const file = pinned.files[address];
-    if (!file) throw courseNotFound();
-    return servePinnedFile(reader, cache, repository, sha, file, c.req.raw, c.get("requestId"),
-      (promise) => c.executionCtx.waitUntil(promise));
+    if (!/^[1-9][0-9]*$/u.test(id) || !isRepoId(repoId) || !commitShaPattern.test(sha)) throw courseNotFound();
+    const source = sourceFor(c);
+    await source.assertAvailable();
+    const repository = await source.repositoryById(repoId);
+    await source.requirePin(repository, sha);
+    return { source, repository, sha };
   }
 
-  app.get("/preview/:repoId/:sha/readme", (c) => getFile(c, README_PATH));
+  app.get("/preview/:repoId/:sha", async (c) => {
+    const { source, repository, sha } = await authorize(c);
+    const preview = await coursePreview(source, repository, sha);
+    return c.json(preview, 200, { "Cache-Control": FILE_CACHE_CONTROL });
+  });
 
-  app.get("/preview/:repoId/:sha/content/:lessonId/:resourceId", (c) => {
-    const { lessonId, resourceId } = c.req.param();
-    const scope = lessonId.startsWith("assignment~") ? lessonId.slice("assignment~".length) : lessonId;
-    if (!isManifestId(scope) || !isManifestId(resourceId)) throw courseNotFound();
-    return getFile(c, `${lessonId}/${resourceId}`);
+  async function scopedFile(c: Context<WorkerEnv>, address: string): Promise<Response> {
+    const { source, repository, sha } = await authorize(c);
+    const { path, maxEntries } = await resourceTarget(source, repository, sha, address);
+    if (maxEntries !== undefined) throw courseNotFound();
+    return servePinnedFile(source, repository, sha, path, c.req.raw, c.get("requestId"));
+  }
+
+  app.get("/preview/:repoId/:sha/readme", (c) => scopedFile(c, README_PATH));
+  app.get("/preview/:repoId/:sha/content/:lessonId/:resourceId", (c) => scopedFile(c, resourceAddress(c.req.param())));
+
+  app.get("/preview/:repoId/:sha/files/*", async (c) => {
+    const path = filePath(c.req.url);
+    const { source, repository, sha } = await authorize(c);
+    return servePinnedFile(source, repository, sha, path, c.req.raw, c.get("requestId"));
+  });
+
+  app.get("/preview/:repoId/:sha/folders/:lessonId/:resourceId", async (c) => {
+    const address = resourceAddress(c.req.param());
+    const { source, repository, sha } = await authorize(c);
+    const { path, maxEntries } = await resourceTarget(source, repository, sha, address);
+    if (maxEntries === undefined) throw courseNotFound();
+    const prefix = `/api/preview/${repository.id}/${sha}/files/${path}/`;
+    const items = await source.directory(repository, sha, path);
+    const listing: PreviewFolder = {
+      entries: items.slice(0, maxEntries).map((entry) => ({ ...entry, href: prefix + entry.name })),
+    };
+    return c.json(listing, 200, { "Cache-Control": FILE_CACHE_CONTROL });
   });
 }

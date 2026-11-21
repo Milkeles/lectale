@@ -11,16 +11,10 @@ export interface GitHubRepository {
   private: boolean;
 }
 
-export interface GitHubTreeEntry {
-  path: string;
-  type: "blob" | "tree" | "commit";
-  mode: string;
-  size?: number;
-}
-
-export interface GitHubTree {
-  entries: GitHubTreeEntry[];
-  truncated: boolean;
+export interface GitHubDirectoryEntry {
+  name: string;
+  type: "file" | "directory";
+  size: number;
 }
 
 /** Read access to repository metadata and pinned bytes (V4-CORE-01, V4-SEC-03). */
@@ -30,9 +24,11 @@ export interface GitHubReader {
   /** Resolves a stable repository ID for a current visibility check. */
   resolveRepositoryById(id: RepoId): Promise<GitHubRepository>;
   /** Resolves the default branch to a full commit SHA. */
-  headCommit(owner: string, name: string): Promise<Sha>;
-  /** Lists pinned paths with Git modes so callers can reject non-regular files. */
-  tree(owner: string, name: string, sha: Sha): Promise<GitHubTree>;
+  headCommit(repository: GitHubRepository): Promise<Sha>;
+  /** Checks whether the SHA is the default branch tip or one of its ancestors. */
+  isReachable(repository: GitHubRepository, sha: Sha, defaultHead: Sha): Promise<boolean>;
+  /** Returns public regular files and directories directly under the pinned path. */
+  listDirectory(repository: GitHubRepository, sha: Sha, path: string): Promise<GitHubDirectoryEntry[]>;
   /** Opens a canonical pinned file without buffering. Returns 200, 206 or 416. */
   openFile(owner: string, name: string, sha: Sha, path: string, range?: string): Promise<Response>;
 }
@@ -40,7 +36,7 @@ export interface GitHubReader {
 /** Provider failures that the API can translate without exposing upstream data. */
 export class GitHubReadError extends Error {
   constructor(
-    readonly kind: "not_found" | "rate_limited" | "upstream",
+    readonly kind: "not_found" | "rate_limited" | "upstream" | "repo_changed",
     readonly retryAfterSeconds?: number,
   ) {
     super("GitHub read failed.");

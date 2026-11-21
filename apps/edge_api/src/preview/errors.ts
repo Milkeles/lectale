@@ -32,12 +32,19 @@ export function previewErrorResponse(error: Error, requestId: string): Response 
         const retryAfterSeconds = error.retryAfterSeconds ?? 60;
         return errorResponse(429, {
           code: "rate_limited",
-          message: "GitHub is limiting preview requests. Try again shortly.",
+          message: "Preview requests are temporarily limited. Try again shortly.",
           requestId,
           retryable: true,
           retryAfterSeconds,
         }, { "Retry-After": String(retryAfterSeconds) });
       }
+      case "repo_changed":
+        error = new PreviewError(503, {
+          code: "repository_changed",
+          message: "The GitHub repository could not be confirmed. Try again shortly.",
+          retryable: true,
+        });
+        break;
       case "upstream":
         error = new PreviewError(502, {
           code: "github_unavailable",

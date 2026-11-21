@@ -23,6 +23,7 @@ import 'models/list_catalog_courses_price.dart'
     show ListCatalogCoursesPrice;
 import 'models/manifest_id.dart' as models show ManifestId;
 import 'models/paged_result.dart' as models show PagedResult;
+import 'models/preview_folder.dart' as models show PreviewFolder;
 import 'models/resource_parent_id.dart' as models show ResourceParentId;
 import 'models/update_course_catalog_request.dart'
     as models
@@ -2552,10 +2553,10 @@ class ApiClient {
     return models.Health.fromJson(response.data as Map<String, Object?>);
   }
 
-  /// Fetch the root README for a pinned public preview
+  /// Reload a pinned public course preview
   ///
-  /// Return root README.md as UTF-8 Markdown from the pinned commit of an unambiguously public repository. Render it using a safe Markdown renderer (README-001, README-003). Cache class B applies only to public immutable bytes, keyed by numeric repository ID, full SHA, normalized README path and renderer version (E3, CACHE-005).
-  Future<String> getPreviewReadme({
+  /// Return the same validated CoursePreview as import. The SHA must have been pinned by import for this repository or be reachable from its default branch (E3, V4-CORE-01).
+  Future<models.CoursePreview> getPreview({
     Map<String, Object?> extra = const {
       "openapi.servers": [
         {"url": "/api"},
@@ -2582,9 +2583,62 @@ class ApiClient {
     }
     final _options = (options ?? Options()).copyWith(
       method: "GET",
+      responseType: ResponseType.json,
+      extra: {...?options?.extra, ...extra},
+      headers: {...?options?.headers, 'Accept': "application/json"},
+      validateStatus: (status) => status != null && (status == 200),
+    );
+    final response = await _transport.request<dynamic>(
+      "/preview/" +
+          Uri.encodeComponent((repoId.toJson()).toString()) +
+          "/" +
+          Uri.encodeComponent((sha.toJson()).toString()),
+      options: _options,
+      cancelToken: cancelToken,
+    );
+    return models.CoursePreview.fromJson(response.data as Map<String, Object?>);
+  }
+
+  /// Fetch the root README for a pinned public preview
+  ///
+  /// Return root README.md as UTF-8 Markdown from the pinned commit of an unambiguously public repository. Render it using a safe Markdown renderer (README-001, README-003). Cache class B applies only to public immutable bytes, keyed by numeric repository ID, full SHA, normalized README path and renderer version (E3, CACHE-005).
+  Future<String> getPreviewReadme({
+    Map<String, Object?> extra = const {
+      "openapi.servers": [
+        {"url": "/api"},
+      ],
+    },
+    CancelToken? cancelToken,
+    Options? options,
+    required models.GitHubRepoId repoId,
+    required models.CommitSha sha,
+
+    /// A single byte range. Multipart requests are rejected.
+    String? range,
+  }) async {
+    if (const {
+      '',
+      '.',
+      '..',
+    }.contains(Uri.encodeComponent((repoId.toJson()).toString()))) {
+      throw ArgumentError('Invalid path segment.');
+    }
+    if (const {
+      '',
+      '.',
+      '..',
+    }.contains(Uri.encodeComponent((sha.toJson()).toString()))) {
+      throw ArgumentError('Invalid path segment.');
+    }
+    final _options = (options ?? Options()).copyWith(
+      method: "GET",
       responseType: ResponseType.stream,
       extra: {...?options?.extra, ...extra},
-      headers: {...?options?.headers, 'Accept': "text/markdown"},
+      headers: {
+        ...?options?.headers,
+        'Accept': "text/markdown",
+        if (range != null) "Range": range,
+      },
       validateStatus: (status) => status != null && (status == 200),
     );
     final response = await _transport.request<dynamic>(
@@ -2603,8 +2657,148 @@ class ApiClient {
 
   /// Fetch a scoped resource from a pinned public preview
   ///
-  /// Use the resource href returned by import. Resolve the address against the validated manifest at the supplied SHA and serve only a canonical repository path from an unambiguously public repository (E2, E3, ADR-0008, V4-CORE-01). Cache class B applies to public immutable content, keyed by numeric repository ID, full SHA, normalized resource path and renderer version. The class D lookup applies when resolving the repository to a commit during import.
-  Future<String> getPreviewContent({
+  /// Use the resource href returned by import. Resolve the address against the validated manifest at the supplied SHA (bound to the repository as for preview reload) and serve only a canonical repository path from an unambiguously public repository (E2, E3, ADR-0008, V4-CORE-01). Cache class B applies to public immutable content, keyed by numeric repository ID, full SHA, normalized resource path and renderer version. The class D lookup applies when resolving the repository to a commit during import.
+  Future<List<int>> getPreviewContent({
+    Map<String, Object?> extra = const {
+      "openapi.servers": [
+        {"url": "/api"},
+      ],
+    },
+    CancelToken? cancelToken,
+    Options? options,
+    required models.GitHubRepoId repoId,
+    required models.CommitSha sha,
+
+    /// Lesson ID or assignment scope returned with the resource address (E2, ADR-0008).
+    required models.ResourceParentId lessonId,
+    required models.ManifestId resourceId,
+
+    /// A single byte range. Multipart requests are rejected.
+    String? range,
+  }) async {
+    if (const {
+      '',
+      '.',
+      '..',
+    }.contains(Uri.encodeComponent((repoId.toJson()).toString()))) {
+      throw ArgumentError('Invalid path segment.');
+    }
+    if (const {
+      '',
+      '.',
+      '..',
+    }.contains(Uri.encodeComponent((sha.toJson()).toString()))) {
+      throw ArgumentError('Invalid path segment.');
+    }
+    if (const {
+      '',
+      '.',
+      '..',
+    }.contains(Uri.encodeComponent((lessonId.toJson()).toString()))) {
+      throw ArgumentError('Invalid path segment.');
+    }
+    if (const {
+      '',
+      '.',
+      '..',
+    }.contains(Uri.encodeComponent((resourceId.toJson()).toString()))) {
+      throw ArgumentError('Invalid path segment.');
+    }
+    final _options = (options ?? Options()).copyWith(
+      method: "GET",
+      responseType: ResponseType.stream,
+      extra: {...?options?.extra, ...extra},
+      headers: {
+        ...?options?.headers,
+        'Accept': "application/octet-stream",
+        if (range != null) "Range": range,
+      },
+      validateStatus: (status) => status != null && (status == 200),
+    );
+    final response = await _transport.request<dynamic>(
+      "/preview/" +
+          Uri.encodeComponent((repoId.toJson()).toString()) +
+          "/" +
+          Uri.encodeComponent((sha.toJson()).toString()) +
+          "/content/" +
+          Uri.encodeComponent((lessonId.toJson()).toString()) +
+          "/" +
+          Uri.encodeComponent((resourceId.toJson()).toString()),
+      options: _options,
+      cancelToken: cancelToken,
+    );
+    return await (response.data as ResponseBody).stream
+        .expand((chunk) => chunk)
+        .toList();
+  }
+
+  /// Fetch a file by repository-relative path
+  ///
+  /// Serve a regular file from the bound public commit. Relative README assets, links and the course cover can use this route.
+  Future<List<int>> getPreviewFile({
+    Map<String, Object?> extra = const {
+      "openapi.servers": [
+        {"url": "/api"},
+      ],
+    },
+    CancelToken? cancelToken,
+    Options? options,
+    required models.GitHubRepoId repoId,
+    required models.CommitSha sha,
+
+    /// A single byte range. Multipart requests are rejected.
+    String? range,
+
+    /// Repository-relative path. Preserve literal slashes between segments. Dot segments, encoded separators, backslashes and non-allowlisted hidden entries are rejected.
+    required String path,
+  }) async {
+    if (const {
+      '',
+      '.',
+      '..',
+    }.contains(Uri.encodeComponent((repoId.toJson()).toString()))) {
+      throw ArgumentError('Invalid path segment.');
+    }
+    if (const {
+      '',
+      '.',
+      '..',
+    }.contains(Uri.encodeComponent((sha.toJson()).toString()))) {
+      throw ArgumentError('Invalid path segment.');
+    }
+    if (const {'', '.', '..'}.contains(Uri.encodeComponent(path))) {
+      throw ArgumentError('Invalid path segment.');
+    }
+    final _options = (options ?? Options()).copyWith(
+      method: "GET",
+      responseType: ResponseType.stream,
+      extra: {...?options?.extra, ...extra},
+      headers: {
+        ...?options?.headers,
+        'Accept': "application/octet-stream",
+        if (range != null) "Range": range,
+      },
+      validateStatus: (status) => status != null && (status == 200),
+    );
+    final response = await _transport.request<dynamic>(
+      "/preview/" +
+          Uri.encodeComponent((repoId.toJson()).toString()) +
+          "/" +
+          Uri.encodeComponent((sha.toJson()).toString()) +
+          "/files/" +
+          Uri.encodeComponent(path),
+      options: _options,
+      cancelToken: cancelToken,
+    );
+    return await (response.data as ResponseBody).stream
+        .expand((chunk) => chunk)
+        .toList();
+  }
+
+  /// List a pinned public folder resource
+  ///
+  /// Resolve the folder resource through the validated manifest at the bound public commit. Return direct entries up to the resource's maxEntries (default 100).
+  Future<models.PreviewFolder> getPreviewFolder({
     Map<String, Object?> extra = const {
       "openapi.servers": [
         {"url": "/api"},
@@ -2649,9 +2843,9 @@ class ApiClient {
     }
     final _options = (options ?? Options()).copyWith(
       method: "GET",
-      responseType: ResponseType.stream,
+      responseType: ResponseType.json,
       extra: {...?options?.extra, ...extra},
-      headers: {...?options?.headers, 'Accept': "text/plain"},
+      headers: {...?options?.headers, 'Accept': "application/json"},
       validateStatus: (status) => status != null && (status == 200),
     );
     final response = await _transport.request<dynamic>(
@@ -2659,15 +2853,13 @@ class ApiClient {
           Uri.encodeComponent((repoId.toJson()).toString()) +
           "/" +
           Uri.encodeComponent((sha.toJson()).toString()) +
-          "/content/" +
+          "/folders/" +
           Uri.encodeComponent((lessonId.toJson()).toString()) +
           "/" +
           Uri.encodeComponent((resourceId.toJson()).toString()),
       options: _options,
       cancelToken: cancelToken,
     );
-    return await convert.utf8.decoder
-        .bind((response.data as ResponseBody).stream)
-        .join();
+    return models.PreviewFolder.fromJson(response.data as Map<String, Object?>);
   }
 }

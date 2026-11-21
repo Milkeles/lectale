@@ -170,6 +170,8 @@ paths:
       responses:
         '200':
           description: Validated preview at a single pinned commit
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
           content:
             application/json:
               schema: {$ref: '#/components/schemas/CoursePreview'}
@@ -1377,10 +1379,34 @@ paths:
               schema: {$ref: '#/components/schemas/Health'}
         4XX: {$ref: '#/components/responses/ClientError'}
         5XX: {$ref: '#/components/responses/ServerError'}
+  /preview/{repoId}/{sha}:
+    parameters:
+      - {$ref: '#/components/parameters/repoId'}
+      - {$ref: '#/components/parameters/sha'}
+    get:
+      operationId: getPreview
+      summary: Reload a pinned public course preview
+      description: >
+        Return the same validated CoursePreview as import. The SHA must have been pinned by import
+        for this repository or be reachable from its default branch (E3, V4-CORE-01).
+      security: []
+      responses:
+        '200':
+          description: Validated preview at a single pinned commit
+          headers:
+            Cache-Control: {$ref: '#/components/headers/PublicPreviewCache'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CoursePreview'}
+        '404': {$ref: '#/components/responses/PreviewUnavailable'}
+        '429': {$ref: '#/components/responses/PreviewThrottled'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
   /preview/{repoId}/{sha}/readme:
     parameters:
       - {$ref: '#/components/parameters/repoId'}
       - {$ref: '#/components/parameters/sha'}
+      - {$ref: '#/components/parameters/PreviewRange'}
     get:
       operationId: getPreviewReadme
       summary: Fetch the root README for a pinned public preview
@@ -1395,10 +1421,14 @@ paths:
           description: Root README Markdown
           headers:
             Cache-Control: {$ref: '#/components/headers/PublicPreviewCache'}
+            Content-Security-Policy: {$ref: '#/components/headers/PreviewContentPolicy'}
+            X-Content-Type-Options: {$ref: '#/components/headers/PreviewNoSniff'}
           content:
             text/markdown:
               schema:
                 type: string
+        '206': {$ref: '#/components/responses/PreviewPartialFile'}
+        '416': {$ref: '#/components/responses/PreviewInvalidRange'}
         '404': {$ref: '#/components/responses/PreviewUnavailable'}
         '429': {$ref: '#/components/responses/PreviewThrottled'}
         4XX: {$ref: '#/components/responses/ClientError'}
@@ -1409,40 +1439,76 @@ paths:
       - {$ref: '#/components/parameters/sha'}
       - {$ref: '#/components/parameters/lessonId'}
       - {$ref: '#/components/parameters/resourceId'}
+      - {$ref: '#/components/parameters/PreviewRange'}
     get:
       operationId: getPreviewContent
       summary: Fetch a scoped resource from a pinned public preview
       description: >
         Use the resource href returned by import. Resolve the address against the validated manifest at
-        the supplied SHA and serve only a canonical repository path from an unambiguously public repository
+        the supplied SHA (bound to the repository as for preview reload) and serve only a canonical repository path from an unambiguously public repository
         (E2, E3, ADR-0008, V4-CORE-01). Cache class B applies to public immutable content, keyed by numeric
         repository ID, full SHA, normalized resource path and renderer version. The class D lookup applies
         when resolving the repository to a commit during import.
       security: []
       responses:
+        '200': {$ref: '#/components/responses/PreviewFile'}
+        '206': {$ref: '#/components/responses/PreviewPartialFile'}
+        '404': {$ref: '#/components/responses/PreviewUnavailable'}
+        '416': {$ref: '#/components/responses/PreviewInvalidRange'}
+        '429': {$ref: '#/components/responses/PreviewThrottled'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /preview/{repoId}/{sha}/files/{path}:
+    parameters:
+      - {$ref: '#/components/parameters/repoId'}
+      - {$ref: '#/components/parameters/sha'}
+      - {$ref: '#/components/parameters/PreviewRange'}
+      - name: path
+        in: path
+        required: true
+        description: >
+          Repository-relative path. Preserve literal slashes between segments. Dot segments,
+          encoded separators, backslashes and non-allowlisted hidden entries are rejected.
+        schema:
+          type: string
+          maxLength: 500
+          pattern: '^(?:\.well-known|[A-Za-z0-9_-](?:[A-Za-z0-9_.-]*[A-Za-z0-9_-])?)(?:/(?:\.well-known|[A-Za-z0-9_-](?:[A-Za-z0-9_.-]*[A-Za-z0-9_-])?))*$'
+    get:
+      operationId: getPreviewFile
+      summary: Fetch a file by repository-relative path
+      description: >
+        Serve a regular file from the bound public commit. Relative README assets, links and
+        the course cover can use this route.
+      security: []
+      responses:
+        '200': {$ref: '#/components/responses/PreviewFile'}
+        '206': {$ref: '#/components/responses/PreviewPartialFile'}
+        '404': {$ref: '#/components/responses/PreviewUnavailable'}
+        '416': {$ref: '#/components/responses/PreviewInvalidRange'}
+        '429': {$ref: '#/components/responses/PreviewThrottled'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /preview/{repoId}/{sha}/folders/{lessonId}/{resourceId}:
+    parameters:
+      - {$ref: '#/components/parameters/repoId'}
+      - {$ref: '#/components/parameters/sha'}
+      - {$ref: '#/components/parameters/lessonId'}
+      - {$ref: '#/components/parameters/resourceId'}
+    get:
+      operationId: getPreviewFolder
+      summary: List a pinned public folder resource
+      description: >
+        Resolve the folder resource through the validated manifest at the bound public commit.
+        Return direct entries up to the resource's maxEntries (default 100).
+      security: []
+      responses:
         '200':
-          description: File bytes with a safe media type. Serve active formats as an attachment.
+          description: Direct folder entries with canonical repository paths in their hrefs
           headers:
             Cache-Control: {$ref: '#/components/headers/PublicPreviewCache'}
-            Content-Disposition:
-              description: Attachment disposition for downloads.
-              schema:
-                type: string
           content:
-            text/plain:
-              schema:
-                type: string
-            text/markdown:
-              schema:
-                type: string
-            image/*:
-              schema:
-                $ref: '#/components/schemas/BinaryContent'
-                description: Allowed raster image types.
-            application/pdf:
-              schema: {$ref: '#/components/schemas/BinaryContent'}
-            application/octet-stream:
-              schema: {$ref: '#/components/schemas/BinaryContent'}
+            application/json:
+              schema: {$ref: '#/components/schemas/PreviewFolder'}
         '404': {$ref: '#/components/responses/PreviewUnavailable'}
         '429': {$ref: '#/components/responses/PreviewThrottled'}
         4XX: {$ref: '#/components/responses/ClientError'}
@@ -1553,6 +1619,14 @@ components:
       in: path
       required: true
       schema: {$ref: '#/components/schemas/CommitSha'}
+    PreviewRange:
+      name: Range
+      in: header
+      description: A single byte range. Multipart requests are rejected.
+      schema:
+        type: string
+        maxLength: 128
+        pattern: '^bytes=(?:[0-9]+-[0-9]*|-[0-9]+)$'
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -1585,7 +1659,15 @@ components:
       description: Cache class B. Public cache directive with a bounded max-age.
       schema:
         type: string
-        example: public, max-age=300
+        example: public, max-age=60, immutable, must-revalidate
+    PreviewContentPolicy:
+      schema:
+        type: string
+        const: "default-src 'none'; sandbox; frame-ancestors 'none'"
+    PreviewNoSniff:
+      schema:
+        type: string
+        const: nosniff
   responses:
     ClientError:
       description: Request rejected
@@ -1598,6 +1680,51 @@ components:
       description: Service or upstream provider failure
       headers:
         Cache-Control: {$ref: '#/components/headers/NoStore'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    PreviewFile:
+      description: Regular file bytes. Active and unknown formats download as attachments.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/PublicPreviewCache'}
+        Content-Security-Policy: {$ref: '#/components/headers/PreviewContentPolicy'}
+        X-Content-Type-Options: {$ref: '#/components/headers/PreviewNoSniff'}
+        Content-Disposition:
+          description: Attachment disposition for downloads.
+          schema: {type: string}
+      content: &previewMedia
+        application/octet-stream:
+          schema: {$ref: '#/components/schemas/BinaryContent'}
+        text/plain:
+          schema: {type: string}
+        text/markdown:
+          schema: {type: string}
+        image/*:
+          schema:
+            $ref: '#/components/schemas/BinaryContent'
+            description: Allowed raster image types with matching signatures.
+        application/pdf:
+          schema: {$ref: '#/components/schemas/BinaryContent'}
+    PreviewPartialFile:
+      description: One validated interval from the pinned file.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/PublicPreviewCache'}
+        Content-Security-Policy: {$ref: '#/components/headers/PreviewContentPolicy'}
+        X-Content-Type-Options: {$ref: '#/components/headers/PreviewNoSniff'}
+        Content-Disposition:
+          description: Attachment disposition for downloads.
+          schema: {type: string}
+        Content-Range:
+          required: true
+          schema: {type: string}
+      content: *previewMedia
+    PreviewInvalidRange:
+      description: Range is malformed or cannot be satisfied by the pinned file.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStore'}
+        Content-Range:
+          description: Unsatisfied byte range with the known file size, when available.
+          schema: {type: string}
       content:
         application/json:
           schema: {$ref: '#/components/schemas/ApiError'}
@@ -1688,6 +1815,27 @@ components:
           pattern: ^https://github\.com/[A-Za-z0-9-]+/(?!(?:\.{1,2})/?$)[A-Za-z0-9_.-]+/?$
           description: HTTPS GitHub repository URL in owner/repository form.
           example: https://github.com/course-author/example-course
+    PreviewFolder:
+      type: object
+      additionalProperties: false
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          maxItems: 1000
+          items: {$ref: '#/components/schemas/PreviewFolderEntry'}
+    PreviewFolderEntry:
+      type: object
+      additionalProperties: false
+      required: [name, type, size, href]
+      properties:
+        name: {type: string, maxLength: 500}
+        type: {type: string, enum: [file, directory]}
+        size: {type: integer, format: int64, minimum: 0, description: Size in bytes. Zero for directories.}
+        href:
+          type: string
+          description: Files-route address for this repository path.
+          pattern: '^/api/preview/[1-9][0-9]*/[0-9a-f]{40}/files/.+$'
     CoursePreview:
       type: object
       additionalProperties: false
@@ -1791,7 +1939,7 @@ components:
             - string
             - 'null'
           format: uri-reference
-          pattern: '^/api/(?:preview/[1-9][0-9]*/[0-9a-f]{40}|courses/[a-z][a-z0-9]*(?:-[a-z0-9]+)*)/content/(?:assignment~)?[a-z][a-z0-9]*(?:-[a-z0-9]+)*/[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'
+          pattern: '^/api/(?:preview/[1-9][0-9]*/[0-9a-f]{40}/(?:content|folders)|courses/[a-z][a-z0-9]*(?:-[a-z0-9]+)*/content)/(?:assignment~)?[a-z][a-z0-9]*(?:-[a-z0-9]+)*/[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'
           description: Same-origin scoped content route (ADR-0008). Null for URL-only resources.
         url:
           type: string

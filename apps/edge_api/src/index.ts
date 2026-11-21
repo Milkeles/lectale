@@ -4,14 +4,17 @@ import { secureHeaders } from "hono/secure-headers";
 
 import { errorResponse } from "./errors";
 import type { GitHubReader } from "./github/reader";
-import { GitHubRestReader } from "./github/rest-reader";
 import type { PreviewCache } from "./preview/cache";
 import { previewErrorResponse } from "./preview/errors";
-import { registerPreviewRoutes } from "./preview/routes";
+import { registerPreviewRoutes, type PreviewBindings } from "./preview/routes";
 
 /** Composes the Worker routes with a replaceable GitHub reader and preview cache. */
-export function createApp(reader: GitHubReader = new GitHubRestReader(), cache?: PreviewCache) {
-  const app = new Hono<{ Bindings: Env }>().basePath("/api");
+export function createApp(
+  reader?: GitHubReader,
+  cache?: PreviewCache,
+  importLimiter?: Pick<RateLimit, "limit">,
+) {
+  const app = new Hono<{ Bindings: PreviewBindings }>().basePath("/api");
 
   app.use(requestId());
   app.use(
@@ -29,7 +32,7 @@ export function createApp(reader: GitHubReader = new GitHubRestReader(), cache?:
     c.json({ status: "ok" }, 200, { "Cache-Control": "no-store" }),
   );
 
-  registerPreviewRoutes(app, reader, cache);
+  registerPreviewRoutes(app, reader, cache, importLimiter);
 
   // Unknown routes answer with the standard envelope instead of Hono's plain
   // text, so clients only ever parse one error shape.

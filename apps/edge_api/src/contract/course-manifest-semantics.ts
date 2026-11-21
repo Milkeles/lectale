@@ -1,3 +1,4 @@
+import { isSafeRepoPath } from "./repo-path";
 import type { ManifestDiagnostics } from "./course-manifest-diagnostics";
 import type { CourseManifest, OutlineNode, Resource } from "./course-manifest-types";
 
@@ -90,9 +91,7 @@ export function validateManifestSemantics(manifest: CourseManifest, diagnostics:
   const referencedIds = new Set<string>();
 
   function checkPath(value: string, path: string): boolean {
-    // The schema already excludes absolute paths, backslashes, URL schemes
-    // and percent encodings. The repository allowlist governs hidden segments.
-    if (value.split("/").some((part) => part.endsWith(".") || (part.startsWith(".") && part !== ".well-known"))) {
+    if (!isSafeRepoPath(value)) {
       report("INVALID_REPO_PATH", path, "Use a repository-relative path without trailing dots or hidden entries other than .well-known.");
       return false;
     }

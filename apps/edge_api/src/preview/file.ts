@@ -1,37 +1,24 @@
 import { errorResponse } from "../errors";
-import { GitHubReadError, type GitHubReader, type GitHubRepository } from "../github/reader";
-import { matchPreviewCache, PINNED_CACHE_CONTROL, previewCacheKey, putPreviewCache, type PreviewCache } from "./cache";
-import type { PinnedFile } from "./pinned";
-
-const MARKDOWN = "text/markdown; charset=utf-8";
-const TEXT = "text/plain; charset=utf-8";
-const DOWNLOAD = "application/octet-stream";
-const MEDIA_TYPES = new Map([
-  ["md", MARKDOWN], ["markdown", MARKDOWN], ["mdown", MARKDOWN], ["mkd", MARKDOWN],
-  ["mkdn", MARKDOWN], ["mdwn", MARKDOWN], ["mdtxt", MARKDOWN], ["mdtext", MARKDOWN],
-  ["rmd", MARKDOWN], ["qmd", MARKDOWN],
-  ["txt", TEXT], ["csv", TEXT], ["json", TEXT], ["ipynb", TEXT], ["yaml", TEXT], ["yml", TEXT],
-  ["py", TEXT], ["js", TEXT], ["ts", TEXT], ["dart", TEXT], ["java", TEXT],
-  ["c", TEXT], ["cpp", TEXT], ["h", TEXT], ["rs", TEXT], ["go", TEXT], ["sh", TEXT],
-  ["pdf", "application/pdf"], ["avif", "image/avif"], ["bmp", "image/bmp"],
-  ["gif", "image/gif"], ["jpeg", "image/jpeg"], ["jpg", "image/jpeg"], ["png", "image/png"],
-  ["webp", "image/webp"], ["ico", "image/x-icon"], ["jxl", "image/jxl"],
-  ["tif", "image/tiff"], ["tiff", "image/tiff"],
-]);
+import { GitHubReadError, type GitHubRepository } from "../github/reader";
+import { readBoundedBody } from "../net/bounded-body";
+import { FILE_CACHE_CONTROL, PINNED_TTL } from "./cache";
+import { DOWNLOAD, fileMediaType, matchesRaster, peekBody, SIGNATURE_BYTES } from "./media";
+import { byteInterval, parseRange, readContentRange, readUnsatisfiedRange } from "./range";
+import type { PreviewSource } from "./source";
 
 const MAX_CACHED_FILE_BYTES = 4 * 1024 * 1024;
-const RANGE_PATTERN = /^bytes=(?:[0-9]+-[0-9]*|-[0-9]+)$/u;
+const CSP = "default-src 'none'; sandbox; frame-ancestors 'none'";
 
 function safeFileHeaders(): Headers {
   return new Headers({
-    "Content-Security-Policy": "sandbox",
+    "Content-Security-Policy": CSP,
     "X-Content-Type-Options": "nosniff",
   });
 }
 
-function rangeNotSatisfiable(requestId: string, contentRange: string | undefined): Response {
+function rangeNotSatisfiable(requestId: string, size?: number): Response {
   const headers = safeFileHeaders();
-  if (contentRange) headers.set("Content-Range", contentRange);
+  if (size !== undefined) headers.set("Content-Range", `bytes */${size}`);
   return errorResponse(416, {
     code: "range_not_satisfiable",
     message: "The requested byte range is unavailable.",
@@ -40,61 +27,210 @@ function rangeNotSatisfiable(requestId: string, contentRange: string | undefined
   }, headers);
 }
 
-/** Streams an authorized regular file with a safe MIME type and optional byte range (V4-SEC-03). */
-export async function servePinnedFile(
-  reader: GitHubReader,
-  cache: PreviewCache | undefined,
-  repository: GitHubRepository,
-  sha: string,
-  file: PinnedFile,
-  request: Request,
-  requestId: string,
-  waitUntil: (promise: Promise<void>) => void,
-): Promise<Response> {
-  const range = request.headers.get("Range");
-  const unsatisfiedRange = file.size === undefined ? undefined : `bytes */${file.size}`;
-  if (range !== null && (range.length > 128 || !RANGE_PATTERN.test(range))) {
-    return rangeNotSatisfiable(requestId, unsatisfiedRange);
-  }
+function contentLength(response: Response): number | undefined {
+  const value = response.headers.get("Content-Length");
+  const parsed = value !== null && /^\d+$/u.test(value) ? Number(value) : NaN;
+  if (Number.isSafeInteger(parsed)) return parsed;
+}
 
-  const { id, owner, name } = repository;
-  const key = previewCacheKey(request.url, `public-course:v1:${id}:${sha}:${file.path}:1`);
-  if (range === null) {
-    const cached = await matchPreviewCache(cache, key);
-    if (cached) return new Response(cached.body, cached);
-  }
+function publicHeaders(headers: Headers): Headers {
+  const downstream = new Headers(headers);
+  downstream.set("Cache-Control", FILE_CACHE_CONTROL);
+  downstream.delete("Age");
+  return downstream;
+}
 
-  const upstream = await reader.openFile(owner, name, sha, file.path, range ?? undefined);
-  const contentRange = upstream.headers.get("Content-Range");
-  if (range !== null && upstream.status === 416) {
-    void upstream.body?.cancel().catch(() => undefined);
-    const total = contentRange && /^bytes \*\/\d+$/u.test(contentRange) ? contentRange : unsatisfiedRange;
-    return rangeNotSatisfiable(requestId, total);
-  }
-  if ((range === null && upstream.status !== 200) || (range !== null &&
-      (upstream.status !== 206 || !contentRange || !/^bytes \d+-\d+\/\d+$/u.test(contentRange)))) {
-    void upstream.body?.cancel().catch(() => undefined);
+function cancel(response: Response): void {
+  void response.body?.cancel().catch(() => undefined);
+}
+
+function badUpstream(response: Response): never {
+  cancel(response);
+  throw new GitHubReadError("upstream");
+}
+
+function fittedBody(body: ReadableStream<Uint8Array> | null, length: number): ReadableStream<Uint8Array> | null {
+  if (!body) {
+    if (length === 0) return null;
     throw new GitHubReadError("upstream");
   }
+  if (typeof FixedLengthStream !== "undefined") {
+    const fixed = new FixedLengthStream(length);
+    void body.pipeTo(fixed.writable).catch(() => undefined);
+    return fixed.readable;
+  }
+  let remaining = length;
+  return body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+    transform(chunk, controller) {
+      remaining -= chunk.byteLength;
+      if (remaining < 0) throw new GitHubReadError("upstream");
+      controller.enqueue(chunk);
+    },
+    flush() {
+      if (remaining !== 0) throw new GitHubReadError("upstream");
+    },
+  }));
+}
 
-  const filename = file.path.slice(file.path.lastIndexOf("/") + 1);
-  const extension = /\.([^.]+)$/u.exec(filename)?.[1]?.toLowerCase() ?? "";
-  const type = MEDIA_TYPES.get(extension) ?? DOWNLOAD;
+function fromCache(cached: Response): Response {
+  return new Response(cached.body, { headers: publicHeaders(cached.headers) });
+}
+
+/** Streams a pinned regular file with safe media headers and validated single ranges (SEC-020, SEC-027). */
+export async function servePinnedFile(
+  source: PreviewSource,
+  repository: GitHubRepository,
+  sha: string,
+  path: string,
+  request: Request,
+  requestId: string,
+): Promise<Response> {
+  const header = request.headers.get("Range");
+  const cacheName = `public-course:v1:${repository.id}:${sha}:${path}:2`;
+  const key = source.store.key(cacheName);
+
+  if (header === null) {
+    const hit = await source.store.match(key);
+    if (hit) return fromCache(hit);
+
+    // Share completion of a cold fill. A streaming response stays with the
+    // request that opened it, so no request consumes another request's stream.
+    let own: Response | undefined;
+    await source.store.once(cacheName, async () => {
+      const filled = await source.store.match(key);
+      own = filled ? fromCache(filled) : await loadFile(source, repository, sha, path, key, null, requestId);
+    });
+    if (own) return own;
+    const filled = await source.store.match(key);
+    if (filled) return fromCache(filled);
+  }
+  return loadFile(source, repository, sha, path, key, header, requestId);
+}
+
+async function loadFile(
+  source: PreviewSource,
+  repository: GitHubRepository,
+  sha: string,
+  path: string,
+  key: Request,
+  header: string | null,
+  requestId: string,
+): Promise<Response> {
+  const range = header === null ? undefined : parseRange(header);
+  if (header !== null) {
+    const cached = await source.store.match(key);
+    if (cached) {
+      const size = contentLength(cached);
+      const interval = size === undefined || !range ? undefined : byteInterval(range, size);
+      if (size !== undefined && !interval) {
+        cancel(cached);
+        return rangeNotSatisfiable(requestId, size);
+      }
+      if (size !== undefined && size <= MAX_CACHED_FILE_BYTES && interval) {
+        const { start, end } = interval;
+        const expectedRange = `bytes ${start}-${end}/${size}`;
+        const headers = publicHeaders(cached.headers);
+        headers.set("Content-Range", expectedRange);
+        headers.set("Content-Length", String(end - start + 1));
+
+        const sliced = await source.store.match(new Request(key, { headers: { Range: `bytes=${start}-${end}` } }));
+        if (sliced?.status === 206 && sliced.headers.get("Content-Range") === expectedRange) {
+          cancel(cached);
+          return new Response(sliced.body, { status: 206, headers });
+        }
+        if (sliced) cancel(sliced);
+        // Cache implementations without native range support can still slice
+        // complete entries whose size is already bounded.
+        const bytes = await readBoundedBody(cached.body, size).catch(() => undefined);
+        if (bytes?.length === size) {
+          return new Response(bytes.subarray(start, end + 1), { status: 206, headers });
+        }
+      } else {
+        cancel(cached);
+      }
+    }
+  }
+
+  const slash = path.lastIndexOf("/");
+  const directory = slash === -1 ? "" : path.slice(0, slash);
+  const filename = path.slice(slash + 1);
+  const findFile = (entries: Awaited<ReturnType<PreviewSource["directory"]>> | undefined) =>
+    entries?.find((entry) => entry.name === filename && entry.type === "file");
+  let file = findFile(await source.knownDirectory(repository, sha, directory));
+  if (header !== null && (!range || (file && !byteInterval(range, file.size)))) {
+    return rangeNotSatisfiable(requestId, file?.size);
+  }
+
+  const upstream = await source.openFile(repository, sha, path, header ?? undefined);
+  try {
+    // Raw misses are authoritative for missing paths. For successful raw
+    // reads use the pinned parent listing to reject links and submodules.
+    file ??= findFile(await source.directory(repository, sha, directory));
+    if (!file) {
+      await source.rememberMissingFile(repository, sha, path);
+      throw new GitHubReadError("not_found");
+    }
+  } catch (error) {
+    cancel(upstream);
+    throw error;
+  }
+  const { size } = file;
+  const rawRange = upstream.headers.get("Content-Range");
+  const rawLength = contentLength(upstream);
+  const encoding = upstream.headers.get("Content-Encoding");
+  if (encoding && encoding !== "identity") badUpstream(upstream);
+
+  let start = 0;
+  let expectedBytes = size;
   const headers = safeFileHeaders();
-  headers.set("Cache-Control", PINNED_CACHE_CONTROL);
+  if (range) {
+    const interval = byteInterval(range, size);
+    if (upstream.status === 416) {
+      if (interval || readUnsatisfiedRange(rawRange) !== size) badUpstream(upstream);
+      cancel(upstream);
+      return rangeNotSatisfiable(requestId, size);
+    }
+    const actual = readContentRange(rawRange);
+    if (upstream.status !== 206 || !interval || !actual || actual.size !== size
+        || actual.start !== interval.start || actual.end !== interval.end) badUpstream(upstream);
+    start = actual.start;
+    expectedBytes = actual.end - start + 1;
+    headers.set("Content-Range", `bytes ${start}-${actual.end}/${size}`);
+  } else if (upstream.status !== 200 || rawRange !== null) {
+    badUpstream(upstream);
+  }
+  if (rawLength !== undefined && rawLength !== expectedBytes) badUpstream(upstream);
+
+  let body: BodyInit | null;
+  let prefix: Uint8Array = new Uint8Array(0);
+  const cacheable = !range && size <= MAX_CACHED_FILE_BYTES;
+  let type = fileMediaType(filename);
+  if (cacheable) {
+    const bytes = await readBoundedBody(upstream.body, size).catch(() => undefined);
+    if (!bytes || bytes.length !== size) throw new GitHubReadError("upstream");
+    body = bytes;
+    prefix = bytes.subarray(0, SIGNATURE_BYTES);
+  } else {
+    let stream = upstream.body;
+    if (start === 0 && stream && type.startsWith("image/")) {
+      const peeked = await peekBody(stream, Math.min(SIGNATURE_BYTES, expectedBytes)).catch(() => {
+        throw new GitHubReadError("upstream");
+      });
+      prefix = peeked.prefix;
+      stream = peeked.stream;
+    }
+    body = fittedBody(stream, expectedBytes);
+  }
+  if (type.startsWith("image/") && !matchesRaster(type, prefix)) type = DOWNLOAD;
   headers.set("Content-Type", type);
+  headers.set("Content-Length", String(expectedBytes));
   headers.set("Accept-Ranges", "bytes");
   if (type === DOWNLOAD) headers.set("Content-Disposition", `attachment; filename="${filename}"`);
-  if (contentRange && upstream.status === 206) headers.set("Content-Range", contentRange);
 
-  const response = new Response(upstream.body, { status: upstream.status, headers });
-  // Cloning tees a stream. Only cache bounded, complete objects so a slow
-  // client cannot cause an unbounded queue on its branch.
-  const length = upstream.headers.get("Content-Length");
-  if (cache && range === null && length !== null && file.size !== undefined
-      && Number(length) === file.size && file.size <= MAX_CACHED_FILE_BYTES
-      && !upstream.headers.has("Content-Encoding")) {
-    waitUntil(putPreviewCache(cache, key, response.clone()));
+  if (cacheable) {
+    const internal = new Headers(headers);
+    internal.set("Cache-Control", `public, max-age=${PINNED_TTL}, immutable`);
+    await source.store.put(key, new Response(body, { headers: internal }));
   }
-  return response;
+  return new Response(body, { status: upstream.status, headers: publicHeaders(headers) });
 }

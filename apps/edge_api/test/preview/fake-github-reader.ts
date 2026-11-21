@@ -1,61 +1,140 @@
 import {
-  GitHubReadError, type GitHubReader, type GitHubRepository, type GitHubTree,
+  GitHubReadError, type GitHubDirectoryEntry, type GitHubReader, type GitHubRepository,
 } from "../../src/github/reader";
+import { isSafeRepoPath } from "../../src/contract/repo-path";
+import { byteInterval, parseRange } from "../../src/preview/range";
 
 interface FakeFile {
-  text: string;
-  mode: "100644" | "100755" | "120000";
+  bytes: Uint8Array;
+  mode: "100644" | "100755" | "120000" | "160000";
 }
 
-/** In-memory GitHub port for preview route tests. */
+interface FakeRepository {
+  metadata: GitHubRepository;
+  head: string;
+  history: Set<string>;
+  network: number;
+}
+
+const DEFAULT_REPO = { id: 42, owner: "Course-Author", name: "Example", defaultBranch: "main", private: false };
+
+/** Models both default-branch history and GitHub's fork-network object visibility. */
 export class FakeGitHubReader implements GitHubReader {
-  repository: GitHubRepository | undefined = {
-    id: 42, owner: "Course-Author", name: "Example", defaultBranch: "main", private: false,
-  };
-  sha = "a".repeat(40);
-  truncated = false;
-  private readonly commits = new Map<string, Map<string, FakeFile>>();
+  private readonly repositories = new Map<number, FakeRepository>();
+  private readonly objects = new Map<number, Map<string, Map<string, FakeFile>>>();
 
-  setFile(path: string, text: string, mode: FakeFile["mode"] = "100644"): void {
-    const files = this.commits.get(this.sha) ?? new Map();
-    files.set(path, { text, mode });
-    this.commits.set(this.sha, files);
+  constructor() {
+    this.addRepository(DEFAULT_REPO, "a".repeat(40));
   }
 
-  removeFile(path: string): void {
-    this.commits.get(this.sha)?.delete(path);
+  addRepository(metadata: GitHubRepository, head: string, network = metadata.id): void {
+    this.repositories.set(metadata.id, { metadata: { ...metadata }, head, history: new Set([head]), network });
   }
 
-  async resolveRepository(_owner: string, _name: string): Promise<GitHubRepository> {
-    if (!this.repository) throw new GitHubReadError("not_found");
-    return this.repository;
+  rename(id: number, owner: string, name: string): void {
+    const repo = this.findById(id);
+    repo.metadata = { ...repo.metadata, owner, name };
+  }
+
+  setVisibility(id: number, isPrivate: boolean): void {
+    const repo = this.findById(id);
+    repo.metadata = { ...repo.metadata, private: isPrivate };
+  }
+
+  forcePush(id: number, head: string): void {
+    const repo = this.findById(id);
+    repo.head = head;
+    repo.history = new Set([head]);
+  }
+
+  advance(id: number, sha: string): void {
+    const repo = this.findById(id);
+    repo.head = sha;
+    repo.history.add(sha);
+  }
+
+  setFile(path: string, text: string | number[], mode: FakeFile["mode"] = "100644", id = 42): void {
+    const { head, network } = this.findById(id);
+    const commits = this.objects.get(network) ?? new Map<string, Map<string, FakeFile>>();
+    const files = commits.get(head) ?? new Map<string, FakeFile>();
+    const bytes = typeof text === "string" ? new TextEncoder().encode(text) : new Uint8Array(text);
+    files.set(path, { bytes, mode });
+    commits.set(head, files);
+    this.objects.set(network, commits);
+  }
+
+  removeFile(path: string, id = 42): void {
+    const { head, network } = this.findById(id);
+    this.objects.get(network)?.get(head)?.delete(path);
+  }
+
+  private findById(id: number): FakeRepository {
+    const repository = this.repositories.get(id);
+    if (!repository) throw new GitHubReadError("not_found");
+    return repository;
+  }
+
+  private findByName(owner: string, name: string): FakeRepository {
+    for (const repository of this.repositories.values()) {
+      if (repository.metadata.owner.toLowerCase() === owner.toLowerCase()
+        && repository.metadata.name.toLowerCase() === name.toLowerCase()) return repository;
+    }
+    throw new GitHubReadError("not_found");
+  }
+
+  private files(owner: string, name: string, sha: string): Map<string, FakeFile> {
+    const repository = this.findByName(owner, name);
+    const files = this.objects.get(repository.network)?.get(sha);
+    if (repository.metadata.private || !files) throw new GitHubReadError("not_found");
+    return files;
+  }
+
+  async resolveRepository(owner: string, name: string): Promise<GitHubRepository> {
+    return { ...this.findByName(owner, name).metadata };
   }
 
   async resolveRepositoryById(id: number): Promise<GitHubRepository> {
-    if (this.repository?.id !== id) throw new GitHubReadError("not_found");
-    return this.repository;
+    return { ...this.findById(id).metadata };
   }
 
-  async headCommit(_owner: string, _name: string): Promise<string> {
-    return this.sha;
+  async headCommit({ owner, name }: GitHubRepository): Promise<string> {
+    return this.findByName(owner, name).head;
   }
 
-  async tree(_owner: string, _name: string, sha: string): Promise<GitHubTree> {
-    const files = this.commits.get(sha);
-    if (!files) throw new GitHubReadError("not_found");
-    return {
-      entries: Array.from(files, ([path, file]) => ({
-        path, type: "blob", mode: file.mode, size: new TextEncoder().encode(file.text).length,
-      })),
-      truncated: this.truncated,
-    };
+  async isReachable({ owner, name }: GitHubRepository, sha: string, _defaultHead: string): Promise<boolean> {
+    return this.findByName(owner, name).history.has(sha);
   }
 
-  async openFile(_owner: string, _name: string, sha: string, path: string, _range?: string): Promise<Response> {
-    const file = this.commits.get(sha)?.get(path);
+  async listDirectory({ owner, name }: GitHubRepository, sha: string, path: string): Promise<GitHubDirectoryEntry[]> {
+    const entries = new Map<string, GitHubDirectoryEntry>();
+    const prefix = path ? `${path}/` : "";
+    for (const [file, { bytes, mode }] of this.files(owner, name, sha)) {
+      if (!file.startsWith(prefix) || !isSafeRepoPath(file)) continue;
+      const suffix = file.slice(prefix.length);
+      const slash = suffix.indexOf("/");
+      if (slash !== -1) {
+        const dirname = suffix.slice(0, slash);
+        entries.set(dirname, { name: dirname, type: "directory", size: 0 });
+      } else if (mode === "100644" || mode === "100755") {
+        entries.set(suffix, { name: suffix, type: "file", size: bytes.length });
+      }
+    }
+    if (path && entries.size === 0) throw new GitHubReadError("not_found");
+    return [...entries.values()];
+  }
+
+  async openFile(owner: string, name: string, sha: string, path: string, range?: string): Promise<Response> {
+    const file = this.files(owner, name, sha).get(path);
     if (!file) throw new GitHubReadError("not_found");
-    return new Response(file.text, {
-      headers: { "Content-Length": String(new TextEncoder().encode(file.text).length) },
-    });
+    const size = file.bytes.length;
+    if (range === undefined) return new Response(file.bytes, { headers: { "Content-Length": String(size) } });
+    const requested = parseRange(range);
+    const interval = requested && byteInterval(requested, size);
+    if (!interval) return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${size}` } });
+    const bytes = file.bytes.subarray(interval.start, interval.end + 1);
+    return new Response(bytes, { status: 206, headers: {
+      "Content-Range": `bytes ${interval.start}-${interval.end}/${size}`,
+      "Content-Length": String(bytes.length),
+    } });
   }
 }

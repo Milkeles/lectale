@@ -1,13 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { GitHubReadError } from "../../src/github/reader";
+import type { PreviewCache } from "../../src/preview/cache";
 import { createApp } from "../../src/index";
 import { FakeGitHubReader } from "./fake-github-reader";
 
 const root = "https://lectale.test";
 const repoUrl = "https://github.com/Course-Author/Example";
 const sha = "a".repeat(40);
-const content = `/api/preview/42/${sha}/content`;
-const readme = `/api/preview/42/${sha}/readme`;
+const preview = `/api/preview/42/${sha}`;
+const content = `${preview}/content`;
+const readme = `${preview}/readme`;
+const files = `${preview}/files`;
+const folders = `${preview}/folders`;
+const csp = "default-src 'none'; sandbox; frame-ancestors 'none'";
+const replacement = { id: 77, owner: "Course-Author", name: "Example", defaultBranch: "main", private: false };
 const manifest = JSON.stringify({
   schemaVersion: 3,
   course: { id: "example", title: "Example", summary: "A course", language: "en", version: "1.0.0" },
@@ -19,6 +25,8 @@ const manifest = JSON.stringify({
         { id: "data", title: "Data", type: "file", path: "data.unknown" },
         { id: "markup", title: "Markup", type: "file", path: "example.html" },
         { id: "outline", title: "File named outline", type: "file", path: "outline" },
+        { id: "folder", title: "Folder", type: "folder", path: "materials", maxEntries: 2 },
+        { id: "submodule", title: "Submodule", type: "file", path: "submodule.txt" },
         { id: "link", title: "Link", type: "external", url: "https://example.org/" },
         { id: "symlink", title: "Linked file", type: "file", path: "symlink.txt" },
       ],
@@ -42,8 +50,11 @@ const manifest = JSON.stringify({
 
 let reader: FakeGitHubReader;
 let app: ReturnType<typeof createApp>;
-let stored: Map<string, Response>;
-let tasks: Promise<unknown>[];
+let stored: Map<string, { response: Response; expires: number }>;
+let cache: PreviewCache;
+let now: number;
+
+afterEach(() => vi.restoreAllMocks());
 
 beforeEach(() => {
   reader = new FakeGitHubReader();
@@ -56,22 +67,30 @@ beforeEach(() => {
   reader.setFile("example.html", "<h1>Markup</h1>");
   reader.setFile("outline", "separate file");
   reader.setFile("symlink.txt", "README.md", "120000");
+  reader.setFile("submodule.txt", "gitlink", "160000");
   stored = new Map();
-  tasks = [];
-  app = createApp(reader, {
+  now = Date.now();
+  vi.spyOn(Date, "now").mockImplementation(() => now);
+  cache = {
     async match(key: Request | string) {
-      return stored.get(typeof key === "string" ? key : key.url)?.clone();
+      const hit = stored.get(typeof key === "string" ? key : key.url);
+      if (hit && now < hit.expires) return hit.response.clone();
     },
     async put(key: Request | string, response: Response) {
-      stored.set(typeof key === "string" ? key : key.url, response);
+      const ttl = Number(/max-age=(\d+)/u.exec(response.headers.get("Cache-Control") ?? "")?.[1]);
+      stored.set(typeof key === "string" ? key : key.url, { response, expires: now + ttl * 1_000 });
     },
-  });
+    async delete(key: Request | string) {
+      return stored.delete(typeof key === "string" ? key : key.url);
+    },
+  };
+  app = createApp(reader, cache);
 });
 
-function importCourse(url = repoUrl) {
+function importCourse(url = repoUrl, ip = "192.0.2.1") {
   return app.request(`${root}/api/courses/import`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "X-Request-Id": "preview-test" },
+    headers: { "Content-Type": "application/json", "X-Request-Id": "preview-test", "CF-Connecting-IP": ip },
     body: JSON.stringify({ url }),
   });
 }
@@ -79,11 +98,7 @@ function importCourse(url = repoUrl) {
 function getFile(path: string, headers?: HeadersInit) {
   const requestHeaders = new Headers(headers);
   requestHeaders.set("X-Request-Id", "preview-test");
-  return app.request(`${root}${path}`, { headers: requestHeaders }, undefined, {
-    waitUntil: (promise) => { tasks.push(promise); },
-    passThroughOnException: () => undefined,
-    props: {},
-  });
+  return app.request(`${root}${path}`, { headers: requestHeaders });
 }
 
 async function expectError(response: Response, status: number, code: string) {
@@ -98,12 +113,13 @@ describe("POST /api/courses/import", () => {
   it("normalizes the URL, pins the canonical repository, and reuses a warm preview", async () => {
     const resolve = vi.spyOn(reader, "resolveRepository");
     const head = vi.spyOn(reader, "headCommit");
-    const tree = vi.spyOn(reader, "tree");
+    const list = vi.spyOn(reader, "listDirectory");
     const open = vi.spyOn(reader, "openFile");
 
     const response = await importCourse(`${repoUrl}.git/`);
     expect(response.status).toBe(200);
     expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
     const first = await response.json();
     expect(first).toMatchObject({
       repoId: 42, sha, readmePresent: true,
@@ -113,30 +129,34 @@ describe("POST /api/courses/import", () => {
         ]) }),
       ]) },
     });
-    expect(resolve).toHaveBeenCalledExactlyOnceWith("course-author", "example");
-    expect(head).toHaveBeenCalledExactlyOnceWith("Course-Author", "Example");
-    expect(tree).toHaveBeenCalledExactlyOnceWith("Course-Author", "Example", sha);
-    expect(open).toHaveBeenCalledExactlyOnceWith("Course-Author", "Example", sha, "course.yaml");
+    expect(resolve.mock.calls).toEqual([
+      ["course-author", "example"], ["Course-Author", "Example"], ["Course-Author", "Example"], ["Course-Author", "Example"],
+    ]);
+    const githubRepo = expect.objectContaining({ owner: "Course-Author", name: "Example", id: 42 });
+    expect(head).toHaveBeenCalledExactlyOnceWith(githubRepo);
+    expect(list).toHaveBeenCalledExactlyOnceWith(githubRepo, sha, "");
+    expect(open).toHaveBeenCalledExactlyOnceWith("Course-Author", "Example", sha, "course.yaml", undefined);
 
     expect(await (await importCourse(repoUrl.toLowerCase())).json()).toEqual(first);
-    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(resolve).toHaveBeenCalledTimes(4);
     expect(head).toHaveBeenCalledTimes(1);
-    expect(tree).toHaveBeenCalledTimes(1);
+    expect(list).toHaveBeenCalledTimes(1);
     expect(open).toHaveBeenCalledTimes(1);
-    expect(stored.get(`${root}/_lectale-cache/repo-preview:v1:course-author:example`)?.headers.get("Cache-Control"))
+    expect(stored.get(`${root}/_lectale-cache/repo-preview:v2:course-author:example`)?.response.headers.get("Cache-Control"))
       .toBe("public, max-age=60");
-    expect(stored.has(`${root}/_lectale-cache/public-course-outline:v1:42:${sha}`)).toBe(true);
+    expect(stored.has(`${root}/_lectale-cache/public-course-outline:v2:42:${sha}`)).toBe(true);
   });
 
   it("returns the same response for private and missing repositories", async () => {
     const head = vi.spyOn(reader, "headCommit");
-    const original = reader.repository!;
-    reader.repository = { ...original, private: true };
-    const denied = await expectError(await importCourse(), 404, "course_not_found");
-    reader.repository = undefined;
-    expect(await expectError(await importCourse(), 404, "course_not_found")).toEqual(denied);
+    reader.setVisibility(42, true);
+    const privateResponse = await importCourse();
+    const missingResponse = await importCourse("https://github.com/course-author/missing");
+    expect(Object.fromEntries(privateResponse.headers)).toEqual(Object.fromEntries(missingResponse.headers));
+    expect(await expectError(privateResponse, 404, "course_not_found"))
+      .toEqual(await expectError(missingResponse, 404, "course_not_found"));
     expect(head).not.toHaveBeenCalled();
-    expect(stored.size).toBe(0);
+    expect(stored.size).toBe(2);
   });
 
   it.each([
@@ -160,12 +180,15 @@ describe("POST /api/courses/import", () => {
     reader.setFile("course.yaml", "schemaVersion: [");
     const error = await expectError(await importCourse(), 422, "invalid_manifest");
     expect(error).toMatchObject({ details: { errors: [{ code: "YAML_INVALID", path: "", message: expect.any(String) }] } });
-    expect(stored.size).toBe(0);
+    const open = vi.spyOn(reader, "openFile");
+    await expectError(await importCourse(), 422, "invalid_manifest");
+    expect(open).not.toHaveBeenCalled();
   });
 
   it("reports a missing manifest and an absent README through their contract fields", async () => {
     reader.removeFile("course.yaml");
     await expectError(await importCourse(), 422, "manifest_missing");
+    now += 301_000;
     reader.setFile("course.yaml", manifest);
     reader.removeFile("README.md");
     const response = await importCourse();
@@ -174,7 +197,7 @@ describe("POST /api/courses/import", () => {
     await expectError(await getFile(readme), 404, "course_not_found");
   });
 
-  it("rejects an oversized file from its Git tree entry without opening it", async () => {
+  it("rejects an oversized file from its root directory entry without opening it", async () => {
     reader.setFile("course.yaml", "x".repeat(1024 * 1024 + 1));
     const open = vi.spyOn(reader, "openFile");
     await expectError(await importCourse(), 413, "manifest_too_large");
@@ -204,10 +227,87 @@ describe("POST /api/courses/import", () => {
     });
   });
 
-  it("does not infer file absence from a truncated Git tree", async () => {
-    reader.truncated = true;
-    await expectError(await importCourse(), 502, "repository_tree_truncated");
-    expect(stored.size).toBe(0);
+  it("coalesces simultaneous cold imports and warm preview requests", async () => {
+    const resolve = vi.spyOn(reader, "resolveRepository");
+    const resolveId = vi.spyOn(reader, "resolveRepositoryById");
+    const head = vi.spyOn(reader, "headCommit");
+    const open = vi.spyOn(reader, "openFile");
+    const imports = await Promise.all(Array.from({ length: 20 }, () => importCourse()));
+    expect(imports.every(({ status }) => status === 200)).toBe(true);
+    expect(head).toHaveBeenCalledOnce();
+    expect(resolve).toHaveBeenCalledTimes(4);
+    expect(open).toHaveBeenCalledOnce();
+    const reads = await Promise.all(Array.from({ length: 20 }, () => getFile(readme)));
+    expect(reads.every(({ status }) => status === 200)).toBe(true);
+    expect(await (await getFile(readme)).text()).toBe("# Example");
+    expect(resolveId).toHaveBeenCalledOnce();
+    expect(open).toHaveBeenCalledTimes(2);
+  });
+
+  it("limits import by client IP before contacting GitHub", async () => {
+    const limit = vi.fn(async ({ key }: { key: string }) => ({ success: key !== "192.0.2.1" }));
+    app = createApp(reader, cache, { limit });
+    const resolve = vi.spyOn(reader, "resolveRepository");
+    await expectError(await importCourse(), 429, "rate_limited");
+    expect(resolve).not.toHaveBeenCalled();
+    expect((await importCourse(repoUrl, "192.0.2.2")).status).toBe(200);
+    expect(limit.mock.calls).toEqual([[{ key: "192.0.2.1" }], [{ key: "192.0.2.2" }]]);
+  });
+
+  it("opens a shared cooldown after throttling, even across app instances", async () => {
+    const resolve = vi.spyOn(reader, "resolveRepository").mockRejectedValueOnce(new GitHubReadError("rate_limited", 37));
+    await expectError(await importCourse(), 429, "rate_limited");
+    now += 12_000;
+    app = createApp(reader, cache);
+    const response = await getFile(preview);
+    expect(response.headers.get("Retry-After")).toBe("25");
+    expect(await expectError(response, 429, "rate_limited")).toMatchObject({ retryAfterSeconds: 25 });
+    expect(resolve).toHaveBeenCalledOnce();
+    now += 25_000;
+    expect((await importCourse()).status).toBe(200);
+  });
+
+  it("rechecks warm name visibility when the class D entry expires", async () => {
+    expect((await importCourse()).status).toBe(200);
+    reader.setVisibility(42, true);
+    now += 59_000;
+    expect((await importCourse()).status).toBe(200);
+    now += 1_000;
+    await expectError(await importCourse(), 404, "course_not_found");
+  });
+
+  it("rechecks warm name-to-ID mapping before reusing an outline", async () => {
+    expect((await importCourse()).status).toBe(200);
+    reader.rename(42, "Course-Author", "Renamed");
+    const next = "b".repeat(40);
+    reader.addRepository(replacement, next);
+    reader.setFile("course.yaml", manifest.replace('"title":"Example"', '"title":"Replacement"'), "100644", 77);
+    now += 60_000;
+    expect(await (await importCourse()).json()).toMatchObject({
+      repoId: 77, sha: next, outline: { course: { title: "Replacement" } },
+    });
+  });
+
+  it("retries a head read when the post-read ID check is unavailable", async () => {
+    const resolve = reader.resolveRepository.bind(reader);
+    vi.spyOn(reader, "resolveRepository")
+      .mockImplementationOnce(resolve)
+      .mockRejectedValueOnce(new GitHubReadError("upstream"));
+    await expectError(await importCourse(), 503, "repository_changed");
+    expect([...stored.keys()].some((key) => key.includes("repo-head:"))).toBe(false);
+    expect((await importCourse()).status).toBe(200);
+  });
+
+  it("refuses to cache a head observed during a namespace swap", async () => {
+    const next = "b".repeat(40);
+    const head = reader.headCommit.bind(reader);
+    vi.spyOn(reader, "headCommit").mockImplementationOnce((repository) => {
+      reader.rename(42, "Course-Author", "Renamed");
+      reader.addRepository(replacement, next);
+      return head(repository);
+    });
+    expect(await expectError(await importCourse(), 503, "repository_changed")).toMatchObject({ retryable: true });
+    expect([...stored.keys()].some((key) => /repo-head:|import-pin:|public-course-outline:/u.test(key))).toBe(false);
   });
 });
 
@@ -221,50 +321,51 @@ describe("pinned preview files", () => {
     const response = await getFile(path);
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe(mime);
-    expect(response.headers.get("Cache-Control")).toBe("public, max-age=300, immutable");
-    expect(response.headers.get("Content-Security-Policy")).toBe("sandbox");
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=60, immutable, must-revalidate");
+    expect(response.headers.get("Content-Security-Policy")).toBe(csp);
     expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(await response.text()).toBe(body);
-    await Promise.all(tasks);
   });
 
-  it("checks visibility by ID before accessing cached files, even after a public read", async () => {
+  it("checks visibility by ID before accessing cached files and bounds downstream freshness", async () => {
     const resolve = vi.spyOn(reader, "resolveRepositoryById");
-    const tree = vi.spyOn(reader, "tree");
     const open = vi.spyOn(reader, "openFile");
     expect(await (await getFile(readme)).text()).toBe("# Example");
-    await Promise.all(tasks);
-    expect(await (await getFile(readme)).text()).toBe("# Example");
-    expect(tree).toHaveBeenCalledTimes(1);
-    expect(open).toHaveBeenCalledTimes(2);
+    reader.setVisibility(42, true);
 
-    reader.repository = { ...reader.repository!, private: true };
-    const denied = await expectError(await getFile(readme), 404, "course_not_found");
-    reader.repository = undefined;
-    expect(await expectError(await getFile(readme), 404, "course_not_found")).toEqual(denied);
-    expect(resolve.mock.calls).toEqual([[42], [42], [42], [42]]);
+    now += 59_999;
+    const lastPublic = await getFile(readme);
+    expect(await lastPublic.text()).toBe("# Example");
+    const maxAge = Number(/max-age=(\d+)/u.exec(lastPublic.headers.get("Cache-Control") ?? "")?.[1]);
+    expect(now + maxAge * 1_000).toBeLessThan(stored.get(`${root}/_lectale-cache/public-repo:v2:42`)!.expires + 60_000);
+
+    now += 1;
+    const denied = await getFile(readme);
+    const missing = await getFile(readme.replace("/42/", "/99/"));
+    expect(Object.fromEntries(denied.headers)).toEqual(Object.fromEntries(missing.headers));
+    expect(await expectError(denied, 404, "course_not_found"))
+      .toEqual(await expectError(missing, 404, "course_not_found"));
+    expect(resolve.mock.calls).toEqual([[42], [42], [99]]);
     expect(open).toHaveBeenCalledTimes(2);
   });
 
   it("isolates file lookups and cache entries by commit SHA", async () => {
     expect(await (await getFile(readme)).text()).toBe("# Example");
-    await Promise.all(tasks);
-    reader.sha = "b".repeat(40);
+    const updated = "b".repeat(40);
+    reader.advance(42, updated);
     reader.setFile("course.yaml", manifest);
     reader.setFile("README.md", "# Updated");
-    expect(await (await getFile(readme.replace(sha, reader.sha))).text()).toBe("# Updated");
-    await Promise.all(tasks);
+    expect(await (await getFile(readme.replace(sha, updated))).text()).toBe("# Updated");
     expect(await (await getFile(readme)).text()).toBe("# Example");
   });
 
   it("keeps an extensionless file named outline distinct from the cached preview", async () => {
     await importCourse();
     expect(await (await getFile(`${content}/first-lesson/outline`)).text()).toBe("separate file");
-    await Promise.all(tasks);
     expect(await (await importCourse()).json()).toMatchObject({ repoId: 42, sha });
   });
 
-  it.each(["first-lesson/missing", "first-lesson/link", "first-lesson/symlink", "first-lesson/part%2Fname"])(
+  it.each(["first-lesson/missing", "first-lesson/link", "first-lesson/part%2Fname"])(
     "denies unavailable resource address %s without reading its bytes",
     async (address) => {
       await importCourse();
@@ -284,11 +385,10 @@ describe("pinned preview files", () => {
     expect(response.status).toBe(206);
     expect(response.headers.get("Content-Range")).toBe("bytes 0-4/12");
     expect(response.headers.get("Accept-Ranges")).toBe("bytes");
-    expect(response.headers.get("Content-Security-Policy")).toBe("sandbox");
+    expect(response.headers.get("Content-Security-Policy")).toBe(csp);
     expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(response.headers.get("Set-Cookie")).toBeNull();
     expect(await response.text()).toBe("first");
-    expect(stored.size).toBe(2);
   });
 
   it("preserves the upstream 416 and total size in the error response", async () => {
@@ -299,7 +399,7 @@ describe("pinned preview files", () => {
     const response = await getFile(`${content}/first-lesson/slides`, { Range: "bytes=999-" });
     expect(open).toHaveBeenCalledExactlyOnceWith("Course-Author", "Example", sha, "materials/slides.pdf", "bytes=999-");
     expect(response.headers.get("Content-Range")).toBe("bytes */12");
-    expect(response.headers.get("Content-Security-Policy")).toBe("sandbox");
+    expect(response.headers.get("Content-Security-Policy")).toBe(csp);
     await expectError(response, 416, "range_not_satisfiable");
   });
 
@@ -310,9 +410,248 @@ describe("pinned preview files", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("Content-Type")).toBe("application/octet-stream");
       expect(response.headers.get("Content-Disposition")).toBe(`attachment; filename="${name}"`);
-      expect(response.headers.get("Content-Security-Policy")).toBe("sandbox");
+      expect(response.headers.get("Content-Security-Policy")).toBe(csp);
       await response.arrayBuffer();
-      await Promise.all(tasks);
+      },
+  );
+});
+
+describe("bound preview links", () => {
+  it("reloads the same CoursePreview as import after the imported SHA leaves the branch", async () => {
+    const imported = await (await importCourse()).json();
+    reader.forcePush(42, "b".repeat(40));
+    const compare = vi.spyOn(reader, "isReachable");
+    expect(await (await getFile(preview)).json()).toEqual(imported);
+    expect(compare).not.toHaveBeenCalled();
+  });
+
+  it("allows a default-branch ancestor that has not been imported", async () => {
+    reader.advance(42, "b".repeat(40));
+    const compare = vi.spyOn(reader, "isReachable");
+    expect((await getFile(preview)).status).toBe(200);
+    expect((await getFile(readme)).status).toBe(200);
+    expect(compare).toHaveBeenCalledOnce();
+  });
+
+  it("rejects fork-only commits even though raw serves the fork's bytes under both names", async () => {
+    const forkSha = "b".repeat(40);
+    reader.addRepository({ ...replacement, owner: "Fork-Author" }, forkSha, 42);
+    reader.setFile("README.md", "fork-only", "100644", 77);
+    const raw = await reader.openFile("Course-Author", "Example", forkSha, "README.md");
+    expect(await raw.text()).toBe("fork-only");
+    const compare = vi.spyOn(reader, "isReachable");
+    const open = vi.spyOn(reader, "openFile");
+    for (const path of [preview, readme, `${files}/README.md`, `${content}/first-lesson/slides`, `${folders}/first-lesson/folder`]) {
+      await expectError(await getFile(path.replace(sha, forkSha)), 404, "course_not_found");
+    }
+    expect(compare).toHaveBeenCalledOnce();
+    expect(open).not.toHaveBeenCalled();
+    expect([...stored.keys()].some((key) => /import-pin:|public-course/u.test(key))).toBe(false);
+  });
+
+  it("rejects an unpinned SHA orphaned by a force push", async () => {
+    reader.forcePush(42, "b".repeat(40));
+    await expectError(await getFile(preview), 404, "course_not_found");
+  });
+
+  it("rechecks a positive comparison after its class B entry expires", async () => {
+    expect((await getFile(preview)).status).toBe(200);
+    reader.forcePush(42, "b".repeat(40));
+    now += 299_999;
+    expect((await getFile(preview)).status).toBe(200);
+    now += 1;
+    await expectError(await getFile(preview), 404, "course_not_found");
+  });
+
+  it("takes a fresh default tip for an unpinned SHA despite a warm import head", async () => {
+    reader.advance(42, "b".repeat(40));
+    reader.setFile("course.yaml", manifest);
+    expect((await importCourse()).status).toBe(200);
+    const head = vi.spyOn(reader, "headCommit");
+    reader.forcePush(42, "c".repeat(40));
+    await expectError(await getFile(preview), 404, "course_not_found");
+    expect(head).toHaveBeenCalledOnce();
+  });
+
+  it("discards a raw file fetched during a namespace swap and accepts a retry at the new name", async () => {
+    expect((await importCourse()).status).toBe(200);
+    const open = reader.openFile.bind(reader);
+    vi.spyOn(reader, "openFile").mockImplementationOnce((...args) => {
+      reader.rename(42, "Course-Author", "Renamed");
+      reader.addRepository(replacement, sha);
+      reader.setFile("README.md", "bad bytes", "100644", 77);
+      return open(...args);
+    });
+    expect(await expectError(await getFile(readme), 503, "repository_changed")).toMatchObject({ retryable: true });
+    expect([...stored.keys()].some((key) => /public-course:v1:|raw-failure:/u.test(key))).toBe(false);
+    expect(await (await getFile(readme)).text()).toBe("# Example");
+  });
+});
+
+describe("pinned repository paths and folder resources", () => {
+  it("decodes an allowed path once and serves files outside the manifest", async () => {
+    reader.setFile("assets/cover.png", [137, 80, 78, 71, 13, 10, 26, 10, 1]);
+    const response = await getFile(`${files}/assets/%63over.png`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe("image/png");
+    expect(response.headers.get("Content-Security-Policy")).toBe(csp);
+    expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10, 1]));
+  });
+
+  it.each(["a%2fb", "a%5Cb", "a/%252e%252e/b", "a/%2E%2E%2Fb", ".git/config", "a//b", "%00", "%", "a".repeat(501)])(
+    "rejects unsafe paths %s before contacting GitHub",
+    async (path) => {
+      const resolve = vi.spyOn(reader, "resolveRepositoryById");
+      await expectError(await getFile(`${files}/${path}`), 404, "course_not_found");
+      expect(resolve).not.toHaveBeenCalled();
     },
   );
+
+  it("returns and briefly caches raw misses without listing the parent directory", async () => {
+    const open = vi.spyOn(reader, "openFile");
+    const list = vi.spyOn(reader, "listDirectory");
+    const path = `${files}/missing/nope.txt`;
+    await expectError(await getFile(path), 404, "course_not_found");
+    await expectError(await getFile(path), 404, "course_not_found");
+    expect(open).toHaveBeenCalledOnce();
+    expect(list).not.toHaveBeenCalled();
+    now += 30_000;
+    await expectError(await getFile(path), 404, "course_not_found");
+    expect(open).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(["symlink", "submodule"])("never returns bytes for a %s", async (id) => {
+    await expectError(await getFile(`${content}/first-lesson/${id}`), 404, "course_not_found");
+    await expectError(await getFile(`${files}/${id}.txt`), 404, "course_not_found");
+    expect([...stored.keys()].some((key) => key.includes("public-course:v1:"))).toBe(false);
+  });
+
+  it("advertises the folder route and lists only direct safe entries within maxEntries", async () => {
+    reader.setFile("materials/subdir/child.txt", "nested");
+    reader.setFile("materials/third.txt", "filtered by maxEntries");
+    reader.setFile("materials/link.txt", "third.txt", "120000");
+    const imported = await (await importCourse()).json();
+    const folder = `${folders}/first-lesson/folder`;
+    expect(imported).toMatchObject({ outline: { nodes: expect.arrayContaining([
+      expect.objectContaining({ id: "first-lesson", resources: expect.arrayContaining([
+        expect.objectContaining({ id: "folder", href: folder }),
+      ]) }),
+    ]) } });
+    const list = vi.spyOn(reader, "listDirectory");
+    expect(await (await getFile(folder)).json()).toEqual({ entries: [
+      { name: "slides.pdf", type: "file", size: 12, href: `${files}/materials/slides.pdf` },
+      { name: "subdir", type: "directory", size: 0, href: `${files}/materials/subdir` },
+    ] });
+    await expectError(await getFile(`${folders}/first-lesson/slides`), 404, "course_not_found");
+    await expectError(await getFile(`${content}/first-lesson/folder`), 404, "course_not_found");
+    expect(list).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 42 }), sha, "materials");
+  });
+
+  it.each([
+    ["markup.svg", "application/octet-stream"],
+    ["markup.htm", "application/octet-stream"],
+    ["markup.xhtml", "application/octet-stream"],
+    ["disguised.png", "application/octet-stream"],
+    ["example.js", "text/plain; charset=utf-8"],
+    ["example.ipynb", "text/plain; charset=utf-8"],
+  ])("assigns safe MIME to hostile bytes in %s", async (name, mime) => {
+    reader.setFile(name, "<svg><script>throw 1</script></svg>");
+    const response = await getFile(`${files}/${name}`);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Content-Type")).toBe(mime);
+    expect(response.headers.get("Content-Security-Policy")).toBe(csp);
+    expect(response.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    if (mime === "application/octet-stream") expect(response.headers.get("Content-Disposition")).toContain("attachment");
+    expect(await response.text()).toContain("<svg>");
+  });
+});
+
+describe("single ranges", () => {
+  const path = `${content}/first-lesson/slides`;
+
+  it.each(["bytes=0-1,5-8", "bytes=6-5", "bytes=-0", "bytes=-", "none=5-6", "bytes=9007199254740992-", `bytes=${"0".repeat(128)}-`])(
+    "rejects invalid ranges %s before opening the file",
+    async (range) => {
+      await importCourse();
+      const open = vi.spyOn(reader, "openFile");
+      await expectError(await getFile(path, { Range: range }), 416, "range_not_satisfiable");
+      expect(open).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ["bytes=0-3", "bytes 1-4/12", 206],
+    ["bytes=0-3", "bytes 0-3/13", 206],
+    ["bytes=0-3", "bytes 0-4/12", 206],
+    ["bytes=0-3", "bytes */12", 416],
+    ["bytes=0-3", "bytes 0-3/*", 206],
+    ["bytes=0-3", "bytes 0-3/12", 200],
+  ])("rejects upstream status or interval mismatch for %s and %s (%s)", async (range, actual, status) => {
+    await importCourse();
+    vi.spyOn(reader, "openFile").mockResolvedValueOnce(new Response("data", {
+      status, headers: { "Content-Range": actual },
+    }));
+    await expectError(await getFile(path, { Range: range }), 502, "github_unavailable");
+    expect([...stored.keys()].some((key) => key.includes("public-course:v1:"))).toBe(false);
+  });
+
+  it("rejects a known out-of-bounds interval before opening the file", async () => {
+    expect((await getFile(`${folders}/first-lesson/folder`)).status).toBe(200);
+    const open = vi.spyOn(reader, "openFile");
+    const response = await getFile(path, { Range: "bytes=12-" });
+    expect(response.headers.get("Content-Range")).toBe("bytes */12");
+    await expectError(response, 416, "range_not_satisfiable");
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("stops a streamed upstream body that exceeds its advertised interval", async () => {
+    await importCourse();
+    vi.spyOn(reader, "openFile").mockResolvedValueOnce(new Response("too many bytes", {
+      status: 206, headers: { "Content-Range": "bytes 0-3/12" },
+    }));
+    const response = await getFile(path, { Range: "bytes=0-3" });
+    expect(response.status).toBe(206);
+    await expect(response.arrayBuffer()).rejects.toThrow();
+  });
+
+  it("requests a normalized interval from a cache with native range support", async () => {
+    expect(await (await getFile(path)).text()).toBe("first slides");
+    const originalMatch = cache.match.bind(cache);
+    const open = vi.spyOn(reader, "openFile");
+    const match = vi.spyOn(cache, "match").mockImplementation((request, options) => {
+      if (request instanceof Request && request.headers.get("Range") === "bytes=6-11") {
+        return Promise.resolve(new Response("slides", {
+          status: 206, headers: { "Content-Range": "bytes 6-11/12" },
+        }));
+      }
+      return originalMatch(request, options);
+    });
+    const response = await getFile(path, { Range: "bytes=-6" });
+    expect(response.status).toBe(206);
+    expect(await response.text()).toBe("slides");
+    expect(match.mock.calls.some(([request]) =>
+      request instanceof Request && request.headers.get("Range") === "bytes=6-11")).toBe(true);
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("uses the complete cache for closed, open, suffix and unsatisfiable ranges", async () => {
+    expect(await (await getFile(path)).text()).toBe("first slides");
+    const open = vi.spyOn(reader, "openFile");
+    for (const [range, interval, expected] of [
+      ["bytes=0-0", "bytes 0-0/12", "f"],
+      ["bytes=6-", "bytes 6-11/12", "slides"],
+      ["bytes=-6", "bytes 6-11/12", "slides"],
+      ["bytes=6-99", "bytes 6-11/12", "slides"],
+    ] as const) {
+      const response = await getFile(path, { Range: range });
+      expect(response.status).toBe(206);
+      expect(response.headers.get("Content-Range")).toBe(interval);
+      expect(await response.text()).toBe(expected);
+    }
+    const rejected = await getFile(path, { Range: "bytes=12-" });
+    expect(rejected.headers.get("Content-Range")).toBe("bytes */12");
+    await expectError(rejected, 416, "range_not_satisfiable");
+    expect(open).not.toHaveBeenCalled();
+  });
 });

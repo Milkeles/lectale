@@ -1,15 +1,18 @@
+import { isSafeRepoPath } from "../contract/repo-path";
 import { readBoundedBody } from "../net/bounded-body";
 import { fetchGitHub } from "../net/fetch";
 import {
   commitShaPattern, GitHubReadError, isRepoId,
-  type GitHubReader, type GitHubRepository, type GitHubTree, type GitHubTreeEntry,
+  type GitHubDirectoryEntry, type GitHubReader, type GitHubRepository,
 } from "./reader";
 
 const REST = "https://api.github.com";
 const RAW = "https://raw.githubusercontent.com";
+const METADATA_BYTES = 128 * 1024;
+const DIRECTORY_BYTES = 2 * 1024 * 1024;
 
 function repositoryPath(owner: string, name: string): string {
-  if (!/^[A-Za-z0-9-]+$/u.test(owner) || !/^[A-Za-z0-9_.-]+$/u.test(name)
+  if (/^[A-Za-z0-9-]{1,39}$/u.exec(owner)?.[0] !== owner || /^[A-Za-z0-9_.-]{1,100}$/u.exec(name)?.[0] !== name
       || name === "." || name === "..") {
     throw new GitHubReadError("upstream");
   }
@@ -25,22 +28,22 @@ function parseRepository(payload: unknown): GitHubRepository {
     throw new GitHubReadError("upstream");
   }
   repositoryPath(login, name);
-  return {
-    id, owner: login, name, defaultBranch: default_branch,
-    private: isPrivate || (visibility !== undefined && visibility !== "public"),
-  };
+  if (isPrivate || (visibility !== undefined && visibility !== "public")) {
+    throw new GitHubReadError("not_found");
+  }
+  return { id, owner: login, name, defaultBranch: default_branch, private: false };
 }
 
 function retryDelay(headers: Headers): number | undefined {
   const retryAfter = headers.get("Retry-After");
   if (retryAfter !== null) {
     const seconds = /^\d+$/u.test(retryAfter) ? Number(retryAfter) : (Date.parse(retryAfter) - Date.now()) / 1_000;
-    if (Number.isFinite(seconds)) return Math.max(0, Math.ceil(seconds));
+    if (Number.isFinite(seconds)) return Math.max(1, Math.ceil(seconds));
   }
   const reset = headers.get("X-RateLimit-Reset");
   if (headers.get("X-RateLimit-Remaining") === "0" && reset && /^\d+$/u.test(reset)) {
     const seconds = Number(reset) - Date.now() / 1_000;
-    if (Number.isFinite(seconds)) return Math.max(0, Math.ceil(seconds));
+    if (Number.isFinite(seconds)) return Math.max(1, Math.ceil(seconds));
   }
 }
 
@@ -52,16 +55,17 @@ async function readFailure(response: Response): Promise<never> {
     void response.body?.cancel().catch(() => undefined);
     throw new GitHubReadError("rate_limited", retryDelay(headers) ?? 60);
   }
-  if (status === 403) {
-    // GitHub can report secondary throttling in the body alone (ERR-004).
-    const bytes = await readBoundedBody(response.body, 4096);
-    if (bytes && /secondary rate limit/iu.test(new TextDecoder().decode(bytes))) {
+  if (status === 403 || status === 404) {
+    // Keep denials on the same bounded read path. Secondary limits can be body-only (ERR-004).
+    const bytes = await readBoundedBody(response.body, 4096).catch(() => undefined);
+    if (status === 403 && bytes && /secondary rate limit/iu.test(new TextDecoder().decode(bytes))) {
       throw new GitHubReadError("rate_limited", 60);
     }
   } else {
     void response.body?.cancel().catch(() => undefined);
   }
-  throw new GitHubReadError(status === 403 || status === 404 || status === 451 ? "not_found" : "upstream");
+  const unavailable = status === 403 || status === 404 || status === 409 || status === 451;
+  throw new GitHubReadError(unavailable ? "not_found" : "upstream");
 }
 
 async function request(address: string, options: Parameters<typeof fetchGitHub>[1]): Promise<Response> {
@@ -72,62 +76,93 @@ async function request(address: string, options: Parameters<typeof fetchGitHub>[
   }
 }
 
-/** Reads GitHub REST metadata and unauthenticated, SHA-pinned raw files (ADR-0008). */
+async function readText(response: Response, cap: number): Promise<string> {
+  try {
+    const bytes = await readBoundedBody(response.body, cap);
+    if (bytes) return new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes);
+  } catch {
+    // Provider bodies and decoder errors are never reflected to the client.
+  }
+  throw new GitHubReadError("upstream");
+}
+
+function parseJson(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    throw new GitHubReadError("upstream");
+  }
+}
+
+/** Reads bounded REST metadata and unauthenticated, SHA-pinned raw files (ADR-0008). */
 export class GitHubRestReader implements GitHubReader {
   constructor(private readonly tokenProvider: () => Promise<string | undefined> = async () => undefined) {}
 
-  private async metadata(path: string): Promise<unknown> {
+  private async metadata(path: string, cap = METADATA_BYTES, accept?: string, repositoryRedirect = false): Promise<string> {
     const token = await this.tokenProvider();
-    const response = await request(`${REST}${path}`, token ? { token } : {});
+    const response = await request(`${REST}${path}`, {
+      ...(token ? { token } : {}), ...(accept ? { accept } : {}), repositoryRedirect,
+    });
     if (response.status !== 200) return readFailure(response);
-    try {
-      return await response.json();
-    } catch {
-      throw new GitHubReadError("upstream");
-    }
+    return readText(response, cap);
   }
 
   async resolveRepository(owner: string, name: string): Promise<GitHubRepository> {
-    return parseRepository(await this.metadata(`/repos/${repositoryPath(owner, name)}`));
+    return parseRepository(parseJson(await this.metadata(`/repos/${repositoryPath(owner, name)}`,
+      METADATA_BYTES, undefined, true)));
   }
 
   async resolveRepositoryById(id: number): Promise<GitHubRepository> {
     if (!isRepoId(id)) throw new GitHubReadError("not_found");
-    const repository = parseRepository(await this.metadata(`/repositories/${id}`));
+    const repository = parseRepository(parseJson(await this.metadata(`/repositories/${id}`)));
     if (repository.id !== id) throw new GitHubReadError("not_found");
     return repository;
   }
 
-  async headCommit(owner: string, name: string): Promise<string> {
-    const payload = await this.metadata(`/repos/${repositoryPath(owner, name)}/commits/HEAD`);
-    const sha = (payload as { sha?: unknown } | null)?.sha;
-    if (typeof sha !== "string" || !commitShaPattern.test(sha)) throw new GitHubReadError("upstream");
+  async headCommit({ owner, name }: GitHubRepository): Promise<string> {
+    const sha = (await this.metadata(`/repos/${repositoryPath(owner, name)}/commits/HEAD`,
+      128, "application/vnd.github.sha")).trim();
+    if (!commitShaPattern.test(sha)) throw new GitHubReadError("upstream");
     return sha;
   }
 
-  async tree(owner: string, name: string, sha: string): Promise<GitHubTree> {
-    if (!commitShaPattern.test(sha)) throw new GitHubReadError("not_found");
-    const payload = await this.metadata(`/repos/${repositoryPath(owner, name)}/git/trees/${sha}?recursive=1`);
-    const { tree, truncated } = (payload ?? {}) as { tree?: unknown; truncated?: unknown };
-    if (!Array.isArray(tree) || typeof truncated !== "boolean") throw new GitHubReadError("upstream");
-    const entries: GitHubTreeEntry[] = [];
-    for (const item of tree as unknown[]) {
-      if (typeof item !== "object" || item === null) throw new GitHubReadError("upstream");
-      const { path, type, size, mode } = item as Record<string, unknown>;
-      if (typeof path !== "string" || typeof mode !== "string"
-          || (type !== "blob" && type !== "tree" && type !== "commit")) {
-        throw new GitHubReadError("upstream");
-      }
-      entries.push({ path, type, mode, ...(isRepoId(size) || size === 0 ? { size } : {}) });
+  async isReachable({ owner, name }: GitHubRepository, sha: string, defaultHead: string): Promise<boolean> {
+    if (!commitShaPattern.test(sha) || !commitShaPattern.test(defaultHead)) throw new GitHubReadError("not_found");
+    // Comparing against the resolved default-branch tip avoids ref-name
+    // ambiguity. GitHub returns file diffs only on the first page.
+    const compare = `${defaultHead}...${sha}?per_page=1&page=2`;
+    const payload = parseJson(await this.metadata(`/repos/${repositoryPath(owner, name)}/compare/${compare}`));
+    const status = (payload as { status?: unknown } | null)?.status;
+    if (status === "behind" || status === "identical") return true;
+    if (status === "ahead" || status === "diverged") return false;
+    throw new GitHubReadError("upstream");
+  }
+
+  async listDirectory({ owner, name }: GitHubRepository, sha: string, path: string): Promise<GitHubDirectoryEntry[]> {
+    if (!commitShaPattern.test(sha) || (path !== "" && !isSafeRepoPath(path))) {
+      throw new GitHubReadError("not_found");
     }
-    return { entries, truncated };
+    const payload = parseJson(await this.metadata(
+      `/repos/${repositoryPath(owner, name)}/contents/${path}?ref=${sha}`, DIRECTORY_BYTES));
+    if (!Array.isArray(payload)) throw new GitHubReadError("not_found");
+    if (payload.length > 1_000) throw new GitHubReadError("upstream");
+    const entries: GitHubDirectoryEntry[] = [];
+    for (const item of payload as unknown[]) {
+      if (typeof item !== "object" || item === null) throw new GitHubReadError("upstream");
+      const { name: entryName, type, size, path: entryPath, download_url, submodule_git_url } = item as Record<string, unknown>;
+      if (typeof entryName !== "string" || entryName.includes("/") || !isSafeRepoPath(entryName)
+          || entryPath !== (path ? `${path}/${entryName}` : entryName)
+          || !isSafeRepoPath(entryPath) || submodule_git_url != null) continue;
+      if (type === "dir") entries.push({ name: entryName, type: "directory", size: 0 });
+      if (type === "file" && typeof download_url === "string" && (isRepoId(size) || size === 0)) {
+        entries.push({ name: entryName, type: "file", size });
+      }
+    }
+    return entries;
   }
 
   async openFile(owner: string, name: string, sha: string, path: string, range?: string): Promise<Response> {
-    if (!commitShaPattern.test(sha) || !/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/u.test(path)
-        || path.split("/").some((segment) => segment.endsWith(".") || (segment.startsWith(".") && segment !== ".well-known"))) {
-      throw new GitHubReadError("not_found");
-    }
+    if (!commitShaPattern.test(sha) || !isSafeRepoPath(path)) throw new GitHubReadError("not_found");
     const response = await request(`${RAW}/${repositoryPath(owner, name)}/${sha}/${path}`,
       range === undefined ? {} : { range });
     if (response.status === 200 || response.status === 206 || response.status === 416) return response;

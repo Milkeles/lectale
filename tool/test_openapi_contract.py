@@ -17,7 +17,10 @@ PUBLIC = {
     ("get", "/health"),
     ("get", "/courses"),
     ("post", "/courses/import"),
+    ("get", "/preview/{repoId}/{sha}"),
     ("get", "/preview/{repoId}/{sha}/readme"),
+    ("get", "/preview/{repoId}/{sha}/files/{path}"),
+    ("get", "/preview/{repoId}/{sha}/folders/{lessonId}/{resourceId}"),
     ("get", "/preview/{repoId}/{sha}/content/{lessonId}/{resourceId}"),
     ("get", "/legal/{documentType}"),
     ("get", "/certificates/{certificateId}"),
@@ -193,6 +196,11 @@ class OpenApiContractTest(unittest.TestCase):
         preview_ref = {"$ref": "#/components/schemas/CoursePreview"}
         outline_ref = {"$ref": "#/components/schemas/CourseOutline"}
         self.assertEqual(response_schema("post", "/courses/import"), preview_ref)
+        self.assertEqual(response_schema("get", "/preview/{repoId}/{sha}"), preview_ref)
+        self.assertEqual(
+            response_schema("get", "/preview/{repoId}/{sha}/folders/{lessonId}/{resourceId}"),
+            {"$ref": "#/components/schemas/PreviewFolder"},
+        )
         self.assertEqual(response_schema("get", "/courses/{courseId}/manifest"), outline_ref)
         self.assertEqual(schemas["CoursePreview"]["properties"]["outline"], outline_ref)
         self.assertEqual(set(schemas["CoursePreview"]["properties"]), {

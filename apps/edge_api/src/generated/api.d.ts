@@ -826,10 +826,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/preview/{repoId}/{sha}/readme": {
+    "/preview/{repoId}/{sha}": {
         parameters: {
             query?: never;
             header?: never;
+            path: {
+                repoId: components["parameters"]["repoId"];
+                sha: components["parameters"]["sha"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Reload a pinned public course preview
+         * @description Return the same validated CoursePreview as import. The SHA must have been pinned by import for this repository or be reachable from its default branch (E3, V4-CORE-01).
+         */
+        get: operations["getPreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/preview/{repoId}/{sha}/readme": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description A single byte range. Multipart requests are rejected. */
+                Range?: components["parameters"]["PreviewRange"];
+            };
             path: {
                 repoId: components["parameters"]["repoId"];
                 sha: components["parameters"]["sha"];
@@ -852,7 +878,10 @@ export interface paths {
     "/preview/{repoId}/{sha}/content/{lessonId}/{resourceId}": {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description A single byte range. Multipart requests are rejected. */
+                Range?: components["parameters"]["PreviewRange"];
+            };
             path: {
                 repoId: components["parameters"]["repoId"];
                 sha: components["parameters"]["sha"];
@@ -864,9 +893,63 @@ export interface paths {
         };
         /**
          * Fetch a scoped resource from a pinned public preview
-         * @description Use the resource href returned by import. Resolve the address against the validated manifest at the supplied SHA and serve only a canonical repository path from an unambiguously public repository (E2, E3, ADR-0008, V4-CORE-01). Cache class B applies to public immutable content, keyed by numeric repository ID, full SHA, normalized resource path and renderer version. The class D lookup applies when resolving the repository to a commit during import.
+         * @description Use the resource href returned by import. Resolve the address against the validated manifest at the supplied SHA (bound to the repository as for preview reload) and serve only a canonical repository path from an unambiguously public repository (E2, E3, ADR-0008, V4-CORE-01). Cache class B applies to public immutable content, keyed by numeric repository ID, full SHA, normalized resource path and renderer version. The class D lookup applies when resolving the repository to a commit during import.
          */
         get: operations["getPreviewContent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/preview/{repoId}/{sha}/files/{path}": {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description A single byte range. Multipart requests are rejected. */
+                Range?: components["parameters"]["PreviewRange"];
+            };
+            path: {
+                repoId: components["parameters"]["repoId"];
+                sha: components["parameters"]["sha"];
+                /** @description Repository-relative path. Preserve literal slashes between segments. Dot segments, encoded separators, backslashes and non-allowlisted hidden entries are rejected. */
+                path: string;
+            };
+            cookie?: never;
+        };
+        /**
+         * Fetch a file by repository-relative path
+         * @description Serve a regular file from the bound public commit. Relative README assets, links and the course cover can use this route.
+         */
+        get: operations["getPreviewFile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/preview/{repoId}/{sha}/folders/{lessonId}/{resourceId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                repoId: components["parameters"]["repoId"];
+                sha: components["parameters"]["sha"];
+                /** @description Lesson ID or assignment scope returned with the resource address (E2, ADR-0008). */
+                lessonId: components["parameters"]["lessonId"];
+                resourceId: components["parameters"]["resourceId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * List a pinned public folder resource
+         * @description Resolve the folder resource through the validated manifest at the bound public commit. Return direct entries up to the resource's maxEntries (default 100).
+         */
+        get: operations["getPreviewFolder"];
         put?: never;
         post?: never;
         delete?: never;
@@ -915,6 +998,21 @@ export interface components {
              * @example https://github.com/course-author/example-course
              */
             url: string;
+        };
+        PreviewFolder: {
+            entries: components["schemas"]["PreviewFolderEntry"][];
+        };
+        PreviewFolderEntry: {
+            name: string;
+            /** @enum {string} */
+            type: "file" | "directory";
+            /**
+             * Format: int64
+             * @description Size in bytes. Zero for directories.
+             */
+            size: number;
+            /** @description Files-route address for this repository path. */
+            href: string;
         };
         CoursePreview: {
             repoId: components["schemas"]["GitHubRepoId"];
@@ -1082,6 +1180,55 @@ export interface components {
                 "application/json": components["schemas"]["ApiError"];
             };
         };
+        /** @description Regular file bytes. Active and unknown formats download as attachments. */
+        PreviewFile: {
+            headers: {
+                "Cache-Control": components["headers"]["PublicPreviewCache"];
+                "Content-Security-Policy": components["headers"]["PreviewContentPolicy"];
+                "X-Content-Type-Options": components["headers"]["PreviewNoSniff"];
+                /** @description Attachment disposition for downloads. */
+                "Content-Disposition"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/octet-stream": components["schemas"]["BinaryContent"];
+                "text/plain": string;
+                "text/markdown": string;
+                "image/*": components["schemas"]["BinaryContent"];
+                "application/pdf": components["schemas"]["BinaryContent"];
+            };
+        };
+        /** @description One validated interval from the pinned file. */
+        PreviewPartialFile: {
+            headers: {
+                "Cache-Control": components["headers"]["PublicPreviewCache"];
+                "Content-Security-Policy": components["headers"]["PreviewContentPolicy"];
+                "X-Content-Type-Options": components["headers"]["PreviewNoSniff"];
+                /** @description Attachment disposition for downloads. */
+                "Content-Disposition"?: string;
+                "Content-Range": string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/octet-stream": components["schemas"]["BinaryContent"];
+                "text/plain": string;
+                "text/markdown": string;
+                "image/*": components["schemas"]["BinaryContent"];
+                "application/pdf": components["schemas"]["BinaryContent"];
+            };
+        };
+        /** @description Range is malformed or cannot be satisfied by the pinned file. */
+        PreviewInvalidRange: {
+            headers: {
+                "Cache-Control": components["headers"]["NoStore"];
+                /** @description Unsatisfied byte range with the known file size, when available. */
+                "Content-Range"?: string;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["ApiError"];
+            };
+        };
         /** @description Pinned public content is unavailable. Use the same response for private repositories and unsafe or unknown resource addresses. */
         PreviewUnavailable: {
             headers: {
@@ -1120,6 +1267,8 @@ export interface components {
         noticeId: string;
         repoId: components["schemas"]["GitHubRepoId"];
         sha: components["schemas"]["CommitSha"];
+        /** @description A single byte range. Multipart requests are rejected. */
+        PreviewRange: string;
         /** @description Replay the same mutation with the same key within 24 hours to receive its first result (E7, V4-SEC-09). */
         IdempotencyKey: string;
         Limit: number;
@@ -1132,6 +1281,8 @@ export interface components {
         NoStore: "no-store";
         /** @description Cache class B. Public cache directive with a bounded max-age. */
         PublicPreviewCache: string;
+        PreviewContentPolicy: "default-src 'none'; sandbox; frame-ancestors 'none'";
+        PreviewNoSniff: "nosniff";
     };
     pathItems: never;
 }
@@ -1294,6 +1445,7 @@ export interface operations {
             /** @description Validated preview at a single pinned commit */
             200: {
                 headers: {
+                    "Cache-Control": components["headers"]["NoStore"];
                     [name: string]: unknown;
                 };
                 content: {
@@ -2847,10 +2999,41 @@ export interface operations {
             "5XX": components["responses"]["ServerError"];
         };
     };
-    getPreviewReadme: {
+    getPreview: {
         parameters: {
             query?: never;
             header?: never;
+            path: {
+                repoId: components["parameters"]["repoId"];
+                sha: components["parameters"]["sha"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Validated preview at a single pinned commit */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["PublicPreviewCache"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CoursePreview"];
+                };
+            };
+            404: components["responses"]["PreviewUnavailable"];
+            429: components["responses"]["PreviewThrottled"];
+            "4XX": components["responses"]["ClientError"];
+            "5XX": components["responses"]["ServerError"];
+        };
+    };
+    getPreviewReadme: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description A single byte range. Multipart requests are rejected. */
+                Range?: components["parameters"]["PreviewRange"];
+            };
             path: {
                 repoId: components["parameters"]["repoId"];
                 sha: components["parameters"]["sha"];
@@ -2863,19 +3046,76 @@ export interface operations {
             200: {
                 headers: {
                     "Cache-Control": components["headers"]["PublicPreviewCache"];
+                    "Content-Security-Policy": components["headers"]["PreviewContentPolicy"];
+                    "X-Content-Type-Options": components["headers"]["PreviewNoSniff"];
                     [name: string]: unknown;
                 };
                 content: {
                     "text/markdown": string;
                 };
             };
+            206: components["responses"]["PreviewPartialFile"];
             404: components["responses"]["PreviewUnavailable"];
+            416: components["responses"]["PreviewInvalidRange"];
             429: components["responses"]["PreviewThrottled"];
             "4XX": components["responses"]["ClientError"];
             "5XX": components["responses"]["ServerError"];
         };
     };
     getPreviewContent: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description A single byte range. Multipart requests are rejected. */
+                Range?: components["parameters"]["PreviewRange"];
+            };
+            path: {
+                repoId: components["parameters"]["repoId"];
+                sha: components["parameters"]["sha"];
+                /** @description Lesson ID or assignment scope returned with the resource address (E2, ADR-0008). */
+                lessonId: components["parameters"]["lessonId"];
+                resourceId: components["parameters"]["resourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PreviewFile"];
+            206: components["responses"]["PreviewPartialFile"];
+            404: components["responses"]["PreviewUnavailable"];
+            416: components["responses"]["PreviewInvalidRange"];
+            429: components["responses"]["PreviewThrottled"];
+            "4XX": components["responses"]["ClientError"];
+            "5XX": components["responses"]["ServerError"];
+        };
+    };
+    getPreviewFile: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description A single byte range. Multipart requests are rejected. */
+                Range?: components["parameters"]["PreviewRange"];
+            };
+            path: {
+                repoId: components["parameters"]["repoId"];
+                sha: components["parameters"]["sha"];
+                /** @description Repository-relative path. Preserve literal slashes between segments. Dot segments, encoded separators, backslashes and non-allowlisted hidden entries are rejected. */
+                path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: components["responses"]["PreviewFile"];
+            206: components["responses"]["PreviewPartialFile"];
+            404: components["responses"]["PreviewUnavailable"];
+            416: components["responses"]["PreviewInvalidRange"];
+            429: components["responses"]["PreviewThrottled"];
+            "4XX": components["responses"]["ClientError"];
+            "5XX": components["responses"]["ServerError"];
+        };
+    };
+    getPreviewFolder: {
         parameters: {
             query?: never;
             header?: never;
@@ -2890,20 +3130,14 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description File bytes with a safe media type. Serve active formats as an attachment. */
+            /** @description Direct folder entries with canonical repository paths in their hrefs */
             200: {
                 headers: {
                     "Cache-Control": components["headers"]["PublicPreviewCache"];
-                    /** @description Attachment disposition for downloads. */
-                    "Content-Disposition"?: string;
                     [name: string]: unknown;
                 };
                 content: {
-                    "text/plain": string;
-                    "text/markdown": string;
-                    "image/*": components["schemas"]["BinaryContent"];
-                    "application/pdf": components["schemas"]["BinaryContent"];
-                    "application/octet-stream": components["schemas"]["BinaryContent"];
+                    "application/json": components["schemas"]["PreviewFolder"];
                 };
             };
             404: components["responses"]["PreviewUnavailable"];

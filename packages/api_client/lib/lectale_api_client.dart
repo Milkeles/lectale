@@ -2,3 +2,4 @@
 library;
 
 export 'src/generated/lectale_api.dart';
+export 'src/preview_files.dart';

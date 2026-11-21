@@ -1,36 +1,45 @@
-import {
-  MAX_MANIFEST_BYTES, validateCourseManifest, type CourseManifest,
-} from "../contract/course-manifest";
+import { MAX_MANIFEST_BYTES, validateCourseManifest, type CourseManifest } from "../contract/course-manifest";
 import type { OutlineNode, Resource } from "../contract/course-manifest-types";
 import type { components } from "../generated/api";
-import { GitHubReadError, type GitHubReader, type GitHubRepository } from "../github/reader";
+import { GitHubReadError, type GitHubRepository } from "../github/reader";
 import { readBoundedBody } from "../net/bounded-body";
+import { PINNED_TTL } from "./cache";
 import { courseNotFound, PreviewError } from "./errors";
 import { toCourseOutline } from "./outline";
+import type { PreviewSource } from "./source";
 
 export type CoursePreview = components["schemas"]["CoursePreview"];
 export const README_PATH = "README.md";
 const MANIFEST_PATH = "course.yaml";
 
-export interface PinnedFile {
-  path: string;
-  size?: number;
-}
+type ResourceTarget = { path: string; maxEntries?: number };
+type ResourceIndex = Record<string, ResourceTarget>;
 
-export interface PinnedPreview {
+interface PinnedPreview {
   preview: CoursePreview;
-  files: Record<string, PinnedFile>;
+  resources: ResourceIndex[];
 }
 
-function indexFiles(manifest: CourseManifest, regularFiles: Map<string, PinnedFile>): Record<string, PinnedFile> {
-  const files: Record<string, PinnedFile> = {};
-  const readme = regularFiles.get(README_PATH);
-  if (readme) files[README_PATH] = readme;
+const INDEX_SHARDS = 16;
+
+function resourceShard(address: string): number {
+  let hash = 0;
+  for (let index = 0; index < address.length; index++) {
+    hash = Math.imul(hash, 31) + address.charCodeAt(index) | 0;
+  }
+  return (hash >>> 0) % INDEX_SHARDS;
+}
+
+function indexResources(manifest: CourseManifest, readmePresent: boolean): ResourceIndex[] {
+  const shards = Array.from({ length: INDEX_SHARDS }, (): ResourceIndex => ({}));
+  function add(address: string, target: ResourceTarget): void {
+    shards[resourceShard(address)]![address] = target;
+  }
+  if (readmePresent) add(README_PATH, { path: README_PATH });
 
   function addResources(scope: string, resources: Resource[]): void {
-    for (const { id, path } of resources) {
-      const file = path === undefined ? undefined : regularFiles.get(path);
-      if (file) files[`${scope}/${id}`] = file;
+    for (const { id, path, type, maxEntries } of resources) {
+      if (path !== undefined) add(`${scope}/${id}`, type === "folder" ? { path, maxEntries: maxEntries ?? 100 } : { path });
     }
   }
 
@@ -42,10 +51,8 @@ function indexFiles(manifest: CourseManifest, regularFiles: Map<string, PinnedFi
   }
 
   addLessons(manifest.outline);
-  for (const assignment of manifest.assignments) {
-    addResources(`assignment~${assignment.id}`, assignment.materials);
-  }
-  return files;
+  for (const assignment of manifest.assignments) addResources(`assignment~${assignment.id}`, assignment.materials);
+  return shards;
 }
 
 function manifestTooLarge(): PreviewError {
@@ -56,51 +63,36 @@ function manifestTooLarge(): PreviewError {
   });
 }
 
-/** Validates one public commit and indexes its regular files (SEC-020, ADR-0008). */
-export async function loadPinnedPreview(
-  reader: GitHubReader,
-  repository: GitHubRepository,
-  sha: string,
-): Promise<PinnedPreview> {
-  if (repository.private !== false) throw courseNotFound();
-  const { owner, name, id: repoId } = repository;
-  const { entries, truncated } = await reader.tree(owner, name, sha);
-  if (truncated) {
-    throw new PreviewError(502, {
-      code: "repository_tree_truncated",
-      message: "GitHub returned an incomplete file list for this course.",
-      retryable: false,
-    });
+function manifestMissing(): PreviewError {
+  return new PreviewError(422, {
+    code: "manifest_missing",
+    message: "A regular course.yaml file is required at the repository root.",
+    retryable: false,
+  });
+}
+
+async function loadPinnedPreview(source: PreviewSource, repository: GitHubRepository, sha: string): Promise<PinnedPreview> {
+  // The single root listing checks both files and their types (README-001, SEC-020).
+  const root = await source.directory(repository, sha, "");
+  const manifestFile = root.find((entry) => entry.name === MANIFEST_PATH && entry.type === "file");
+  if (!manifestFile) throw manifestMissing();
+  if (manifestFile.size > MAX_MANIFEST_BYTES) throw manifestTooLarge();
+  const readmePresent = root.some((entry) => entry.name === README_PATH && entry.type === "file");
+
+  let response: Response;
+  try {
+    response = await source.openFile(repository, sha, MANIFEST_PATH);
+  } catch (error) {
+    if (error instanceof GitHubReadError && error.kind === "not_found") throw manifestMissing();
+    throw error;
   }
-  const regularFiles = new Map<string, PinnedFile>();
-  for (const { path, type, mode, size } of entries) {
-    // GitHub also labels symlinks as blobs. Only regular Git modes are safe.
-    if (type === "blob" && (mode === "100644" || mode === "100755")) {
-      regularFiles.set(path, size === undefined ? { path } : { path, size });
-    }
-  }
-  const manifestFile = regularFiles.get(MANIFEST_PATH);
-  if (!manifestFile) {
-    throw new PreviewError(422, {
-      code: "manifest_missing",
-      message: "A regular course.yaml file is required at the repository root.",
-      retryable: false,
-    });
-  }
-  if (manifestFile.size !== undefined && manifestFile.size > MAX_MANIFEST_BYTES) {
-    throw manifestTooLarge();
-  }
-  const response = await reader.openFile(owner, name, sha, MANIFEST_PATH);
   if (response.status !== 200) {
     void response.body?.cancel().catch(() => undefined);
     throw new GitHubReadError("upstream");
   }
-  let bytes: Uint8Array | undefined;
-  try {
-    bytes = await readBoundedBody(response.body, MAX_MANIFEST_BYTES);
-  } catch {
+  const bytes = await readBoundedBody(response.body, MAX_MANIFEST_BYTES).catch(() => {
     throw new GitHubReadError("upstream");
-  }
+  });
   if (!bytes) throw manifestTooLarge();
 
   const result = validateCourseManifest(bytes);
@@ -113,14 +105,37 @@ export async function loadPinnedPreview(
     });
   }
 
-  const files = indexFiles(result.manifest, regularFiles);
+  const { id: repoId } = repository;
   return {
-    preview: {
-      repoId,
-      sha,
-      outline: toCourseOutline(result.manifest, repoId, sha),
-      readmePresent: regularFiles.has(README_PATH),
-    },
-    files,
+    preview: { repoId, sha, outline: toCourseOutline(result.manifest, repoId, sha), readmePresent },
+    resources: indexResources(result.manifest, readmePresent),
   };
+}
+
+/** Loads and validates an authorized public course once per commit (N7, CACHE-005). */
+function pinned(source: PreviewSource, repository: GitHubRepository, sha: string): Promise<PinnedPreview> {
+  return source.store.cached(`public-course-outline:v2:${repository.id}:${sha}`, PINNED_TTL,
+    () => loadPinnedPreview(source, repository, sha));
+}
+
+/** Returns the same preview DTO for import and reload (V4-CORE-01). */
+export async function coursePreview(source: PreviewSource, repository: GitHubRepository, sha: string): Promise<CoursePreview> {
+  return (await pinned(source, repository, sha)).preview;
+}
+
+/** Resolves a resource using one small index shard on warm requests (ADR-0008). */
+export async function resourceTarget(
+  source: PreviewSource, repository: GitHubRepository, sha: string, address: string,
+): Promise<ResourceTarget> {
+  const shard = resourceShard(address);
+  const key = `public-course-index:v2:${repository.id}:${sha}:${shard}`;
+  try {
+    const addresses = await source.store.cached(key, PINNED_TTL,
+      async () => (await pinned(source, repository, sha)).resources[shard] ?? {});
+    const target = addresses[address];
+    if (target) return target;
+  } catch (error) {
+    if (!(error instanceof PreviewError) || (error.status !== 413 && error.status !== 422)) throw error;
+  }
+  throw courseNotFound();
 }

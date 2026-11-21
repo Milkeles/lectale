@@ -29,7 +29,7 @@ function readerUrl(value: string | undefined): URL | undefined {
   if (!url.username && !url.password) return url;
 }
 
-function toResource(resource: Resource, contentPrefix: string) {
+function toResource(resource: Resource, previewPrefix: string, scope: string) {
   const { id, type, title, path, provider } = resource;
   const canEmbed = provider === "youtube" || provider === "vimeo";
   const link = canEmbed ? undefined : readerUrl(resource.url);
@@ -40,7 +40,7 @@ function toResource(resource: Resource, contentPrefix: string) {
     kind: type,
     title,
     description: resource.description,
-    href: path === undefined ? null : `${contentPrefix}/${id}`,
+    href: path === undefined ? null : `${previewPrefix}/${type === "folder" ? "folders" : "content"}/${scope}/${id}`,
     url: link?.href,
     provider,
     embedUrl: canEmbed ? resource.url : undefined,
@@ -69,7 +69,7 @@ export function toCourseOutline(
   sha: string,
 ): CourseOutline {
   const { course, outline, assignments, display } = validatedManifest;
-  const contentPrefix = `/api/preview/${repoId}/${sha}/content`;
+  const previewPrefix = `/api/preview/${repoId}/${sha}`;
   const assignmentTitles = new Map(assignments.map(({ id, title }) => [id, title]));
 
   function toNode(node: OutlineNode): CourseOutlineNode {
@@ -87,7 +87,7 @@ export function toCourseOutline(
       ...common,
       ...present({ recordedAt: node.recordedAt ?? undefined }),
       children: [],
-      resources: node.resources.map((resource) => toResource(resource, `${contentPrefix}/${id}`)),
+      resources: node.resources.map((resource) => toResource(resource, previewPrefix, id)),
     };
   }
 
@@ -118,7 +118,7 @@ export function toCourseOutline(
       dueAt: assignment.submission.dueAt ?? undefined,
       closeAt: assignment.submission.closeAt ?? undefined,
       resources: assignment.materials.map((resource) =>
-        toResource(resource, `${contentPrefix}/assignment~${assignment.id}`)),
+        toResource(resource, previewPrefix, `assignment~${assignment.id}`)),
     })),
     ...present({
       display: display && present({
