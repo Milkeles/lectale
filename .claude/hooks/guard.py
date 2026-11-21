@@ -1,0 +1,65 @@
+#!/usr/bin/env python3
+"""Blocks agent actions that need the owner, before they run.
+
+Claude Code calls this as a PreToolUse hook for Bash, Edit and Write. Exit
+code 2 blocks the call and shows stderr to the agent. These rules back up
+AGENTS.md section 5; an instruction file is followed most of the time, a
+hook every time.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+import sys
+
+SECRET_FILE = re.compile(r"(^|[\s/'\"=<>])(\.dev\.vars(\.\w+)?|\.env(\.\w+)?)\b")
+
+BASH_RULES = [
+    (re.compile(r"\bgit\s+push\b[^;&|]*(\s--force\b|\s-f\b|\s--force-with-lease\b|\s\+\S)"),
+     "Force-pushing rewrites shared history. Ask the owner."),
+    (re.compile(r"\bgit\s+push\b[^;&|]*\b(origin\s+)?(main|master)\b(?!-)"),
+     "Pushing to main needs the owner. Push a feature branch and open a pull request."),
+    (re.compile(r"\bwrangler\s+deploy\b(?![^;&|]*--dry-run)"),
+     "Deploys run from CI with the owner's token, not from an agent session."),
+    (re.compile(r"\bwrangler\s+(d1\s+(migrations\s+apply|execute)|secret\s+(put|delete|bulk))\b[^;&|]*--remote"),
+     "Remote D1 changes and secrets are owner actions."),
+    (re.compile(r"\bwrangler\s+secret\s+(put|delete|bulk)\b"),
+     "Secrets are set by the owner or CI, never by an agent."),
+    (re.compile(r"\brm\s+-[a-zA-Z]*r[a-zA-Z]*f?\s+(/|~|\$HOME|\.git)(\s|$|/)"),
+     "Refusing to delete the root, home or .git directory."),
+    (re.compile(r"(sed\s+-i|>\s*|tee\s+)[^;&|]*spec/v4\.0/"),
+     "spec/v4.0/ is the normative bundle and is never edited; record changes in spec/errata/."),
+]
+
+
+def deny(reason: str) -> int:
+    print(f"Blocked by .claude/hooks/guard.py: {reason}", file=sys.stderr)
+    return 2
+
+
+def main() -> int:
+    event = json.load(sys.stdin)
+    tool = event.get("tool_name", "")
+    tool_input = event.get("tool_input", {})
+
+    if tool == "Bash":
+        command = tool_input.get("command", "")
+        for pattern, reason in BASH_RULES:
+            if pattern.search(command):
+                return deny(reason)
+        if SECRET_FILE.search(command):
+            return deny("Local secret files (.dev.vars, .env) stay out of agent sessions.")
+        return 0
+
+    if tool in ("Edit", "Write", "MultiEdit"):
+        path = tool_input.get("file_path", "")
+        if "/spec/v4.0/" in path:
+            return deny("spec/v4.0/ is never edited; record changes in spec/errata/.")
+        if SECRET_FILE.search(path):
+            return deny("Local secret files (.dev.vars, .env) stay out of agent sessions.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
