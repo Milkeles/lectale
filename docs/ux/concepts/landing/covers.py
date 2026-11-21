@@ -11,10 +11,17 @@ Why opsz 28: the cover is shown about 250 CSS px wide, so the title is about
 sizes, and 28 is the design closest to what the eye gets.
 
 Only Paper, Sand, Graphite and Mulberry from docs/ux/token-plan.md are used.
+
+Art direction: every cover has the same 44 px inset on all four sides. The
+title starts at the top left; the picture is anchored to the bottom inset and
+fills the width between the left and right insets (the histogram is the
+reference). Grounds alternate Mulberry, Sand and Graphite so that no cover
+disappears into the Paper page, and no cover needs a frame.
 """
 
 import io
 import os
+import random
 
 import uharfbuzz as hb
 from fontTools.pens.svgPathPen import SVGPathPen
@@ -74,6 +81,18 @@ def title_paths(lines, lang, color, size=58, lead=1.08):
     return f'<path fill="{color}" d="{d}"/>'
 
 
+def glyph_path(char, size, x, baseline, color, wght=600, opsz=72):
+    """One character as an outline path, left edge at x."""
+    tt, font = load_font(wght, opsz)
+    gs = tt.getGlyphSet()
+    glyphs, _ = shape_line(tt, font, char, None, size, 0)
+    name, gx = glyphs[0]
+    scale = size / tt["head"].unitsPerEm
+    pen = SVGPathPen(gs, ntos=lambda v: f"{v:.1f}".rstrip("0").rstrip("."))
+    gs[name].draw(TransformPen(pen, (scale, 0, 0, -scale, x + gx, baseline)))
+    return f'<path fill="{color}" d="{pen.getCommands()}"/>'
+
+
 def svg(ground, body):
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}">'
@@ -96,50 +115,82 @@ def stats():
 
 
 def manuscripts():
-    # A manuscript page: a decorated initial, then ruled lines of writing.
-    page = f'<rect x="{MARGIN}" y="290" width="{W - 2 * MARGIN}" height="{H - MARGIN - 290}" rx="4" fill="{PAPER}"/>'
-    initial = f'<rect x="{MARGIN + 28}" y="320" width="76" height="76" fill="{MULBERRY}"/>'
-    ends = [372, 392, 380, 396, 360, 392, 384, 396, 342, 388, 396, 300]
-    lines = ""
-    for i, end in enumerate(ends):
-        y = 326 + i * 28
-        x = MARGIN + 28 + (96 if i < 3 else 0)
-        lines += f'<rect x="{x}" y="{y}" width="{max(end - x + MARGIN, 40)}" height="7" rx="3.5" fill="{GRAPHITE}"/>'
-    return svg(SAND, title_paths(["Reading", "medieval", "manuscripts"], None, MULBERRY) + page + initial + lines)
+    # A manuscript page seen close up: it starts at the left inset and runs off
+    # the right and bottom edges, so it reads as a page and not as an icon. A
+    # decorated initial, then ruled lines of writing made of word-length marks.
+    top = 300
+    page = f'<rect x="{MARGIN}" y="{top}" width="{W - MARGIN + 8}" height="{H - top + 8}" rx="4" fill="{PAPER}"/>'
+    left, right = MARGIN + 28, W - MARGIN - 8
+    size = 88
+    initial = (
+        f'<rect x="{left}" y="{top + 32}" width="{size}" height="{size}" fill="{MULBERRY}"/>'
+        + glyph_path("R", 70, left + 15, top + 32 + 68, PAPER)
+    )
+    rng = random.Random(11)
+    rules = marks = ""
+    y = top + 52
+    for row in range(13):
+        x = left + (size + 20 if row < 3 else 0)
+        rules += f'<rect x="{left}" y="{y + 12}" width="{right - left}" height="1.5" fill="{SAND}"/>'
+        while True:
+            w = rng.choice([22, 34, 46, 58, 70])
+            if x + w > right:
+                w = right - x
+                if w >= 14:
+                    marks += f'<rect x="{x}" y="{y}" width="{w}" height="8" rx="4" fill="{GRAPHITE}"/>'
+                break
+            marks += f'<rect x="{x}" y="{y}" width="{w}" height="8" rx="4" fill="{GRAPHITE}"/>'
+            x += w + 11
+        y += 30
+    title = title_paths(["Reading", "medieval", "manuscripts"], None, MULBERRY)
+    return svg(SAND, title + page + rules + initial + marks)
 
 
 def python_lab():
-    # A scatter plot with its fitted line; a ruled frame like a lab notebook.
-    frame = f'<rect x="2" y="2" width="{W - 4}" height="{H - 4}" fill="none" stroke="{GRAPHITE}" stroke-width="4"/>'
-    ax, ay0, ay1, ax1 = 64, 400, 650, 424
-    axes = f'<path d="M{ax} {ay0}V{ay1}H{ax1}" fill="none" stroke="{GRAPHITE}" stroke-width="3"/>'
-    noise = [-20, 16, -10, 28, -26, 12, -6, 24, -16, 8, -4]
+    # A scatter plot with its fitted line, filling the picture area. Graphite
+    # ground: it keeps the cover off the Paper page and needs no frame.
+    left, right, bottom, top = MARGIN, W - MARGIN, H - MARGIN, 330
+    grid = ""
+    for i in range(1, 5):
+        gy = bottom - i * (bottom - top) / 5
+        grid += f'<rect x="{left}" y="{gy:.0f}" width="{right - left}" height="2" fill="{SAND}" opacity=".16"/>'
+    axes = f'<rect x="{left}" y="{bottom - 3}" width="{right - left}" height="3" fill="{PAPER}"/>'
+    axes += f'<rect x="{left}" y="{top}" width="3" height="{bottom - top}" fill="{PAPER}"/>'
+    rng = random.Random(5)
     dots = ""
-    for i, n in enumerate(noise):
-        x = 96 + i * 30
-        y = 628 - 0.62 * (x - 96) + n
-        dots += f'<circle cx="{x}" cy="{y:.0f}" r="9" fill="{MULBERRY}"/>'
-    trend = f'<path d="M84 640L412 436" stroke="{GRAPHITE}" stroke-width="3" fill="none"/>'
-    return svg(PAPER, frame + title_paths(["Python for", "lab data"], None, MULBERRY, size=56) + axes + trend + dots)
+    n = 15
+    for i in range(n):
+        t = i / (n - 1)
+        x = left + 38 + t * (right - left - 76)
+        y = bottom - 40 - t * (bottom - top - 100) + rng.uniform(-30, 30)
+        dots += f'<circle cx="{x:.0f}" cy="{y:.0f}" r="11" fill="{SAND}"/>'
+    trend = (
+        f'<path d="M{left + 22} {bottom - 30} L{right - 22} {top + 52}" stroke="{PAPER}" '
+        f'stroke-width="4" stroke-linecap="round" fill="none"/>'
+    )
+    return svg(GRAPHITE, title_paths(["Python for", "lab data"], None, PAPER) + grid + axes + trend + dots)
 
 
 def logic_bg():
-    # Two overlapping sets; the overlap is cut out to the ground (A and B).
-    cy, r = 520, 118
+    # Two overlapping sets spanning the insets; the overlap is cut out to the
+    # ground (A and B).
+    r, cy = 132, H - MARGIN - 132
+    ax, bx = MARGIN + r, W - MARGIN - r
     sets = (
-        f'<defs><clipPath id="a"><circle cx="190" cy="{cy}" r="{r}"/></clipPath></defs>'
-        f'<circle cx="190" cy="{cy}" r="{r}" fill="{SAND}"/>'
-        f'<circle cx="290" cy="{cy}" r="{r}" fill="{PAPER}"/>'
-        f'<circle cx="290" cy="{cy}" r="{r}" fill="{MULBERRY}" clip-path="url(#a)"/>'
+        f'<defs><clipPath id="a"><circle cx="{ax}" cy="{cy}" r="{r}"/></clipPath></defs>'
+        f'<circle cx="{ax}" cy="{cy}" r="{r}" fill="{SAND}"/>'
+        f'<circle cx="{bx}" cy="{cy}" r="{r}" fill="{PAPER}"/>'
+        f'<circle cx="{bx}" cy="{cy}" r="{r}" fill="{MULBERRY}" clip-path="url(#a)"/>'
     )
     return svg(MULBERRY, title_paths(["Основи", "на логиката"], "bg", PAPER) + sets)
 
 
 def cells():
-    # Packed cells, each with an off-centre nucleus.
-    spec = [(130, 430, 72), (290, 400, 54), (370, 522, 70), (170, 592, 58), (300, 640, 34)]
+    # Packed cells inside the insets, each with an off-centre nucleus.
+    spec = [(140, 470, 96), (358, 412, 78), (340, 586, 90), (160, 626, 50), (72, 624, 28), (252, 358, 22)]
     out = ""
     for cx, cy, r in spec:
+        assert cx - r >= MARGIN and cx + r <= W - MARGIN and cy + r <= H - MARGIN, (cx, cy, r)
         out += f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="{PAPER}"/>'
         out += f'<circle cx="{cx + r * 0.16:.0f}" cy="{cy - r * 0.12:.0f}" r="{r * 0.34:.0f}" fill="{MULBERRY}"/>'
     return svg(SAND, title_paths(["Cell biology", "lab guide"], None, MULBERRY) + out)

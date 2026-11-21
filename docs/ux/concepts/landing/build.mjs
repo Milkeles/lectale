@@ -1,10 +1,7 @@
 // Generates the concept pages as plain static HTML: `node build.mjs`.
 //
 // The output has no inline script or style (CSP, security review R18), no
-// third-party request and no cookie. `HOOK=D node build.mjs` swaps the hero to
-// Hook D (docs/ux/copy/landing.md section 2); both versions are always
-// written, index.html with the chosen hook and index-hook-d.html for
-// comparison.
+// third-party request and no cookie.
 import { writeFileSync, copyFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -16,22 +13,20 @@ const out = (name, html) => writeFileSync(join(here, name), html);
 
 const OWNER_REPO = 'https://github.com/Milkeles/lectale';
 const RELEASES = `${OWNER_REPO}/releases/latest`;
-const RELEASES_SHOWN = 'github.com/Milkeles/lectale/releases/latest';
-const APP = '/app/'; // R17: Log in and Create account link into the app.
+// GitHub's stable "latest" form: the asset names are fixed by the release
+// workflow, so these links never change between releases (R21).
+const DOWNLOAD = `${RELEASES}/download`;
+const CANONICAL_ANDROID = 'https://lectale.fervorgames.workers.dev/download/android'; // R22; see make-qr.mjs
+const APP = '/app/';
+const APP_OPEN = '/app/#/open'; // the app's open-a-course screen, link field focused
 const APP_LOGIN = '/app/#/login';
 const APP_CREATE = '/app/#/create-account';
 
-const HOOKS = {
-  H: {
-    lines: ['Open the course.', 'Close the other tabs.'],
-    sub: 'Lectale shows a course’s lessons, PDFs, notebooks, video and audio in one app. Free to read, no account needed.',
-  },
-  D: {
-    lines: ['Courses that read', 'like a good book'],
-    sub: 'Lectale opens a course as a clean, readable page, with its lessons, PDFs, notebooks and video together. Free to read, no account.',
-  },
+const HERO = {
+  lines: ['Open the course.', 'Close the other tabs.'],
+  lead: 'Lectale opens a course from its GitHub repository and shows its lessons, PDFs, notebooks, video and audio in one place.',
+  free: 'Free to read, no account needed.',
 };
-const HOOK = (process.env.HOOK || 'H').toUpperCase();
 
 // Example courses. Every one is labelled as an example (copy 4.4).
 const COURSES = [
@@ -66,7 +61,7 @@ const COURSES = [
     lang: 'English', code: 'en', subject: 'Biology',
   },
   {
-    slug: null, // no `course.cover` in its course.yaml: the quiet placeholder
+    slug: null, // no `course.cover` in its course.yaml: the title is drawn as text
     title: 'Field methods in ecology',
     summary: 'Plan a survey, collect samples and write up the results.',
     lang: 'English', code: 'en', subject: 'Biology',
@@ -96,8 +91,7 @@ function head({ title, description, noindex = false, script = false }) {
 <meta name="theme-color" content="#191b1a" media="(prefers-color-scheme: dark)">
 <meta name="referrer" content="strict-origin-when-cross-origin">${noindex ? '\n<meta name="robots" content="noindex">' : ''}
 <link rel="icon" href="logo.svg" type="image/svg+xml">
-<link rel="preload" href="fonts/SourceSerif4Variable-Roman.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="fonts/IBMPlexSans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/SourceSerif4Variable-Roman.ttf.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="site.css">${script ? '\n<script src="catalog.js" defer></script>' : ''}
 </head>
 <body>
@@ -149,7 +143,7 @@ const footer = `<footer class="foot">
     </div>
     <div class="foot__legal t-small">
       <p>Lectale is an independent project and is not affiliated with GitHub.</p>
-      <p>© 2026 {operator name}</p>
+      <p>© 2026 Lectale</p>
     </div>
   </div>
 </footer>
@@ -161,60 +155,53 @@ function card(c, { level = 3 } = {}) {
   const lang = c.code === 'en' ? '' : ` lang="${c.code}"`;
   const cover = c.slug
     ? `<img class="cover" src="covers/${c.slug}.svg" width="480" height="720" alt="" loading="lazy" decoding="async">`
-    : `<div class="cover cover--none" aria-hidden="true">${MARK}</div>`;
+    : `<div class="cover cover--none" aria-hidden="true"><span class="cover__title">${c.title}</span></div>`;
   return `<li class="card" data-course data-lang="${c.lang}" data-subject="${c.subject}" data-text="${(c.title + ' ' + c.summary).toLowerCase()}">
   ${cover}
-  <h${level} class="card__title"><a href="${APP}" aria-label="${c.title}, example course"${lang}>${c.title}</a></h${level}>
-  <p class="card__by">Example instructor</p>
-  <p class="t-card"${lang}>${c.summary}</p>
-  <p class="card__meta"><span>${c.lang}</span><span class="badge">Example course</span></p>
+  <div class="card__body">
+    <h${level} class="card__title"><a href="${APP}" aria-label="${c.title}, example course"${lang}>${c.title}</a></h${level}>
+    <p class="t-card"${lang}>${c.summary}</p>
+    <p class="card__meta"><span>${c.lang}</span><span class="badge">Example course</span></p>
+  </div>
 </li>`;
 }
 
 // ---------- index.html ----------
 
-function indexPage(hookKey, file) {
-  const hook = HOOKS[hookKey];
-  const platforms = [
-    ['Windows', 'Download for Windows', 'lectale-windows.zip', 'From GitHub Releases.'],
-    ['macOS', 'Download for macOS', 'lectale-macos.zip', 'From GitHub Releases.'],
-    ['Linux', 'Download for Linux', 'lectale-linux.tar.gz', 'From GitHub Releases.'],
+function indexPage() {
+  const platRow = ([name, fileName]) => `<li class="plat">
+          <h3 class="plat__name">${name}</h3>
+          <div class="plat__info"><p class="plat__file t-mono">${fileName}</p></div>
+          <a class="btn btn--outline" href="${DOWNLOAD}/${fileName}">Download<span class="vh"> for ${name}</span></a>
+        </li>`;
+  const desktop = [
+    ['Windows', 'lectale-windows-x64.zip'],
+    ['macOS', 'lectale-macos.zip'],
+    ['Linux', 'lectale-linux-x64.tar.gz'],
   ];
-  const platRow = ([name, btn, fileName, text]) => `<li class="plat">
-        <h3 class="plat__name">${name}</h3>
-        <div><p class="plat__text">${text}</p><p class="plat__file t-mono">${fileName}, -- MB</p></div>
-        <a class="btn btn--outline" href="${OWNER_REPO}/releases/latest/download/${fileName}">${btn}</a>
-      </li>`;
 
   return (
     head({
       title: 'Lectale: open and read courses from GitHub',
-      description: hook.sub,
+      description: HERO.lead,
     }) +
     siteHeader() +
     `<main id="main">
 
 <section class="hero" id="top" aria-labelledby="hero-title">
   <div class="wrap">
-    <div class="grid hero__grid">
-      <h1 class="t-display hero__title" id="hero-title">${hook.lines.map((l) => `<span>${l}</span>`).join(' ')}</h1>
-      <div class="hero__aside">
-        <p class="t-lead">${hook.sub}</p>
-        <div class="actions">
-          <a class="btn btn--primary btn--lg" href="${APP}">Open a course</a>
-          <a class="btn btn--outline btn--lg" href="catalog.html">Browse courses</a>
-        </div>
-      </div>
+    <h1 class="t-display hero__title" id="hero-title">${HERO.lines.map((l) => `<span>${l}</span>`).join(' ')}</h1>
+    <p class="t-lead hero__lead">${HERO.lead}</p>
+    <div class="actions">
+      <a class="btn btn--primary btn--lg" href="${APP_OPEN}">Open a course</a>
+      <a class="btn btn--outline btn--lg" href="catalog.html">Browse courses</a>
     </div>
+    <p class="hero__free">${HERO.free}</p>
 
     <figure class="shot">
       <div class="shot__mat">
         <div class="app" aria-hidden="true">
-          <div class="app__top">${MARK}<span>Lectale</span></div>
-          <div class="app__bar">
-            <span class="app__ctl">Contents</span>
-            <span class="app__place"><i class="ribbon ribbon--inline"></i><span>Averages and spread</span></span>
-          </div>
+          <div class="app__top">${MARK}<span>Introduction to statistics</span><span class="app__count"><span class="app__lesson">Lesson </span>3 of 7</span></div>
           <div class="app__body">
             <div class="app__pane">
               <div class="row">Overview</div>
@@ -230,10 +217,9 @@ function indexPage(hookKey, file) {
             <div class="app__main">
               <div class="read">
                 <p class="read__mod">Describing data</p>
-                <p class="read__title">Averages and spread</p>
-                <p>The mean is the number most people reach for first. Add the values, divide by how many there are, and you have a single figure for where the middle sits.</p>
-                <p>A single figure hides something, though. Two classes can both average 60 on a test. In one, almost everyone scored between 55 and 65. In the other, half the class scored near 30 and half near 90.</p>
-                <p>The mean is the same. The classes are not. How far the values wander from the middle is called the spread, and it is what the next section measures.</p>
+                <div class="read__head"><i class="ribbon"></i><p class="read__title">Averages and spread</p></div>
+                <p class="read__text">The mean is the number most people reach for first. Add the values, divide by how many there are, and you have a single figure for where the middle sits.</p>
+                <p class="read__text read__text--more">A single figure hides something, though. Two classes can both average 60 on a test. In one, almost everyone scored between 55 and 65. In the other, half the class scored near 30 and half near 90.</p>
               </div>
             </div>
           </div>
@@ -252,27 +238,26 @@ function indexPage(hookKey, file) {
     </div>
     <div class="section__body">
       <dl class="formats">
-        <div><dt class="t-h3">Text</dt><dd class="t-card">Lessons and course descriptions, as formatted pages.</dd></div>
-        <div><dt class="t-h3">PDFs</dt><dd class="t-card">Read slides and handouts without downloading them.</dd></div>
-        <div><dt class="t-h3">Notebooks</dt><dd class="t-card">A notebook is a document that mixes text, code and results. Lectale shows it. It does not run the code.</dd></div>
-        <div><dt class="t-h3">Video</dt><dd class="t-card">Watch lecture recordings. A video from another website asks your permission before it loads.</dd></div>
-        <div><dt class="t-h3">Audio</dt><dd class="t-card">Listen to recordings and read along.</dd></div>
-        <div><dt class="t-h3">Code</dt><dd class="t-card">Read code and data files as plain text.</dd></div>
+        <div><dt>Text</dt><dd>Lessons and course descriptions, as formatted pages.</dd></div>
+        <div><dt>PDFs</dt><dd>Read slides and handouts without downloading them.</dd></div>
+        <div><dt>Notebooks</dt><dd>A notebook is a document that mixes text, code and results. Lectale shows it. It does not run the code.</dd></div>
+        <div><dt>Video</dt><dd>Watch lecture recordings. A video from another website asks your permission before it loads.</dd></div>
+        <div><dt>Audio</dt><dd>Listen to recordings and read along.</dd></div>
+        <div><dt>Code</dt><dd>Read code and data files as plain text.</dd></div>
       </dl>
       <p class="t-card formats__end t-muted">Any other file shows its name and size, with a safe download.</p>
     </div>
   </div>
 </section>
 
-<section class="section section--sand" id="how" aria-labelledby="how-h">
+<section class="section" id="how" aria-labelledby="how-h">
   <div class="wrap">
     <h2 class="t-h2" id="how-h">How to start</h2>
     <ol class="steps">
-      <li><h3 class="t-h3">Find a course</h3><p class="t-card">Paste a course link, or choose a course from the catalog.</p></li>
+      <li><h3 class="t-h3">Find a course</h3><p class="t-card"><a href="${APP_OPEN}">Paste a course link</a>, or choose a course from the <a href="catalog.html">catalog</a>.</p></li>
       <li><h3 class="t-h3">Read it</h3><p class="t-card">Lectale shows the description, the outline and each lesson.</p></li>
-      <li><h3 class="t-h3">Add an account when you need one</h3><p class="t-card">Create an account to enrol in a course or save it for later. Reading never needs one.</p></li>
+      <li><h3 class="t-h3">Save a course or enrol</h3><p class="t-card">An account lets you enrol in a course or save it for later. Reading never needs one.</p></li>
     </ol>
-    <p class="after-steps"><a class="more" href="${APP}">Open a course</a></p>
   </div>
 </section>
 
@@ -302,30 +287,40 @@ function indexPage(hookKey, file) {
     <div class="section__body">
       <figure class="repo">
         <div class="repo__panel">
-          <pre class="t-mono"><code>statistics-101/
-  README.md
-  course.yaml
-  describing-data/
-    averages-and-spread.md
-    histograms.pdf</code></pre>
-          <ul class="outline">
-            <li class="own">Overview</li>
-            <li class="mod own">Describing data</li>
-            <li class="own">Averages and spread</li>
-            <li class="own">Histograms</li>
-          </ul>
+          <div class="repo__col">
+            <h3 class="repo__h" id="repo-l">Your repository</h3>
+            <ul class="tree" aria-labelledby="repo-l">
+              <li><code>README.md</code></li>
+              <li><code>course.yaml</code></li>
+              <li><code>describing-data/</code></li>
+              <li class="in"><code>what-data-looks-like.md</code></li>
+              <li class="in"><code>averages-and-spread.md</code></li>
+              <li class="in"><code>histograms.pdf</code></li>
+            </ul>
+          </div>
+          <div class="repo__col">
+            <h3 class="repo__h" id="repo-r">What learners see</h3>
+            <ul class="outline" aria-labelledby="repo-r">
+              <li>Overview</li>
+              <li class="quiet">Sets the order and the titles</li>
+              <li class="mod">Describing data</li>
+              <li>What data looks like</li>
+              <li>Averages and spread</li>
+              <li>Reading a histogram</li>
+            </ul>
+          </div>
         </div>
-        <figcaption class="cap">A repository folder on the left and the outline Lectale builds from it on the right.</figcaption>
+        <figcaption class="cap">Lectale builds this outline from your course files.</figcaption>
       </figure>
       <div class="actions">
-        <a class="btn btn--outline btn--lg" href="${APP_CREATE}">Create account</a>
-        <a class="more" href="${APP}">Open a course by link</a>
+        <a class="btn btn--outline btn--lg" href="${APP_LOGIN}">Connect a repository</a>
+        <a class="more" href="${APP_OPEN}">Open a course by link</a>
       </div>
     </div>
   </div>
 </section>
 
-<section class="section section--tight teaser" id="catalog" aria-labelledby="cat-h">
+<section class="section teaser" id="catalog" aria-labelledby="cat-h">
   <div class="wrap grid">
     <div class="teaser__head">
       <h2 class="t-h2" id="cat-h">Browse listed courses</h2>
@@ -333,52 +328,56 @@ function indexPage(hookKey, file) {
       <p><a class="more" href="catalog.html">Browse the catalog</a></p>
     </div>
     <div class="teaser__cards">
+      <p class="cap">These are examples. They are not real courses.</p>
       <ul class="cards">
         ${COURSES.slice(0, 3).map((c) => card(c)).join('\n        ')}
       </ul>
-      <p class="cap">These are examples. They are not real courses.</p>
     </div>
   </div>
 </section>
 
 <section class="section" id="download" aria-labelledby="dl-h">
   <div class="wrap">
-    <div class="stack">
+    <div class="dl__head">
       <h2 class="t-h2" id="dl-h">Use Lectale on your device</h2>
       <p class="t-read">Use it in your browser, or install it.</p>
     </div>
     <div class="grid dl">
-      <ul class="dl__list">
-        <li class="plat plat--web">
-          <h3 class="plat__name">Web</h3>
-          <p class="plat__text">Works on any device with a current browser. Nothing to install.</p>
-          <a class="btn btn--primary" href="${APP}">Open in browser</a>
-        </li>
-        <li class="plat">
-          <h3 class="plat__name">Android</h3>
-          <div><p class="plat__text">An APK file from GitHub Releases. Your phone may ask you to allow installing from your browser.</p><p class="plat__file t-mono">lectale-android.apk, -- MB</p></div>
-          <a class="btn btn--outline" href="${OWNER_REPO}/releases/latest/download/lectale-android.apk">Download for Android</a>
-        </li>
-        ${platforms.map(platRow).join('\n        ')}
-        <li>
+      <div class="dl__list">
+        <ul class="plats">
+          <li class="plat plat--web">
+            <h3 class="plat__name">Web</h3>
+            <div class="plat__info"><p class="plat__text t-card">Works on any device with a current browser. Nothing to install.</p></div>
+            <a class="btn btn--primary" href="${APP_OPEN}">Open in browser</a>
+          </li>
+          <li class="plat">
+            <h3 class="plat__name">Android app</h3>
+            <div class="plat__info"><p class="plat__file t-mono">lectale-android.apk</p><p class="plat__more t-small">Your phone may ask you to allow installing from your browser.</p></div>
+            <a class="btn btn--outline" href="${DOWNLOAD}/lectale-android.apk">Download<span class="vh"> the Android app</span></a>
+          </li>
+          ${desktop.map(platRow).join('\n          ')}
+        </ul>
+        <div class="dl__notes">
+          <p class="t-card">Android and desktop files come from <a href="${RELEASES}">GitHub Releases</a>. Check a file against <a href="${DOWNLOAD}/SHA256SUMS">SHA256SUMS</a>.</p>
+          <p class="t-card">The Android signing certificate fingerprint is published with each release.</p>
           <p class="note t-card">Lectale has no iPhone or iPad app. Open it in Safari or another browser instead.</p>
-          <p class="dl__sum t-small t-muted">Each download lists its SHA-256 checksum on the <a href="${RELEASES}">release page</a>.</p>
-        </li>
-      </ul>
+        </div>
+      </div>
       <div class="dl__aside qr">
-        <div class="qr__tile"><img src="qr/android.svg" width="164" height="164" alt="QR code that opens the Lectale downloads page on GitHub. The same link is printed below it."></div>
-        <p class="t-small">Scan with your phone to get the Android app.</p>
-        <p class="url"><a href="${RELEASES}">${RELEASES_SHOWN}</a></p>
+        <div class="qr__tile"><img src="qr/android.svg" width="164" height="164" alt="QR code for the Android app. The same address is printed below it."></div>
+        <p class="qr__label">Android app</p>
+        <p class="qr__text t-small">Scan with your phone to download it.</p>
+        <p class="qr__url t-mono">${CANONICAL_ANDROID.replace('.dev/', '.dev<wbr>/')}</p>
       </div>
     </div>
   </div>
 </section>
 
-<section class="section section--tight privacy" aria-labelledby="priv-h">
+<section class="section privacy" aria-labelledby="priv-h">
   <div class="wrap grid">
-    <div class="section__head"><h2 class="t-h2" id="priv-h">No tracking</h2></div>
+    <div class="section__head"><h2 class="t-h3" id="priv-h">No tracking</h2></div>
     <div class="section__body">
-      <p class="t-read">Lectale has no analytics, advertising or trackers. Opening a course by link reads public repositories only.</p>
+      <p class="t-card">Lectale has no analytics, advertising or trackers. Opening a course by link reads public repositories only.</p>
       <p><a class="more" href="/privacy/">Read the privacy notice</a></p>
     </div>
   </div>
@@ -430,7 +429,10 @@ function catalogPage() {
       </div>
     </form>
 
-    <p class="results" role="status" data-count>${COURSES.length} example courses. These are examples. They are not real courses.</p>
+    <div class="results">
+      <p aria-live="polite" aria-atomic="true" data-count>${COURSES.length} example courses</p>
+      <p>These are examples. They are not real courses.</p>
+    </div>
 
     <ul class="cards" data-cards>
       ${COURSES.map((c) => card(c, { level: 2 })).join('\n      ')}
@@ -465,13 +467,14 @@ const pwField = (autocomplete, hint = '') =>
   `<div class="field">
         <label class="label" for="pw">Password</label>
         <div class="control">
-          <input class="input input--pw" id="pw" name="password" type="password" autocomplete="${autocomplete}"${hint ? ' aria-describedby="pw-hint"' : ''}>
-          <button class="reveal" type="button" aria-controls="pw">Show password</button>
+          <input class="input" id="pw" name="password" type="password" autocomplete="${autocomplete}"${hint ? ' aria-describedby="pw-hint"' : ''}>
+          <button class="reveal" type="button" aria-controls="pw" aria-pressed="false">Show password</button>
         </div>
         ${hint ? `<p class="hint" id="pw-hint">${hint}</p>` : ''}
       </div>`;
 
 function loginPage(state) {
+  // The h1 is always first; a notice or an error sits directly under it.
   const notice =
     state === 'expired'
       ? `<div class="alert" role="status">${ICONS.info}<div><p class="alert__title">You’ve been logged out.</p><p class="alert__text">Log in to continue.</p></div></div>`
@@ -488,9 +491,8 @@ function loginPage(state) {
     `<main id="main" class="authpage">
   <div class="wrap">
     <div class="auth">
-      ${notice}
       <h1 class="t-h2">Log in</h1>
-      ${err}
+      ${notice}${err}
       <form method="post" action="${APP}">
       ${emailField(filled)}
       ${pwField('current-password')}
@@ -539,9 +541,9 @@ function createPage(sent) {
       <form method="post" action="create-account-sent.html">
       ${emailField()}
       ${pwField('new-password', 'Use at least 12 characters. A password you don’t use anywhere else is best.')}
+      <p class="t-small t-muted consent">By creating an account you accept the <a href="/terms/">Terms</a> and the <a href="/privacy/">Privacy notice</a>.</p>
       <div class="field"><button class="btn btn--primary btn--lg btn--block" type="submit">Create account</button></div>
       </form>
-      <p class="t-small t-muted">By creating an account you accept the <a href="/terms/">Terms</a> and the <a href="/privacy/">Privacy notice</a>.</p>
       <div class="auth__links">
         <p class="alt">Already have an account? <a href="login.html">Log in</a></p>
       </div>
@@ -578,7 +580,7 @@ function appHome({ menuOpen = false, empty = false }) {
   const openForm = (primary) => `<form class="stack" method="get" action="${APP}">
           <div class="field">
             <label class="label" for="repo">GitHub repository address</label>
-            <input class="input" id="repo" name="repo" type="url" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="repo-hint">
+            <input class="input" id="repo" name="repo" type="url" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="repo-hint"${primary ? ' autofocus' : ''}>
             <p class="hint" id="repo-hint">For example, https://github.com/owner/repository</p>
           </div>
           <div class="actions"><button class="btn ${primary ? 'btn--primary btn--lg' : 'btn--outline'}" type="submit">Open course</button>${primary ? '<a class="btn btn--outline btn--lg" href="catalog.html">Browse the catalog</a>' : ''}</div>
@@ -592,7 +594,7 @@ function appHome({ menuOpen = false, empty = false }) {
   <div class="wrap">
     <h1 class="t-h2">Hello.</h1>
     <section class="empty-home" aria-labelledby="empty-h">
-      <h2 class="t-h4" id="empty-h">You have no courses yet</h2>
+      <h2 class="t-h3" id="empty-h">You have no courses yet</h2>
       <p class="t-read">Open a course with its link, or browse the catalog.</p>
       <p class="t-card t-muted">Any public GitHub repository with a course.yaml file. No account needed; Lectale only reads it.</p>
       ${openForm(true)}
@@ -620,22 +622,22 @@ function appHome({ menuOpen = false, empty = false }) {
       <h1 class="t-h2">Hello, Maria.</h1>
 
       <section aria-labelledby="cont-h">
-        <h2 class="t-h4" id="cont-h">Continue reading</h2>
+        <h2 class="t-h3" id="cont-h">Continue reading</h2>
         <div class="cont">
           <img class="cover" src="covers/introduction-to-statistics.svg" width="480" height="720" alt="" decoding="async">
           <div>
             <p class="cont__title">Introduction to statistics</p>
             <div class="cont__place">
               <span class="ribbon" aria-hidden="true"></span>
-              <p>Averages and spread<br><span class="t-small t-muted">Describing data. Last opened lesson.</span></p>
+              <p id="cont-lesson">Averages and spread<br><span class="t-small t-muted">Describing data. Last opened lesson.</span></p>
             </div>
-            <a class="btn btn--primary btn--lg" href="${APP}">Continue: Averages and spread</a>
+            <a class="btn btn--primary btn--lg" href="${APP}" aria-describedby="cont-lesson">Continue</a>
           </div>
         </div>
       </section>
 
       <section aria-labelledby="mine-h">
-        <h2 class="t-h4" id="mine-h">Your courses</h2>
+        <h2 class="t-h3" id="mine-h">Your courses</h2>
         <ul class="mine">
           ${mine
             .map(
@@ -670,8 +672,7 @@ function appHome({ menuOpen = false, empty = false }) {
 
 copyFileSync(join(here, '..', '..', 'brand', 'logo-01-ribbon-cut-mulberry.svg'), join(here, 'logo.svg'));
 
-out('index.html', indexPage(HOOK, 'index.html'));
-out('index-hook-d.html', indexPage(HOOK === 'D' ? 'H' : 'D', 'index-hook-d.html'));
+out('index.html', indexPage());
 out('catalog.html', catalogPage());
 out('login.html', loginPage('default'));
 out('login-error.html', loginPage('error'));

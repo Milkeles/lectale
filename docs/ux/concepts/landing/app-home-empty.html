@@ -11,8 +11,7 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
-<link rel="preload" href="fonts/SourceSerif4Variable-Roman.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="fonts/IBMPlexSans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/SourceSerif4Variable-Roman.ttf.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="site.css">
 </head>
 <body>
@@ -37,13 +36,13 @@
   <div class="wrap">
     <h1 class="t-h2">Hello.</h1>
     <section class="empty-home" aria-labelledby="empty-h">
-      <h2 class="t-h4" id="empty-h">You have no courses yet</h2>
+      <h2 class="t-h3" id="empty-h">You have no courses yet</h2>
       <p class="t-read">Open a course with its link, or browse the catalog.</p>
       <p class="t-card t-muted">Any public GitHub repository with a course.yaml file. No account needed; Lectale only reads it.</p>
       <form class="stack" method="get" action="/app/">
           <div class="field">
             <label class="label" for="repo">GitHub repository address</label>
-            <input class="input" id="repo" name="repo" type="url" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="repo-hint">
+            <input class="input" id="repo" name="repo" type="url" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="repo-hint" autofocus>
             <p class="hint" id="repo-hint">For example, https://github.com/owner/repository</p>
           </div>
           <div class="actions"><button class="btn btn--primary btn--lg" type="submit">Open course</button><a class="btn btn--outline btn--lg" href="catalog.html">Browse the catalog</a></div>

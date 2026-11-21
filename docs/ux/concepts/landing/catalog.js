@@ -9,7 +9,6 @@
   const emptyTitle = document.querySelector('[data-empty-title]');
   const list = document.querySelector('[data-cards]');
   const { q, lang, subject } = form.elements;
-  const note = ' These are examples. They are not real courses.';
 
   const params = new URLSearchParams(location.search);
   q.value = params.get('q') || '';
@@ -27,8 +26,8 @@
     }
     list.hidden = shown === 0;
     empty.hidden = shown !== 0;
-    count.hidden = shown === 0;
-    count.textContent = `${shown} example ${shown === 1 ? 'course' : 'courses'}.${note}`;
+    // The count stays in the page at zero: a live region that is hidden does not announce.
+    count.textContent = `${shown} example ${shown === 1 ? 'course' : 'courses'}`;
     emptyTitle.textContent = term ? `No courses match “${q.value.trim()}”` : 'No courses match these filters';
   }
 

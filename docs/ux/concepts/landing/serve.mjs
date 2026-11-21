@@ -1,6 +1,8 @@
 // Local preview server: `node serve.mjs [port]`. Dev only.
 // Serves this folder, and maps the app path so the concept links work:
-// /app/ shows the signed-in home mock. The real site serves the Flutter build there.
+// /app/ shows the open-a-course screen (app-home-empty.html, link field
+// focused); the signed-in home is app-home.html. The real site serves the
+// Flutter build under /app/.
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
@@ -18,14 +20,15 @@ const types = {
 
 // The CSP the Worker will send (security review R18), so the preview fails the
 // same way production would.
-const csp =
-  "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; script-src 'self'; " +
+// Only the catalog filter runs a script; every other page gets script-src 'none'.
+const csp = (script) =>
+  `default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; script-src ${script}; ` +
   "connect-src 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; frame-ancestors 'none'";
 
 createServer(async (req, res) => {
   let path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   if (path === '/' || path === '') path = '/index.html';
-  if (path === '/app' || path.startsWith('/app/')) path = '/app-home.html';
+  if (path === '/app' || path.startsWith('/app/')) path = '/app-home-empty.html';
   const file = join(root, normalize(path));
   if (!file.startsWith(root)) {
     res.writeHead(403).end();
@@ -35,8 +38,10 @@ createServer(async (req, res) => {
     const body = await readFile(file);
     res.writeHead(200, {
       'content-type': types[extname(file)] ?? 'application/octet-stream',
-      'content-security-policy': csp,
+      'content-security-policy': csp(path === '/catalog.html' ? "'self'" : "'none'"),
       'x-content-type-options': 'nosniff',
+      'referrer-policy': 'strict-origin-when-cross-origin',
+      'permissions-policy': 'camera=(), microphone=(), geolocation=(), interest-cohort=()',
     });
     res.end(body);
   } catch {

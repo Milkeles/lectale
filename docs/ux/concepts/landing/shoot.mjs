@@ -19,7 +19,6 @@ mkdirSync(out, { recursive: true });
 
 const pages = {
   index: 'index.html',
-  'index-hook-d': 'index-hook-d.html',
   catalog: 'catalog.html',
   'catalog-no-results': 'catalog.html?q=quantum',
   login: 'login.html',
@@ -38,6 +37,8 @@ const widths = [
   [1440, 900],
   [390, 844],
 ];
+// The landing page is also checked at tablet width.
+const extraWidths = { index: [[768, 1024]] };
 const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'];
 
 const browser = await chromium.launch({ executablePath: '/usr/bin/google-chrome' });
@@ -46,7 +47,7 @@ const foreign = new Set();
 const csp = [];
 
 for (const name of names) {
-  for (const [w, h] of widths) {
+  for (const [w, h] of [...widths, ...(extraWidths[name] ?? [])]) {
     for (const scheme of ['light', 'dark']) {
       const ctx = await browser.newContext({
         viewport: { width: w, height: h },
@@ -72,7 +73,7 @@ for (const name of names) {
         }
         window.scrollTo(0, 0);
       });
-      await page.waitForTimeout(name.startsWith('index') ? 1500 : 300);
+      await page.waitForTimeout(name === 'index' ? 1500 : 300);
       await page.screenshot({ path: `${out}/${name}-${w}-${scheme}.png`, fullPage: true });
 
       await page.evaluate(axeSource);

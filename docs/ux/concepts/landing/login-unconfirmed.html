@@ -11,8 +11,7 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
-<link rel="preload" href="fonts/SourceSerif4Variable-Roman.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="fonts/IBMPlexSans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/SourceSerif4Variable-Roman.ttf.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="site.css">
 </head>
 <body>
@@ -21,7 +20,6 @@
 <main id="main" class="authpage">
   <div class="wrap">
     <div class="auth">
-      
       <h1 class="t-h2">Log in</h1>
       <div class="alert" role="status" id="login-unconfirmed"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><div><p class="alert__title">Confirm your email first.</p><p class="alert__text">We sent you a link when you created the account.</p><div class="actions"><button class="btn btn--outline btn--sm" type="button">Send the link again</button></div></div></div>
       <form method="post" action="/app/">
@@ -32,8 +30,8 @@
       <div class="field">
         <label class="label" for="pw">Password</label>
         <div class="control">
-          <input class="input input--pw" id="pw" name="password" type="password" autocomplete="current-password">
-          <button class="reveal" type="button" aria-controls="pw">Show password</button>
+          <input class="input" id="pw" name="password" type="password" autocomplete="current-password">
+          <button class="reveal" type="button" aria-controls="pw" aria-pressed="false">Show password</button>
         </div>
         
       </div>

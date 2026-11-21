@@ -10,15 +10,18 @@ import { dirname, join } from 'node:path';
 const here = dirname(fileURLToPath(import.meta.url));
 const { default: encodeQR } = await import(pathToFileURL(process.env.QR_MODULE).href);
 
-// Placeholder release URL (brief). R21 and R22: this project's Releases only.
-export const RELEASES_URL = 'https://github.com/Milkeles/lectale/releases/latest';
+// R22: the code encodes the canonical HTTPS URL, and the page prints it. The
+// route does not exist until the site is built; the Worker will answer it with
+// a redirect to releases/latest/download/lectale-android.apk, so the printed
+// code never has to change when the release asset does.
+export const CANONICAL_URL = 'https://lectale.fervorgames.workers.dev/download/android';
 
 // Dark modules on a light tile in both colour schemes: inverted codes fail on
 // many scanners (NN/g QR guideline 7). A 4-module border is the quiet zone.
 const PAPER = '#F4F1ED';
 const GRAPHITE = '#242725';
 
-const raw = encodeQR(RELEASES_URL, 'svg', { ecc: 'medium', border: 4 });
+const raw = encodeQR(CANONICAL_URL, 'svg', { ecc: 'medium', border: 4 });
 const svg = raw
   .replace('<svg ', '<svg width="164" height="164" shape-rendering="crispEdges" ')
   .replace('<path ', `<rect width="100%" height="100%" fill="${PAPER}"/><path fill="${GRAPHITE}" `);

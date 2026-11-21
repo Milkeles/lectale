@@ -11,8 +11,7 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex">
 <link rel="icon" href="logo.svg" type="image/svg+xml">
-<link rel="preload" href="fonts/SourceSerif4Variable-Roman.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="fonts/IBMPlexSans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/SourceSerif4Variable-Roman.ttf.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="site.css">
 </head>
 <body>
@@ -39,22 +38,22 @@
       <h1 class="t-h2">Hello, Maria.</h1>
 
       <section aria-labelledby="cont-h">
-        <h2 class="t-h4" id="cont-h">Continue reading</h2>
+        <h2 class="t-h3" id="cont-h">Continue reading</h2>
         <div class="cont">
           <img class="cover" src="covers/introduction-to-statistics.svg" width="480" height="720" alt="" decoding="async">
           <div>
             <p class="cont__title">Introduction to statistics</p>
             <div class="cont__place">
               <span class="ribbon" aria-hidden="true"></span>
-              <p>Averages and spread<br><span class="t-small t-muted">Describing data. Last opened lesson.</span></p>
+              <p id="cont-lesson">Averages and spread<br><span class="t-small t-muted">Describing data. Last opened lesson.</span></p>
             </div>
-            <a class="btn btn--primary btn--lg" href="/app/">Continue: Averages and spread</a>
+            <a class="btn btn--primary btn--lg" href="/app/" aria-describedby="cont-lesson">Continue</a>
           </div>
         </div>
       </section>
 
       <section aria-labelledby="mine-h">
-        <h2 class="t-h4" id="mine-h">Your courses</h2>
+        <h2 class="t-h3" id="mine-h">Your courses</h2>
         <ul class="mine">
           <li>
             <img class="cover" src="covers/introduction-to-statistics.svg" width="480" height="720" alt="" loading="lazy" decoding="async">
