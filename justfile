@@ -73,6 +73,11 @@ build-ios:
 build-macos:
     cd apps/flutter_client && flutter build macos --release
 
+# List Dart and npm packages with newer versions
+outdated:
+    flutter pub outdated
+    cd apps/edge_api && npm outdated || true
+
 # Scan both lockfiles for known vulnerabilities
 scan:
     osv-scanner scan source --lockfile=pubspec.lock --lockfile=apps/edge_api/package-lock.json

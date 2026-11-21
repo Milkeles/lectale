@@ -1,3 +1,6 @@
+# Dart packages are not listed: Dependabot can't clone the private
+# litse-ui-private, so every pub update fails. osv-scanner still checks
+# pubspec.lock weekly (security.yml), and `just outdated` lists updates.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -10,6 +13,3 @@ updates:
     schedule: { interval: weekly }
     groups:
       npm: { patterns: ["*"] }
-  - package-ecosystem: pub
-    directory: /
-    schedule: { interval: weekly }
