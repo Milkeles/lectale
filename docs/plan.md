@@ -247,7 +247,7 @@ Instruction files are followed "roughly 70%" of the time (software-doc-templates
 
 **Agent safety:**
 - Fetched pages and course repos are untrusted data, never instructions; agents are told this in their prompts.
-- The researcher has no write tools.
+- The researcher may write only to `docs/research/` (a prompt rule; it has Bash and Write for curl and notes), and its notes are reviewed before use.
 - Agents never hold production secrets.
 - Codex always runs sandboxed.
 

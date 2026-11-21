@@ -296,3 +296,15 @@ while building `spec/INDEX.md`.
   `AUTOMATIC_GRADING:GRA-002`. Treat `AUTOMATIC_GRADING.md` (eight cases) as the
   working set for GRA. For COM, trace both lists.
 - **ADR:** none needed.
+
+## Gaps found while writing the threat model and ROPA (2026-11-21)
+
+All `proposed`; the owner decides each before the milestone named.
+
+| ID | Gap | Evidence | Needed by |
+|---|---|---|---|
+| N2 | PRIV-001 lists email as personal data, but `users` in `db/0001_init.sql` has no email column. Decide whether D1 stores email at all; Firebase already holds it. | `spec/v4.0/docs/SECURITY_TESTS.md` PRIV-001; `spec/v4.0/db/0001_init.sql` `users` | M3 |
+| N3 | No retention period is given for any D1 table; only session lifetimes (12 h absolute, 30 min idle) are stated. | `spec/v4.0/docs/EU_PRIVACY_COOKIES.md`, `SESSION_SECURITY.md`, `db/0003_compliance.sql` | M7 |
+| N4 | `SESSION_SECURITY.md` names an "auth state version" that `web_sessions` has no column for. | `spec/v4.0/docs/SESSION_SECURITY.md`; `spec/v4.0/db/0001_init.sql` `web_sessions` | M3 |
+| N5 | No rule covers a course README that loads images from author-hosted servers, which exposes readers' IP addresses to third parties without consent. Options: proxy images through the pinned repo only, or click-to-load like video. | `spec/v4.0/docs/EU_PRIVACY_COOKIES.md` §15.2 covers video only | M2 |
+| N6 | No decision on revoking Lectale sessions when a Firebase account is disabled or deleted. | `spec/v4.0/docs/SESSION_SECURITY.md` | M3 |

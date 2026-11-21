@@ -29,7 +29,7 @@ Every task gets a spec in `spec/tasks/` that opens with the intake gate (Why / S
 - [x] Dart workspace with `apps/flutter_client` (six platforms). Packages are added when a milestone needs them, not before.
 - [x] Worker: `apps/edge_api` (Hono, static assets, health route, Vitest in workerd).
 - [ ] CI: spec tests, Worker tests, Flutter analyze/test, builds; actions pinned by SHA.
-- [ ] Threat model and ROPA stubs.
+- [x] Threat model and ROPA stubs.
 - [ ] Codex review of M0; fix findings.
 
 ## M1 Contract
