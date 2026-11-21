@@ -318,3 +318,14 @@ Where the spec is ambiguous, the course.yaml validator (`apps/edge_api/src/contr
 | V1 | Outline IDs are unique across the whole course, not only within their list. | Unique IDs make resource addresses unambiguous (E2) and catch copy-paste mistakes. |
 | V2 | `releaseAt` takes part in the date-ordering check. | A resource released after its own deadline is an authoring error. |
 | V3 | An assignment that no lesson references is an error. | Unreachable assignments would never be shown to students. |
+
+## N7 Validation CPU against the Workers Free limit (proposed, 2026-11-21)
+
+Measured locally on a 2.1 GHz Xeon (`docs/research/2026-11-21-m1-validator-cpu.md`): validating the spec's example course takes 4.8 ms median (p95 10.5 ms); a 200-resource course 11.6 ms; 2,000 resources 102 ms. Workers Free allows 10 ms CPU per request. YAML parsing is about 70% of the cost. Cloudflare's production CPUs may be faster; that is unmeasured until M2 deploys.
+
+Already decided: validate once per repository and commit, then serve the cached result (cache class B), so the cost is paid once per commit, not per reader.
+
+Options for the owner after the M2 measurement:
+1. Stay on Free and cap course size at what fits (likely a few hundred resources), with a clear error above it.
+2. Workers Paid ($5/month, per `docs/research/2026-11-21-platform-and-provider-facts.md`) for courses up to the spec's 10,000 resources.
+3. Try a faster YAML parser, keeping every safety rule (no aliases or tags, duplicate keys rejected).

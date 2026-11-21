@@ -9,6 +9,8 @@ Every task gets a spec in `spec/tasks/` that opens with the intake gate (Why / S
 
 ## Waiting on the owner
 
+- [ ] After M2 deploys and production CPU is measured: decide how to handle validation CPU on the Free plan (errata N7: cap course size, $5/month Paid plan, or a faster YAML parser).
+
 - [ ] Protect `main` in GitHub settings against force-pushes and deletion (not "require pull requests": agents merge directly by the owner's choice), and move `LITSE_UI_DEPLOY_KEY` into an Actions environment that only `main` can use. Hooks can't stop a pushed workflow from reading a repository secret; only these server-side settings can.
 
 - [ ] litse-ui stays a dependency, and Lectale work is pushed only to `Milkeles/lectale`. When a screen needs a component litse-ui lacks, decide where it is built: in litse-ui by the owner, or by an agent with the owner's go-ahead.
