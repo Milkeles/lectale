@@ -42,6 +42,15 @@ Every task gets a spec in `spec/tasks/` that opens with the intake gate (Why / S
 - [ ] Fixtures: one pass and one fail for every SEMANTIC_VALIDATION rule, plus attack fixtures.
 - [ ] Generated TypeScript types and the Dart client, drift-checked in CI.
 
+## M2 tooling for visual and accessibility checks
+
+The owner can't test with screen readers or on real devices, so accessibility is checked by tools, and the accessibility statement says so.
+
+- [ ] Widgetbook catalog of Lectale screens and states (as in devchat-frontend). The design reviewer screenshots every use case in light and dark, at three widths and at large text.
+- [ ] `accessibility_tools` overlay in debug builds and the catalog. First check whether its 48×48 tap-area default can be set to WCAG 2.2's 24×24, as litse-ui uses.
+- [ ] Widget tests use Flutter's contrast, tap-target and label guideline matchers.
+- [ ] axe-core and a browser accessibility-tree snapshot run on the web build in CI.
+
 ## Spikes (in parallel with M1)
 
 - [ ] S1: Git LFS delegated upload proof of concept. The flag stays off if it fails.
