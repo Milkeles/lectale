@@ -1,0 +1,10 @@
+[files]
+extend-exclude = [
+  "pubspec.lock",
+  "package-lock.json",
+  "*.png",
+  "*.svg",
+  "*.pdf",
+  "spec/v4.0/**",
+  "**/worker-configuration.d.ts",
+]

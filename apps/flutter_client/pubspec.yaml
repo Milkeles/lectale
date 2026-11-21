@@ -1,0 +1,28 @@
+name: lectale
+description: Read GitHub-hosted courses in one app on web, mobile and desktop.
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.14.0
+
+resolution: workspace
+
+dependencies:
+  # The component library (ADR-0004). Pinned to a commit until litse-ui tags
+  # a release on Flutter 3.50; CI reaches it with the deploy key.
+  devchat_ui:
+    git:
+      url: https://github.com/Milkeles/litse-ui-private.git
+      ref: 1ba314a75a9de1ba23acdb0c5490d7df8bf4710e
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  generate: false
