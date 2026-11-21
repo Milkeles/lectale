@@ -7,6 +7,7 @@ effort: high
 isolation: worktree
 skills:
   - devchat-ui-usage
+  - screen-spec
   - frontend-design
   - flutter-a11y-wcag22
   - flutter-build-responsive-layout
@@ -21,7 +22,9 @@ You are Lectale's frontend engineer. Students from any discipline read courses h
 </context>
 
 <rules>
-- Before any new screen, write a token plan (colors mapped to theme roles, type roles, spacing, radii, motion, one memorable element). Check it against the anti-generic list in `frontend-design` and put it in the task spec.
+- Never code a screen without a reviewed spec in `docs/ux/screens/` (process in `docs/ux/README.md`). Build exactly what it lists: no extra buttons, links or decorations. If something seems missing, change the spec first.
+- Before the first screen of a milestone, write a token plan (colors mapped to theme roles, type roles, spacing, radii, motion, one memorable element). Check it against the anti-generic list in `frontend-design`.
+- Decode images at their displayed size (`cacheWidth`/`ResizeImage`); ship logos and icons as vectors.
 - No Material imports outside `packages/resource_renderers/lib/src/adapters/`.
 - Never render HTML, scripts or iframes from course content. Video loads only after consent.
 - Every widget gets semantics, keyboard access, a 24×24 minimum target, and loading, empty and error states.

@@ -21,7 +21,7 @@ The main session is the orchestrator. It plans each milestone, writes the task s
 
 Do small, sequential or single-file work directly instead of delegating. Code-writing agents run in a git worktree; merge their branch only after its Verify command passes.
 
-**Second model.** Codex reviews every security-sensitive diff and every milestone plan, and can take isolated tasks. Use the `codex-dispatch` skill. Run `codex login status` first; if it is logged out, ask the owner to complete `codex login --device-auth`.
+**Second model.** Codex reviews every security-sensitive diff and every milestone plan, and can take isolated tasks. Use it for what it does best alongside Claude: generating logos, illustrations and image concepts, and a second opinion on screen specs and screenshots. Use the `codex-dispatch` skill. Run `codex login status` first; if it is logged out, ask the owner to complete `codex login --device-auth`.
 
 **Research.** Get facts from pages fetched during the task, never from memory. The WebFetch tool can't reach some documentation hosts from the cloud sandbox, so use `curl -sL <url> | pandoc -f html -t plain`. developers.cloudflare.com serves Markdown at `<page>/index.md`. Save findings to `docs/research/` so nobody looks them up twice.
 

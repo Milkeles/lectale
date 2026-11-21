@@ -45,6 +45,15 @@ Before any task, read in this order:
 - **No AI-sounding comments.** Avoid "This function…", "robust", "seamless", "leverage", "comprehensive", banner comments and emoji.
 - **App UI uses `devchat_ui` (litse-ui) only.** Material is allowed only in `packages/resource_renderers/lib/src/adapters/`, for third-party viewers. When a component is missing, add it to litse-ui.
 
+## Design and architecture rules
+
+- **Screens are specified before they are coded.** Follow `docs/ux/README.md`. The spec names one primary action, and every element names the user task it serves; anything without a task is removed.
+- **Images are decoded at the size they are shown.** Never decode a large image into a small box. Ship logos and icons as vectors, and raster images in the most efficient format each platform decodes. The `screen-spec` and `frontend-design` skills give the details.
+- **Patterns where they remove complexity, not by default:**
+  - **Worker:** a Hono middleware chain; ports and adapters for outside services (GitHub, Firebase keys, Stripe), so tests use fakes; repositories for D1 access; one error envelope.
+  - **Flutter:** feature modules with repositories behind Riverpod providers; a registry of resource renderers keyed by resource kind, so a new kind is a new renderer and nothing else changes; sealed classes for screen state.
+  - **Everywhere:** small single-purpose units, value types for IDs. Add an abstraction only when it has two users or makes a test possible.
+
 ## 4. Repository conventions
 
 | | |
