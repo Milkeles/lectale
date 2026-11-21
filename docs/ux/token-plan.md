@@ -144,7 +144,7 @@ Pre-ship checks (`ai-tells.md`): (1) decoration removed: the kind icons in file 
 
 ## Logo brief (for Codex image concepts)
 
-**What Lectale is.** A free reading app that opens any public GitHub repository as a course: README, lessons, files. Learners of any subject, no account. Name: Lectale (from "lecture" and "tale"; lowercase wordmark).
+**What Lectale is.** A free reading app that opens any public GitHub repository as a course: README, lessons, files. Learners of any subject, no account. Name: Lectale (from "lecture" and "tale"). The wordmark is set as "Lectale", capitalised, as the screen specs show (owner, 2026-11-21).
 
 **Mood.** Quiet, patient, trustworthy, a little bookish, not nostalgic. A good library at 10 a.m., not a startup.
 

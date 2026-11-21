@@ -9,7 +9,18 @@ updates:
     groups:
       actions: { patterns: ["*"] }
   - package-ecosystem: npm
-    directories: [/apps/edge_api, /tool/codegen]
+    directory: /apps/edge_api
     schedule: { interval: weekly }
     groups:
       npm: { patterns: ["*"] }
+  - package-ecosystem: npm
+    directory: /tool/codegen
+    schedule: { interval: weekly }
+    groups:
+      npm: { patterns: ["*"] }
+    ignore:
+      # openapi-typescript 7.13.0 (latest on 2026-11-21) declares the peer
+      # dependency typescript ^5.x; that is why this tool is kept apart from
+      # the Worker, which uses TypeScript 7. Lift this when it accepts 6+.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
