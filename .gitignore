@@ -41,6 +41,8 @@ node_modules/
 .vscode/
 .DS_Store
 apps/edge_api/src/worker-configuration.d.ts
+/apps/edge_api/src/contract/generated/course-v3.validate.js
+/apps/edge_api/src/contract/generated/course-v3.diagnostics.js
 
 # Python bytecode
 __pycache__/

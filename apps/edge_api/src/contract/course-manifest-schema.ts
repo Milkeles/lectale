@@ -1,13 +1,24 @@
-import { validate, type OutputUnit, type Schema } from "@cfworker/json-schema";
+import type { ErrorObject } from "ajv";
 import schema from "../../../../spec/v4.0/schemas/course-v3.schema.json" with { type: "json" };
 import type { ManifestDiagnostics } from "./course-manifest-diagnostics";
+import diagnosticValidators from "./generated/course-v3.diagnostics.js";
+import validate from "./generated/course-v3.validate.js";
 
 const { $defs, properties } = schema;
-const outlineKinds = new Map<string, Schema>([
-  ["module", $defs.module as Schema],
-  ["lesson", $defs.lesson as Schema],
-  ["assignment", $defs.assignmentRef as Schema],
+const outlineKinds = new Map([
+  ["module", "module"],
+  ["lesson", "lesson"],
+  ["assignment", "assignmentRef"],
 ]);
+
+type SchemaShape = {
+  [keyword: string]: unknown;
+  additionalProperties?: boolean;
+  properties?: Record<string, SchemaShape>;
+  items?: SchemaShape;
+  oneOf?: readonly SchemaShape[];
+  $ref?: string;
+};
 
 function object(value: unknown): Record<string, unknown> | undefined {
   if (value !== null && typeof value === "object" && !Array.isArray(value)) {
@@ -76,37 +87,7 @@ export function checkManifestLimits(value: unknown, diagnostics: ManifestDiagnos
   }
 }
 
-const wrappers = new Set(["properties", "allOf", "if", "false"]);
-const shallowSchemas = new WeakMap<Schema, {
-  local: Schema;
-  children: [string, Schema][];
-}>();
-const lookup: Record<string, Schema | boolean> = Object.create(null);
-
-function shallow(shape: Schema) {
-  const cached = shallowSchemas.get(shape);
-  if (cached) return cached;
-
-  // The v3 recursive edges are homogeneous lists and named child objects.
-  // Keep scalar properties and local combinations in the schema evaluator.
-  const { items, uniqueItems, additionalProperties, properties, ...local } = shape;
-  const children: [string, Schema][] = [];
-  if (properties) {
-    local.properties = Object.create(null);
-    for (const [key, field] of Object.entries(properties)) {
-      if (typeof field === "object" && (field.items || field.properties)) {
-        children.push([key, field]);
-      } else {
-        local.properties[key] = field;
-      }
-    }
-  }
-  const entry = { local, children };
-  shallowSchemas.set(shape, entry);
-  return entry;
-}
-
-function schemaMessage(issue: OutputUnit, path: string): string {
+function schemaMessage(issue: ErrorObject, path: string): string {
   switch (issue.keyword) {
     case "pattern":
       if (path.endsWith("/path") || path === "/course/cover") {
@@ -117,61 +98,74 @@ function schemaMessage(issue: OutputUnit, path: string): string {
     case "not":
       return "This combination of fields is not allowed.";
     case "oneOf":
-      return issue.keywordLocation.endsWith("/allOf/0/oneOf")
+      return issue.schemaPath === "#/allOf/0/oneOf"
         ? "Provide exactly one resource location, either path or url."
         : "Use an RFC 3339 timestamp or null.";
+    case "uniqueItems":
+      return "Array items must be unique.";
     default:
-      return issue.error;
+      return issue.message ?? "The value does not match the course schema.";
   }
 }
 
-/** Validates the v3 schema in bounded units so bad lists cannot accumulate schema errors. */
-export function validateManifestSchema(value: unknown, diagnostics: ManifestDiagnostics): void {
-  function check(value: unknown, shape: Schema, path: string): void {
-    const record = object(value);
-    if (record && shape.additionalProperties === false && shape.properties) {
-      for (const key in record) {
-        if (Object.hasOwn(record, key) && !Object.hasOwn(shape.properties, key)) {
-          diagnostics.unknownKey(path, key);
-        }
+/** Collects schema errors one node at a time so the diagnostic budget bounds the work. */
+function reportSchemaErrors(
+  value: unknown, shape: SchemaShape, pointer: string, path: string, diagnostics: ManifestDiagnostics,
+): void {
+  const record = object(value);
+  if (record && shape.additionalProperties === false && shape.properties) {
+    for (const key in record) {
+      if (Object.hasOwn(record, key) && !Object.hasOwn(shape.properties, key)) {
+        diagnostics.unknownKey(path, key);
       }
     }
+  }
 
-    const { local, children } = shallow(shape);
-    const result = validate(value, local, "2020-12", lookup, false);
-    for (const issue of result.errors) {
-      if (wrappers.has(issue.keyword) || issue.keywordLocation.includes("At/oneOf/")) continue;
-      const pointer = path + decodeURIComponent(issue.instanceLocation.slice(1));
-      diagnostics.report("SCHEMA_INVALID", pointer, schemaMessage(issue, pointer));
+  const check = diagnosticValidators[pointer]!;
+  if (!check(value)) {
+    for (const issue of check.errors ?? []) {
+      if (issue.keyword === "if" || issue.schemaPath.includes("/oneOf/")) continue;
+      const childPath = path + issue.instancePath;
+      diagnostics.report("SCHEMA_INVALID", childPath, schemaMessage(issue, childPath));
     }
+  }
 
-    if (record) {
-      for (const [key, child] of children) {
-        if (Object.hasOwn(record, key)) check(record[key], child, `${path}/${key}`);
+  if (record && shape.properties) {
+    for (const [key, child] of Object.entries(shape.properties)) {
+      if ((child.items || child.properties) && Object.hasOwn(record, key)) {
+        reportSchemaErrors(record[key], child, `${pointer}/properties/${key}`, `${path}/${key}`, diagnostics);
       }
     }
+  }
 
-    const item = shape.items;
-    if (!Array.isArray(value) || typeof item !== "object" || Array.isArray(item)) return;
-    // The v3 uniqueItems list requires strings. Invalid item types fail below.
-    if (shape.uniqueItems && new Set(value).size !== value.length) {
-      diagnostics.report("SCHEMA_INVALID", path, "Array items must be unique.");
+  const item = shape.items;
+  if (!Array.isArray(value) || !item) return;
+  if (item.properties) {
+    for (const [index, entry] of value.entries()) {
+      reportSchemaErrors(entry, item, `${pointer}/items`, `${path}/${index}`, diagnostics);
     }
-    // Outline oneOf branches have distinct kind constants. Checking the selected
-    // branch avoids revalidating children and reporting errors from other kinds.
-    const ref = item.$ref?.slice("#/$defs/".length);
-    const definition = ref ? ($defs as Record<string, Schema>)[ref] : undefined;
+  } else if (item.$ref || item.oneOf) {
     for (const [index, entry] of value.entries()) {
       const childPath = `${path}/${index}`;
-      const kind = item.oneOf ? object(entry)?.kind : undefined;
-      const child = item.oneOf ? (typeof kind === "string" ? outlineKinds.get(kind) : undefined) : definition ?? item;
-      if (child) {
-        check(entry, child, childPath);
+      const kind = object(entry)?.kind;
+      const ref = item.$ref ?? (typeof kind === "string" ? outlineKinds.get(kind) : undefined);
+      const name = ref?.replace("#/$defs/", "") as keyof typeof $defs | undefined;
+      if (name) {
+        reportSchemaErrors(entry, $defs[name], `#/$defs/${name}`, childPath, diagnostics);
       } else {
         diagnostics.report("SCHEMA_INVALID", childPath, "Use an outline node with kind module, lesson or assignment and its required fields.");
       }
     }
   }
+}
 
-  check(value, schema as Schema, "");
+/** Validates the full v3 schema with standalone Ajv code (FULL §4 item 10). */
+export function validateManifestSchema(value: unknown, diagnostics: ManifestDiagnostics): void {
+  if (validate(value)) return;
+
+  const before = diagnostics.errors.length;
+  reportSchemaErrors(value, schema, "#", "", diagnostics);
+  if (diagnostics.errors.length === before) {
+    diagnostics.report("SCHEMA_INVALID", "", "The manifest does not match the course schema.");
+  }
 }

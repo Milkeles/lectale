@@ -170,6 +170,7 @@ describe("Draft 2020-12 schema", () => {
     ["commerce terms", document({ price: 100 }), "/price"],
     ["an invalid outline kind", document({ outline: [{ ...lesson, kind: "unknown" }] }), "/outline/0"],
     ["a non-HTTPS homepage", document({ course: { ...course, homepage: "http://example.org" } }), "/course/homepage"],
+    ["a malformed HTTPS URI", document({ course: { ...course, homepage: "https://example.org/%gg" } }), "/course/homepage"],
     ["a non-HTTPS author URL", document({ course: { ...course, authors: [{ name: "Author", url: "http://example.org" }] } }), "/course/authors/0/url"],
     ["a non-HTTPS resource URL", withResources({ ...youtube, url: "http://youtu.be/ABCDEFGHIJK" }), "/outline/0/resources/0/url"],
     ["a missing resource location", withResources({ ...resource, path: undefined }), "/outline/0/resources/0"],
@@ -261,6 +262,15 @@ describe("Draft 2020-12 schema", () => {
     expect(errors[0]?.path).toBe("/outline/0/resources/0/path");
     expect(errors.some(({ message }) => message.includes('"assignmentId"'))).toBe(false);
     expect(errors.some(({ message }) => message.includes('"children"'))).toBe(false);
+  });
+
+  it("reports multiple exact pointers within a recursive outline branch", () => {
+    const source = document({ outline: [{ kind: "module", id: "module", title: "Module", children: [
+      { ...lesson, resources: [{ ...resource, "a~/b": true, path: "../notes.pdf" }] },
+    ] }] });
+    const path = "/outline/0/children/0/resources/0";
+    const errors = invalid(source, "SCHEMA_INVALID", `${path}/a~0~1b`);
+    expect(errors.map((error) => error.path)).toEqual([`${path}/a~0~1b`, `${path}/path`]);
   });
 
   it("bounds an attacker-controlled property name using the containing pointer", () => {

@@ -4,13 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "npm run compile:schemas && wrangler dev",
     "types": "wrangler types src/worker-configuration.d.ts",
-    "typecheck": "wrangler types src/worker-configuration.d.ts > /dev/null && tsc --noEmit -p . && tsc --noEmit -p test",
-    "test": "vitest run"
+    "compile:schemas": "node scripts/compile-schemas.mjs",
+    "typecheck": "npm run compile:schemas && wrangler types src/worker-configuration.d.ts > /dev/null && tsc --noEmit -p . && tsc --noEmit -p test",
+    "test": "npm run compile:schemas && vitest run"
   },
   "dependencies": {
-    "@cfworker/json-schema": "^4.1.6",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "hono": "^4.13.19",
     "yaml": "^2.9.1"
   },

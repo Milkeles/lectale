@@ -1,4 +1,4 @@
-import { Composer, CST, isAlias, isMap, isScalar, isSeq, Lexer, LineCounter, Parser, type Node } from "yaml";
+import { Composer, CST, isAlias, isMap, isScalar, isSeq, Lexer, Parser, type Node } from "yaml";
 import { diagnosticLimit, keyPointer, ManifestDiagnostics, publicPointer } from "./course-manifest-diagnostics.ts";
 import { checkManifestLimits, validateManifestSchema } from "./course-manifest-schema.ts";
 import { validateManifestSemantics } from "./course-manifest-semantics.ts";
@@ -14,25 +14,36 @@ const yamlNodeLimit = Symbol("manifest YAML node limit");
 const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
 type Failure = Extract<ValidationResult, { ok: false }>;
+type YamlPath = (string | number)[];
 
 function failure(code: ValidationError["code"], path: string, message: string): Failure {
   return { ok: false, errors: [{ code, path, message }] };
 }
 
-function nodeProperties(node: Node | null, path: string): Failure | undefined {
+function yamlFailure(code: ValidationError["code"], path: YamlPath, message: string): Failure {
+  // Only invalid YAML needs an escaped pointer. Large valid outlines visit
+  // many scalars even though they never produce a YAML diagnostic.
+  let pointer = "";
+  for (const segment of path) {
+    pointer = typeof segment === "string" ? keyPointer(pointer, segment) : `${pointer}/${segment}`;
+  }
+  return failure(code, publicPointer(pointer), message);
+}
+
+function nodeProperties(node: Node | null, path: YamlPath): Failure | undefined {
   if (isAlias(node) || node?.anchor !== undefined) {
-    return failure("YAML_REFERENCE_FORBIDDEN", publicPointer(path), "YAML aliases and anchors are forbidden.");
+    return yamlFailure("YAML_REFERENCE_FORBIDDEN", path, "YAML aliases and anchors are forbidden.");
   }
   if (node?.tag !== undefined) {
-    return failure("YAML_TAG_FORBIDDEN", publicPointer(path), "Explicit YAML tags are forbidden.");
+    return yamlFailure("YAML_TAG_FORBIDDEN", path, "Explicit YAML tags are forbidden.");
   }
   if (isScalar(node) && ((typeof node.value === "number" && !Number.isFinite(node.value))
       || (typeof node.value === "string" && !node.value.isWellFormed()))) {
-    return failure("YAML_INVALID", publicPointer(path), "Use finite numbers and well-formed Unicode strings.");
+    return yamlFailure("YAML_INVALID", path, "Use finite numbers and well-formed Unicode strings.");
   }
 }
 
-function inspectYaml(node: Node | null, path: string): Failure | undefined {
+function inspectYaml(node: Node | null, path: YamlPath): Failure | undefined {
   const propertiesError = nodeProperties(node, path);
   if (propertiesError) return propertiesError;
   if (isMap<Node, Node | null>(node)) {
@@ -43,30 +54,33 @@ function inspectYaml(node: Node | null, path: string): Failure | undefined {
       if (!isScalar(key) || typeof key.value !== "string") {
         const keyError = nodeProperties(key, path);
         if (keyError) return keyError;
-        return failure("YAML_INVALID", publicPointer(path), "YAML mapping keys must be strings.");
+        return yamlFailure("YAML_INVALID", path, "YAML mapping keys must be strings.");
       }
-      const child = keyPointer(path, key.value);
-      const keyError = nodeProperties(key, child);
+      path.push(key.value);
+      const keyError = nodeProperties(key, path);
       if (keyError) return keyError;
       if (key.value === "<<") {
-        return failure("YAML_MERGE_KEY_FORBIDDEN", publicPointer(child), "YAML merge keys are forbidden.");
+        return yamlFailure("YAML_MERGE_KEY_FORBIDDEN", path, "YAML merge keys are forbidden.");
       }
       if (keys.has(key.value)) {
-        return failure("YAML_DUPLICATE_KEY", publicPointer(child), "YAML mapping keys must be unique.");
+        return yamlFailure("YAML_DUPLICATE_KEY", path, "YAML mapping keys must be unique.");
       }
       keys.add(key.value);
-      const error = inspectYaml(pair.value ?? null, child);
+      const error = inspectYaml(pair.value ?? null, path);
       if (error) return error;
+      path.pop();
     }
   } else if (isSeq<Node | null>(node)) {
     for (const [index, item] of node.items.entries()) {
-      const error = inspectYaml(item, `${path}/${index}`);
+      path.push(index);
+      const error = inspectYaml(item, path);
       if (error) return error;
+      path.pop();
     }
   }
 }
 
-function* boundedYamlTokens(text: string, lines: LineCounter): Generator<CST.Token> {
+function* boundedYamlTokens(text: string): Generator<CST.Token> {
   let remainingNodes = MAX_YAML_NODES;
   function count(token: CST.Token | null | undefined): void {
     if (--remainingNodes < 0) throw yamlNodeLimit;
@@ -79,8 +93,7 @@ function* boundedYamlTokens(text: string, lines: LineCounter): Generator<CST.Tok
 
   // yaml has no parse depth or node limit. Its maxAliasCount only applies
   // during toJS. Limit the parser stack, then check CST size before composition.
-  const parser = new Parser(lines.addNewLine);
-  lines.addNewLine(0);
+  const parser = new Parser();
   for (const lexeme of new Lexer().lex(text)) {
     for (const token of parser.next(lexeme)) {
       if (token.type === "document") count(token.value);
@@ -94,8 +107,17 @@ function* boundedYamlTokens(text: string, lines: LineCounter): Generator<CST.Tok
   }
 }
 
+function syntaxPosition(text: string, offset: number): { line: number; col: number } {
+  let line = 1;
+  let start = 0;
+  for (let end = text.indexOf("\n"); end !== -1 && end < offset; end = text.indexOf("\n", start)) {
+    line++;
+    start = end + 1;
+  }
+  return { line, col: offset - start + 1 };
+}
+
 function parseManifest(text: string): { ok: true; value: unknown } | Failure {
-  const lines = new LineCounter();
   try {
     const composer = new Composer({
       version: "1.2",
@@ -105,7 +127,7 @@ function parseManifest(text: string): { ok: true; value: unknown } | Failure {
       uniqueKeys: false,
       prettyErrors: false,
     });
-    const documents = composer.compose(boundedYamlTokens(text, lines), true, text.length);
+    const documents = composer.compose(boundedYamlTokens(text), true, text.length);
     const first = documents.next();
     if (first.done) return failure("YAML_SINGLE_DOCUMENT", "", "Provide exactly one YAML document.");
     const document = first.value;
@@ -114,7 +136,7 @@ function parseManifest(text: string): { ok: true; value: unknown } | Failure {
       return failure("YAML_TAG_FORBIDDEN", "", "Explicit YAML tags are forbidden.");
     }
     if (issue) {
-      const { line, col } = lines.linePos(issue.pos[0]);
+      const { line, col } = syntaxPosition(text, issue.pos[0]);
       const reason = issue.code.toLowerCase().replaceAll("_", " ");
       return failure("YAML_INVALID", "", `Invalid YAML at line ${line}, column ${col} (${reason}).`);
     }
@@ -125,7 +147,7 @@ function parseManifest(text: string): { ok: true; value: unknown } | Failure {
     if (document.directives?.yaml.version !== "1.2") {
       return failure("YAML_VERSION_UNSUPPORTED", "", "Use YAML 1.2.");
     }
-    const error = inspectYaml(document.contents, "");
+    const error = inspectYaml(document.contents, []);
     if (error) return error;
     if (!isMap(document.contents)) {
       return failure("YAML_SINGLE_DOCUMENT", "", "Provide one YAML document with a mapping at its root.");
@@ -143,11 +165,8 @@ function parseManifest(text: string): { ok: true; value: unknown } | Failure {
   }
 }
 
-/**
- * Validates UTF-8 course.yaml bytes or text, safe YAML 1.2, the v3 schema
- * and manifest rules (ADR-0003, FULL §4 item 10, SEC-014, SEC-020, V4-CORE-04).
- */
-export function validateCourseManifest(input: string | Uint8Array): ValidationResult {
+/** Parses bounded UTF-8 course.yaml bytes or text as safe YAML 1.2 (FULL §4 item 10). */
+export function parseCourseManifest(input: string | Uint8Array): { ok: true; value: unknown } | Failure {
   const byteLength = typeof input === "string" ? input.length : input.byteLength;
   if (byteLength > MAX_MANIFEST_BYTES
       || (typeof input === "string" && new TextEncoder().encode(input).length > MAX_MANIFEST_BYTES)) {
@@ -162,7 +181,15 @@ export function validateCourseManifest(input: string | Uint8Array): ValidationRe
   }
   if (!text.isWellFormed()) return failure("YAML_INVALID", "", "The manifest must be well-formed Unicode.");
 
-  const parsed = parseManifest(text);
+  return parseManifest(text);
+}
+
+/**
+ * Validates UTF-8 course.yaml bytes or text, safe YAML 1.2, the v3 schema
+ * and manifest rules (ADR-0003, FULL §4 item 10, SEC-014, SEC-020, V4-CORE-04).
+ */
+export function validateCourseManifest(input: string | Uint8Array): ValidationResult {
+  const parsed = parseCourseManifest(input);
   if (!parsed.ok) return parsed;
   const diagnostics = new ManifestDiagnostics();
   const manifest = parsed.value as CourseManifest;

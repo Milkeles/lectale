@@ -81,7 +81,7 @@ RULES = [
     Rule(
         "no-dynamic-code-in-worker",
         re.compile(r"\beval\s*\(|\bnew\s+Function\s*\("),
-        _worker_ts,
+        lambda p: _worker_ts(p) or (p.startswith("apps/edge_api/src/contract/generated/") and p.endswith(".js")),
         "Workers forbid runtime code generation, and course data must never become code.",
     ),
     Rule(

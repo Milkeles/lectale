@@ -39,6 +39,7 @@ class CheckRulesTest(unittest.TestCase):
 
     def test_eval_in_worker_is_flagged(self):
         self.assertTrue(violations("apps/edge_api/src/x.ts", "const f = new Function(body);"))
+        self.assertTrue(violations("apps/edge_api/src/contract/generated/validate.js", "eval(body);"))
 
     def test_worker_fetch_to_unknown_host_is_flagged(self):
         self.assertTrue(violations("apps/edge_api/src/x.ts", 'await fetch("https://evil.example/a")'))
