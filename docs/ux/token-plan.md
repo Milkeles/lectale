@@ -1,6 +1,8 @@
 # Token plan, M2
 
-Visual direction for Lectale: a calm reading app for learners of any discipline, who read for hours on six platforms. Structure follows known patterns (see `inventory.md`); boldness is spent in one place, the ribbon. All values map to `devchat_ui` roles. No hex appears in widgets; hex values below are seeds for the palettes passed to `DcColorTheme.fromPalettes`.
+Visual direction for Lectale: a calm reading app for learners of any discipline, who read for hours on six platforms. Structure follows known patterns (`inventory.md`); boldness is spent in one place, the ribbon. All values map to `devchat_ui` roles. No hex appears in widgets; hex values are seeds for the palettes passed to `DcColorTheme.fromPalettes`.
+
+> **Owner decision (morning of 2026-11-22): direction A or B.** A, warm paper with mulberry and Literata, is the proposed default (Codex §3; the design review's C1 found B close to IBM Carbon's default look). B, cool Birch with cobalt and Plex Serif, is the earlier plan, kept as the alternative. Everything outside "Colour" and the reading face is shared by both.
 
 ## Subject and job
 
@@ -8,85 +10,140 @@ Subject: a course that lives in a Git repository and is read like a book. Audien
 
 ## Colour
 
-`DcColorTheme.fromPalettes(name: 'Lectale', base: <Birch scale>, accent: <Cobalt scale>)`. Each is an 11-step scale (50 to 950) generated in OKLCH from the seed; the theme picks shades by measured contrast (4.5:1 text, 3:1 borders and focus ring; it throws if a scale cannot reach them). Dark and high-contrast schemes come from the same call; the dark scheme is judged on its own, not by inversion.
+`DcColorTheme.fromPalettes(name: 'Lectale', base: <paper scale>, accent: <accent scale>)`. Each is an 11-step OKLCH scale from the seed; the theme picks shades by measured contrast (4.5:1 text, 3:1 borders and focus ring). The dark scheme is judged on its own, not by inversion. Contrast below is WCAG 2 ratio, computed from the seeds on 2026-11-21; the built theme must be re-measured.
 
-| Name | Seed (light) | Role in `DcColorScheme` | Used for |
-|---|---|---|---|
-| Birch | `#F1F4F1` (hue about 150, chroma 0.01: a barely green grey, not cream) | `canvas`, `background`, base scale | Page and reading surface |
-| Mist | `#E3E9E5` | `muted`, `secondary`, `accent` (hover and pressed fills), `card` | Code blocks, file cards, selected rows, quiet fills |
-| Ink | `#1B2330` (blue-black; base shade 900) | `foreground`, `cardForeground`, `mutedForeground` at 700 | Text. Named and chosen, not `#111` |
-| Cobalt | `#2B4BA0` (hue about 262) | `primary`, `primaryForeground`, `ring`, links | Exactly three jobs: the primary button, links, the ribbon |
-| Brick | from `DcPalettes.red` | `destructive`, `destructiveForeground` | Errors only, always with text and an icon |
+### A. Warm paper, graphite, mulberry (proposed default)
 
-Dark scheme: Birch becomes a deep blue-green grey (about `#141A1A`, not black), Ink becomes a soft off-white, Cobalt lifts to about `#8FA8EE`. Chart roles are unused in M2.
+| Name | Light seed | Dark seed | Role in `DcColorScheme` | Used for |
+|---|---|---|---|---|
+| Paper | `#F4F1ED` (OKLCH L 0.96, C 0.006, h 75: a warm grey) | `#191B1A` | `canvas`, `background` | Page and reading surface |
+| Sand | `#E8E3DC` | `#262927` | `muted`, `secondary`, `accent` (hover, pressed), `card` | Code blocks, cards, selected rows |
+| Graphite | `#242725` (h 157) | `#E9E5DE` | `foreground`, `cardForeground`; `mutedForeground` at about `#5A5F5B` / `#A9ADA7` | Text |
+| Mulberry | `#783D57` (L 0.44, C 0.088, h 353) | `#E3A7B9` | `primary`, `ring`, links | Four jobs: primary button, links, the ribbon, focus ring |
+| Signal red | `#A3292E` (h 24) | `#F2958E` | `destructive` | Errors only, always with an icon and a title |
 
-Rules: one accent. No gradients, glows or overlays on images. Borders are the theme's translucent border; no shadows (`DcShadows.none`); separation is by Mist fill or whitespace, one method at a time. Meaning is never colour alone: errors carry an icon and title, the current place carries the ribbon and the word "current" for assistive tech. The manifest's `themeAccent` is ignored.
+| Pair | Light | Dark |
+|---|---|---|
+| Graphite on Paper | 13.40:1 | 13.79:1 |
+| Graphite on Sand | 11.82:1 | 11.71:1 |
+| Muted text on Paper / on Sand | 5.79 / 5.11:1 | 7.60:1 on Paper |
+| Mulberry on Paper (links, ribbon) | 7.16:1 | 8.65:1 |
+| Mulberry on Sand | 6.32:1 | 7.34:1 |
+| Button text on Mulberry | white 8.07:1 | must be dark Paper `#191B1A`, 8.65:1 (white is 2.00:1: check `fromPalettes` picks the dark foreground) |
+| Signal red on Paper / on Sand | 6.40 / 5.65:1 | 7.80:1 on Paper |
+| Sand on Paper (selected fill) | 1.13:1: never the only cue (S7) | |
+
+Tell check: warm paper with a serif sits next to the "cream, serif, terracotta" default (`ai-tells.md`, Colour). It stays clear of it because the paper has a quarter of the chroma of a cream (C 0.006 against about 0.014 at h 85), the accent is a cool mulberry (h 353, far from terracotta `#D97757` at h 39, C 0.131), and the serif is for reading, not display chrome. Signal red is darker and redder than terracotta (h 24, L 0.48 against L 0.67) and appears only in errors.
+
+### B. Birch, ink, cobalt (alternative)
+
+| Name | Light seed | Dark seed | Role | Contrast (design review) |
+|---|---|---|---|---|
+| Birch | `#F1F4F1` (h 146, a barely green grey) | about `#141A1A` | `canvas`, `background` | |
+| Mist | `#E3E9E5` | derived | `muted`, `card`, selected rows | Mist on Birch 1.11:1, so never the only cue |
+| Ink | `#1B2330` | soft off-white | `foreground` | 14.25:1 on Birch |
+| Cobalt | `#2B4BA0` | about `#8FA8EE` | `primary`, `ring`, links | 7.24:1 on Birch; white on Cobalt 8.03:1; dark: 7.55:1, button text must be dark (white 2.33:1) |
+| Signal red | `#A3292E` / `#F2958E` (replaces stock `DcPalettes.red`, C1) | | `destructive` | re-measure on Birch |
+
+### Rules (both)
+
+One accent with four named jobs (C2). Prose links are underlined, so the accent is never the only cue; large accent fills are for the primary button only. No gradients, glows or overlays on images. No shadows (`DcShadows.none`); separation is a Sand (or Mist) fill or whitespace, one method at a time. Meaning is never colour alone: errors carry an icon and a title, the ribbon carries ", current" or ", last opened" for assistive tech, selected rows carry semibold plus `selected`. The manifest's `themeAccent` is ignored (A11Y-002). Chart roles are unused.
 
 ## Type
 
-Bundled in litse-ui: IBM Plex Sans and IBM Plex Mono. Proposal: add IBM Plex Serif (SIL OFL, same family proportions, has Cyrillic including Bulgarian forms) as the reading face for README, text and lesson prose only. UI stays Plex Sans, code stays Plex Mono. This is one superfamily, two voices, chosen for long reading and because the app's owner works in Cyrillic. Bundling cost: one family, regular, italic, semibold; confirm size and register the licence with `registerDcLicenses`.
+Bundled in litse-ui: IBM Plex Sans (variable, has Greek) and IBM Plex Mono. UI stays Plex Sans; code, paths and data files stay Plex Mono. The reading face is the only choice between A and B.
 
-| Role | `DcTypography` slot | Size (line height) | Weight | Where |
-|---|---|---|---|---|
-| Course title | `display` | 30 (36) | semibold, Sans | one per screen |
-| Page heading | `heading` | 21.5 (30) | semibold, Sans | lesson title, README h1 shifted to h2 |
-| Section title | `title`, `subtitle` | 17 (26), 15 (21) | semibold, Sans | README h3 to h4, module headings |
-| **Reading** | `reading` (override) | **18 (30)**, 1.65 | regular, **Serif** | README, text, summary, lesson description |
-| UI body | `body`, `label` | 14 (21.5) | regular, medium | rows, buttons, alerts |
-| Small | `small`, `caption` | 12.9 (17), 11.8 (17) | regular | meta, hints, references |
-| Code | `code` | 14 (22) | regular, Mono | code and text viewers, paths |
+| | A: Literata | B: IBM Plex Serif |
+|---|---|---|
+| Licence | SIL OFL (Literata README) | SIL OFL |
+| Files | two variable files, roman and italic (README); weight axis, so the dark-mode offset works and semibold italic exists | static regular, italic, semibold, plus semibold italic for Markdown bold italic (S10); the dark offset does not apply to the serif slot |
+| Greek (μ, σ, π, Ω, Δ, θ, λ) | present (checked below) | missing: U+03BC and U+03C3 absent (design review, `fc-query`); falls back to Plex Sans, so a μ/σ sentence must be checked visually |
+| Cyrillic, Bulgarian set | present (checked below) | `bg` charset present |
+| Bulgarian localised forms | not in the Google Fonts static instance (no `BGR` language system); check the upstream variable files before relying on it | unverified |
+| Average width, English prose | 0.461 em per character (measured) | 0.474 em (design review) |
+| Also used for | course title, lesson title and content headings, so the reading area has one voice from the first line (Codex §3) | reading text only; headings in Plex Sans |
+| Bundle cost | not measured: the Google static 400 instance is 170,668 bytes; the variable files were not fetched | not measured |
 
-- Scale: the comfortable style's 14/13 factor on the DevChat steps gives the UI sizes above (about a 1.2 ratio). Reading is set separately at 18.
-- Measure: reading column 640 dp, about 64 to 70 characters at 18 dp in Plex Serif. On a 360 px phone the column is the window minus 18 dp gutters (about 36 characters; acceptable on a phone). Left aligned, ragged right, no justification, sentence case, no all-caps labels, no eyebrows.
-- Body weight is 400; weight only marks hierarchy. Dark mode applies the style's weight offset (-50).
+**Literata check, 2026-11-21** (fetched with curl; README converted with pandoc; treated as data):
+
+- https://raw.githubusercontent.com/googlefonts/literata/main/README.md: "This wide-ranging family of two variable fonts supports Greek, Cyrillic, PinYin, and Vietnamese", OFL, roman and italic variable files.
+- https://fonts.googleapis.com/css2?family=Literata:wght@400 serves `cyrillic-ext`, `cyrillic`, `greek-ext`, `greek`, `vietnamese` and Latin subsets.
+- The static instance it links (`fonts.gstatic.com/s/literata/v40/...ttf`): `fc-query` lists the `cyrl` and `grek` scripts and the ranges U+0384–03CE and U+0401–045F; every Bulgarian letter а–я and ѝ/Ѝ and all seven Greek test letters are present. Its GSUB has `locl` for Latin languages only.
+- Blocked: fonts.google.com/specimen/Literata and the TypeTogether PDF specimen (proxy 403).
+
+### Sizes and the heading map (M6)
+
+| Role | `DcTypography` slot | Size (line height) | Weight, face |
+|---|---|---|---|
+| Rendered h1: course title, lesson title | `display` | 30 (36) | semibold, reading face in A, Sans in B |
+| Rendered h2 | `heading` | 24 (32) | semibold, as h1 |
+| Rendered h3 | override | 21.5 (30) | semibold, as h1 |
+| Rendered h4 | override | 19.5 (28) | semibold, as h1 |
+| Rendered h5, h6 | override | 18 (28) | semibold, as h1; told apart by space above, not size |
+| **Reading** | `reading` (override) | **18 (30)** | regular, reading face |
+| UI titles: module headings, card and alert titles | `title`, `subtitle` | 17 (26), 15 (21) | semibold, Sans; never inside content |
+| UI body | `body`, `label` | 14 (21.5) | regular, medium, Sans |
+| Small | `small`, `caption` | 12.9 (17), 11.8 (17) | regular, Sans |
+| Code and data | `code` | 14 (22) | regular, Mono |
+
+Heading rules, both screens:
+
+1. No content heading is smaller than the 18 dp reading size, and none is larger than the page h1.
+2. Content headings shift so their top level sits one below the last page heading: Course shifts the README by one (README h1 renders as h2). Reader shifts Markdown by two when the lesson has a resource h2, by one when it has a single resource and so no h2 (`reader.md` §5). Deeper levels clamp at h6.
+3. `title` and `subtitle` are UI sizes only.
+
+Text rules:
+
+- **Measure:** the reading column is capped at 32 em (576 dp at 18 dp; about 69 characters in Literata, 68 in Plex Serif), so it holds when text scales. Left aligned, ragged right, no justification, sentence case, no all-caps, no eyebrows. Breakpoints follow from it (`inventory.md`).
+- **Text files** (S10): prose `.txt` and `.md` use Reading, wrapped. CSV, TSV, JSON, YAML, logs and code use `code`, unwrapped, with horizontal scroll.
+- Body weight 400; weight only marks hierarchy. Dark mode applies the style's -50 weight offset where the face is variable (Plex Sans; Literata in A).
 - Text scales with the platform setting; layouts reflow at 200 and 400 percent.
 
 ## Spacing, radii, motion
 
-- **Spacing** (`DcStyle.space(n)`, unit 4.5): 1 = 4.5, 2 = 9, 3 = 13.5, 4 = 18 (gutter), 6 = 27, 8 = 36, 12 = 54, 16 = 72. Paragraph gap 0.9 em; gap between a heading and its text is smaller than the gap above it (proximity). Screen gutter 18 dp on phone, 36 dp from 600 dp, content centred or pane-bound by max widths: reading 640, Home form 560, contents pane 320.
-- **Radii** (comfortable radius 10): small 5 (checkbox, inline code), medium 7.5 (buttons, fields, tabs, code blocks, images), large 12.5 (alerts, file cards), extra large 17.5 (dialogs, unused in M2), pill (badges). Images use the medium radius; contents rows have none (rows are separated by whitespace).
-- **Motion** (litse-ui tokens): `fast` 110 ms for hover and release, `medium` 170 ms for the ribbon moving to a new row and for focus, `slow` 240 ms unused. Curves `curve` and `enter`. No entrance animations, no scroll-linked effects, no page transitions. All durations are zero when the platform asks to reduce motion.
+- **Spacing** (`DcStyle.space(n)`, unit 4.5): 1 = 4.5, 2 = 9, 3 = 13.5, 4 = 18 (gutter), 6 = 27, 8 = 36, 12 = 54, 16 = 72. Edges and borders snap to whole device pixels (C3). Paragraph gap 0.9 em; a heading sits closer to its text than to the block above (proximity). Gutters 18 dp under 600 dp, 36 dp from 600. Max widths: reading 32 em, wide blocks 960 dp, Home column 560, Contents pane 272.
+- **Radii** (comfortable radius 10): small 5 (inline code), medium 7.5 (buttons, fields, code blocks, images), large 12.5 (alerts, file and link cards). Contents rows and list rows have none.
+- **Motion** (litse-ui tokens): `fast` 110 ms for hover and press feedback; `medium` 170 ms for the ribbon moving to a new row. Focus rings appear instantly (C2). No entrance animations, scroll-linked effects, animated scrolling or page transitions. Every duration is zero when the platform asks to reduce motion.
 
 ## Reading-oriented DcStyle (proposal)
 
-Name: `DcStyle.reading` (owner decides if it lives in litse-ui or in `apps/flutter_client`).
+Name: `DcStyle.reading` (owner decides if it lives in litse-ui or `apps/flutter_client`).
 
 ```
 comfortable base: radius 10, spacing 4.5, controls 36/44/52, scale 14/13,
 onDarkWeightOffset -50, shadows none, depth flat, standard motion
-differences from comfortable: radius stays 10; DcShadows.none;
-  typography: reading slot overridden to Plex Serif 18/30 (scale does not apply),
-  fontFamilyFallback for Cyrillic and Greek
+reading slot: Literata (A) or Plex Serif (B), 18/30, scale does not apply
+heading overrides: the map above
+fontFamilyFallback: A none needed for Greek and Cyrillic; B Plex Sans for Greek
 ```
 
-Larger than DevChat's tool style (13 px body, 32 px controls, 8 px radius): UI text 14, reading 18, controls 44 high, which meets touch targets without a separate mode. `DcTypography` has one `fontFamily` and fixed per-slot sizes, so the serif reading slot needs either a litse-ui change (per-slot family and size overrides) or an app-level `TextStyle` built from `typography.reading.copyWith(fontFamily:, fontSize:, height:)` inside `resource_renderers`. The second needs no litse-ui change; it is the interim.
+`DcTypography` has one `fontFamily` and fixed slot sizes, so the reading face and heading overrides need either a litse-ui change (per-slot family and size) or app-level `TextStyle`s built from `typography.reading.copyWith(...)` inside `resource_renderers`. The second needs no litse-ui change; it is the interim.
 
 ## The memorable element: the ribbon
 
-A 3 dp wide Cobalt bar, one row tall, at the left edge of the current row in the contents list (and its dark-scheme lift). It is the only place Cobalt appears outside the primary button and links. It slides to the new row in 170 ms when the lesson changes. It is also the shape of the logo. Meaning: this is where you are, like the ribbon in a book. Von Restorff: it is the single standing-out thing besides the primary button. It must not be used as decoration.
+A bookmark ribbon in the accent colour: 8 dp wide, one row tall, with the logo's swallowtail cut at its lower end (Codex §3), at the start edge of the learner's place in Contents. It marks the open lesson on the Reader and this visit's last-opened lesson on Course. When the pane is not on screen (phones, or a closed pane), it moves to the start edge of the Contents control, beside the title of that lesson, so the learner's place is visible at every width. Only one ribbon is ever on screen. It slides to a new row in 170 ms, instantly under reduce-motion. It is never decoration, and never used to mark a selected file (S7).
 
 ## Check against frontend-design's anti-generic list and `ai-tells.md`
 
 | Tell | How Lectale avoids it |
 |---|---|
-| Cream background with serif display and terracotta accent | Background is a grey-green Birch; the serif is reading text only, not display; the accent is Cobalt, far from `#D97757`. |
-| Near-black with an acid accent | Light default; dark scheme is a deep blue-green grey with a soft Cobalt; no acid colours. |
-| Broadsheet layout, hairlines, zero radius, dense columns | Radius 10, wide reading column, no rule lines or columns beyond list-detail. |
-| SaaS card kit: identical rounded cards, one radius, same shadow, gradient washes | Cards only for file and link cards and alerts; no shadows; radii by role; no gradients. Contents and lessons are rows, not cards. |
-| Tracked all-caps eyebrow, middle-dot meta strings, `WORD - fragment` labels, tinted near-black, mono data labels, trailing arrows | None. Meta uses commas and separate lines; Ink is a named blue-black; Mono only for code and file paths in error lists; no arrows on buttons (chevron only on the real Back control). |
-| Purple-blue gradient, glow, gradient text | Flat Cobalt only. |
-| Inter or Plus Jakarta display; stock scale | Plex Sans for UI (bundled), Plex Serif for reading; scale built from the 14/13 factor plus an 18 reading size. |
-| One accented word in a headline | Headings are plain. |
-| 01/02/03 numbering | Numbers only where order is real: none are shown; the outline's order is the order. |
-| Centred hero, three feature cards, CTA band | Home is a form on the left of the column; no hero, illustration or features. |
-| Dashboard filler, fake stats | None. No progress numbers (M2 has no progress). |
-| Icon tile above headings, gradient borders | No icon tiles; icons only inside alerts and controls, always with text. |
-| Fade and slide-up entrances, hover transitions everywhere | None. One user-triggered motion: the ribbon. |
+| Cream, serif display, terracotta | A: warm grey paper at low chroma, mulberry accent, serif only in the reading area (see Tell check). B: cool Birch and cobalt. |
+| Near-black with an acid accent | Light default; dark schemes are deep greys with a soft accent. |
+| Broadsheet hairlines, zero radius, dense columns | Radius by role, one reading column, no rules. |
+| SaaS card kit, one radius, same shadow | Cards only for file and link cards and alerts; no shadows. Contents, lessons and files are rows. |
+| Eyebrows, middle-dot or pipe meta strings, trailing arrows | None. Facts are labelled pairs; files are rows; no arrows except the real Close and chevron controls. |
+| Gradient, glow, gradient text | Flat colour only. |
+| Inter or Plus Jakarta display; stock scale | Plex Sans UI, Literata or Plex Serif reading; headings from one map. |
+| Documentation-theme look (C1) | The reason A exists: cool grey, cobalt and a thin bar read as a docs theme. A plus the swallowtail ribbon is Lectale's own. |
+| Centred hero, feature cards | Home is a form on the start line; no hero or illustration. |
+| Dashboard filler, fake stats | None; no counts in Contents. |
+| Icon tile above headings, decorative icons | No icons in lists or rows (S13). Icons only in alerts and on controls, with text; the three image zoom buttons are icon-only with a tooltip and label (S15). |
+| Entrance animations, hover effects everywhere | One user-triggered motion: the ribbon. |
 | Emoji or mixed icon styles | One family (Lucide), one stroke weight. |
-| Placeholder names and brands, invented stats, filler verbs | Copy in the screen specs uses plain verbs; sample names in wireframes are illustrative only and must be replaced by real fixtures in tests. |
-| Dense header chrome | Top bar has the brand link and nothing else. |
+| Placeholder names, filler verbs | Plain verbs; wireframe names are illustrative and replaced by real fixtures in tests. |
+| Dense header chrome | The top bar holds the brand and nothing else. |
 
-Pre-ship checks (`ai-tells.md`): (1) remove one decoration: the facts list loses its icons; (2) the Lectale element is the ribbon; (3) every colour, font and effect above names a token and a reason; (4) states and reduce-motion are in each screen spec; (5) copy has no filler verbs, no invented numbers.
+Pre-ship checks (`ai-tells.md`): (1) decoration removed: the kind icons in file lists and the tag badges (S4, S13); (2) the Lectale element is the swallowtail ribbon; (3) every colour, font and effect names a token and a reason, and the owner picks A or B; (4) states and reduce-motion are in each screen spec; (5) copy has no filler verbs, no invented numbers.
 
 ## Logo brief (for Codex image concepts)
 
@@ -94,19 +151,19 @@ Pre-ship checks (`ai-tells.md`): (1) remove one decoration: the facts list loses
 
 **Mood.** Quiet, patient, trustworthy, a little bookish, not nostalgic. A good library at 10 a.m., not a startup.
 
-**The mark.** One flat shape: a tall rounded-corner page with a bookmark ribbon hanging from the top edge, the ribbon's notch (the swallowtail cut) making the lower end of an "L". Single colour (Cobalt on Birch, or Ink), a second tone allowed for the page. The same bar becomes the in-app ribbon.
+**The mark.** One flat shape: a tall rounded-corner page with a bookmark ribbon hanging from the top edge, the ribbon's swallowtail cut making the lower end of an "L". Single colour (the accent on paper, or ink), a second tone allowed for the page. The same ribbon becomes the in-app ribbon.
 
-**SVG constraints.** Flat fills, no strokes, no gradients, no blur, no transparency effects, under 10 anchor points per shape, one or two colours, on a 64 by 64 grid, readable at 16 px, with a one-colour version and a white-on-Cobalt version. Wordmark is set in IBM Plex Sans Medium by the app, not drawn: give the symbol alone.
+**SVG constraints.** Flat fills, no strokes, no gradients, no blur, no transparency effects, under 10 anchor points per shape, one or two colours, on a 64 by 64 grid, readable at 16 px, with a one-colour version and a version reversed out of the accent. The wordmark is set in IBM Plex Sans Medium by the app, not drawn: give the symbol alone.
 
-**Avoid.** An open book, a graduation cap, an owl, a lightbulb, sparkles or AI stars, code brackets, the GitHub octocat or anything that looks like GitHub's mark, 3D or isometric, glow, purple, cream with terracotta, a speech bubble, a robot.
+**Avoid.** An open book, a graduation cap, an owl, a lightbulb, sparkles or AI stars, code brackets, the GitHub octocat or anything like GitHub's mark, 3D or isometric, glow, purple, cream with terracotta, a speech bubble, a robot.
 
 **Deliverable from Codex.** Three raster concepts (monochrome, 1024 px, white background) for the owner to choose from. A designer redraws the chosen one as SVG; the raster is never shipped (`screen-spec` skill, Images).
 
 ## Illustration brief
 
-M2 screens use no illustration (Home, Course and Reader specs list none), and empty or error states use text and one Lucide icon. The only illustration wanted now is one share and store image.
+M2 screens use no illustration; empty and error states use text and one Lucide icon. The only illustration wanted now is one share and store image.
 
 - **Subject.** A repository folder turning into a book page: a folder outline on the left, a page with three text lines and the ribbon on the right, joined by a plain line. Meaning: "a folder of files becomes a course you can read".
-- **Style.** Flat, two colours plus Birch, 2 dp line weight matching the Lucide icons, no characters or faces, no gradients, no isometric depth, generous empty space. 1200 by 630 for sharing; 240 by 160 variant for an optional spot use.
+- **Style.** Flat, two colours plus the paper tone, 2 dp line weight matching the Lucide icons, no characters or faces, no gradients, no isometric depth, generous empty space. 1200 by 630 for sharing; 240 by 160 variant for an optional spot use.
 - **Avoid.** People with laptops, floating cards, abstract blobs, stock-style gradients, rounded-card collages, emoji.
 - **Delivery.** Raster concepts from Codex as reference only; the final is SVG. Raster app assets, if any, are WebP at 1x, 2x and 3x.
