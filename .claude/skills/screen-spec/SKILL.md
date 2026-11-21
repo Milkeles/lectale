@@ -13,7 +13,8 @@ A screen spec is the wireframe agents work from. It lives in `docs/ux/screens/<s
 2. **Every element earns its place.** Each row in the element table names the user task it serves and the requirement behind it. No task, no element. This rule exists because generated screens tend to sprout buttons that do nothing useful.
 3. **Content order is importance order.** The wireframe follows the numbered content list; the most important thing is first in reading order and keyboard order.
 4. **Every state is designed:** loading, empty, each error, success. An empty state names the next action; an error says what failed and how to fix it.
-5. **Readers come first.** Lectale is a calm reading app for learners of any subject. Reading text is left-aligned, about 60-70 characters per line, in sentence case.
+5. **Structure follows established patterns.** Navigation and layout use well-studied patterns: canonical adaptive layouts (list-detail, supporting pane), a navigation rail on wide screens and a drawer or sheet on phones, breadcrumbs or a table of contents for hierarchy, and reading-app conventions. Each structural element in the element table names its pattern. Learners feel at home in familiar structures (Jakob's Law), so novelty is spent only on the one memorable element. Ground pattern choices in Flutter's adaptive design guidance (docs.flutter.dev/ui/adaptive-responsive).
+6. **Readers come first.** Lectale is a calm reading app for learners of any subject. Reading text is left-aligned, about 60-70 characters per line, in sentence case.
 
 ## UX laws to check
 
