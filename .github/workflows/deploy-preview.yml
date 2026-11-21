@@ -1,0 +1,49 @@
+# Builds the web app and deploys it with the Worker to Cloudflare's
+# workers.dev preview. It runs only when started by hand (Actions tab, or an
+# agent with the owner's go-ahead), because every deploy needs the owner's OK.
+# The Cloudflare token lives only in the `preview` environment's secrets, so
+# no agent session ever holds it.
+name: Deploy preview
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: deploy-preview
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy to workers.dev
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: preview
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/litse-ui-access
+        with:
+          deploy-key: ${{ secrets.LITSE_UI_DEPLOY_KEY }}
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
+        with:
+          install_args: flutter node
+      - run: flutter pub get --enforce-lockfile
+      # devchat_ui is in the pub cache now; nothing later needs the key.
+      - run: rm -f ~/.ssh/litse_ui
+      - name: Build the web app
+        working-directory: apps/flutter_client
+        run: flutter build web --release
+      - name: Deploy the Worker with the web build as its assets
+        working-directory: apps/edge_api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          npm ci
+          npm run compile:schemas
+          npx wrangler deploy
