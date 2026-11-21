@@ -12,7 +12,7 @@ interface FakeFile {
 interface FakeRepository {
   metadata: GitHubRepository;
   head: string;
-  history: Set<string>;
+  history: Map<string, Set<string>>;
   network: number;
 }
 
@@ -28,7 +28,7 @@ export class FakeGitHubReader implements GitHubReader {
   }
 
   addRepository(metadata: GitHubRepository, head: string, network = metadata.id): void {
-    this.repositories.set(metadata.id, { metadata: { ...metadata }, head, history: new Set([head]), network });
+    this.repositories.set(metadata.id, { metadata: { ...metadata }, head, history: new Map([[head, new Set([head])]]), network });
   }
 
   rename(id: number, owner: string, name: string): void {
@@ -44,13 +44,19 @@ export class FakeGitHubReader implements GitHubReader {
   forcePush(id: number, head: string): void {
     const repo = this.findById(id);
     repo.head = head;
-    repo.history = new Set([head]);
+    if (!repo.history.has(head)) repo.history.set(head, new Set([head]));
+  }
+
+  switchDefaultBranch(id: number, branch: string, head: string): void {
+    const repo = this.findById(id);
+    repo.metadata = { ...repo.metadata, defaultBranch: branch };
+    this.forcePush(id, head);
   }
 
   advance(id: number, sha: string): void {
     const repo = this.findById(id);
+    repo.history.set(sha, new Set([...(repo.history.get(repo.head) ?? []), sha]));
     repo.head = sha;
-    repo.history.add(sha);
   }
 
   setFile(path: string, text: string | number[], mode: FakeFile["mode"] = "100644", id = 42): void {
@@ -82,8 +88,7 @@ export class FakeGitHubReader implements GitHubReader {
     throw new GitHubReadError("not_found");
   }
 
-  private files(owner: string, name: string, sha: string): Map<string, FakeFile> {
-    const repository = this.findByName(owner, name);
+  private files(repository: FakeRepository, sha: string): Map<string, FakeFile> {
     const files = this.objects.get(repository.network)?.get(sha);
     if (repository.metadata.private || !files) throw new GitHubReadError("not_found");
     return files;
@@ -97,18 +102,22 @@ export class FakeGitHubReader implements GitHubReader {
     return { ...this.findById(id).metadata };
   }
 
-  async headCommit({ owner, name }: GitHubRepository): Promise<string> {
-    return this.findByName(owner, name).head;
+  async headCommit({ id }: GitHubRepository): Promise<string> {
+    const repository = this.findById(id);
+    if (repository.metadata.private) throw new GitHubReadError("not_found");
+    return repository.head;
   }
 
-  async isReachable({ owner, name }: GitHubRepository, sha: string, _defaultHead: string): Promise<boolean> {
-    return this.findByName(owner, name).history.has(sha);
+  async isReachable({ id }: GitHubRepository, sha: string, defaultHead: string): Promise<boolean> {
+    const repository = this.findById(id);
+    if (repository.metadata.private) throw new GitHubReadError("not_found");
+    return repository.history.get(defaultHead)?.has(sha) ?? false;
   }
 
-  async listDirectory({ owner, name }: GitHubRepository, sha: string, path: string): Promise<GitHubDirectoryEntry[]> {
+  async listDirectory({ id }: GitHubRepository, sha: string, path: string): Promise<GitHubDirectoryEntry[]> {
     const entries = new Map<string, GitHubDirectoryEntry>();
     const prefix = path ? `${path}/` : "";
-    for (const [file, { bytes, mode }] of this.files(owner, name, sha)) {
+    for (const [file, { bytes, mode }] of this.files(this.findById(id), sha)) {
       if (!file.startsWith(prefix) || !isSafeRepoPath(file)) continue;
       const suffix = file.slice(prefix.length);
       const slash = suffix.indexOf("/");
@@ -124,7 +133,7 @@ export class FakeGitHubReader implements GitHubReader {
   }
 
   async openFile(owner: string, name: string, sha: string, path: string, range?: string): Promise<Response> {
-    const file = this.files(owner, name, sha).get(path);
+    const file = this.files(this.findByName(owner, name), sha).get(path);
     if (!file) throw new GitHubReadError("not_found");
     const size = file.bytes.length;
     if (range === undefined) return new Response(file.bytes, { headers: { "Content-Length": String(size) } });

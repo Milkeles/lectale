@@ -7,7 +7,10 @@ const head = "b".repeat(40);
 const repo = { id: 42, owner: { login: "Owner" }, name: "Repository", default_branch: "main", private: false };
 const repository = { id: 42, owner: "Owner", name: "Repository", defaultBranch: "main", private: false };
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
 
 describe("GitHub REST preview reader", () => {
   it("uses bounded REST metadata and raw for unauthenticated pinned ranges", async () => {
@@ -41,8 +44,8 @@ describe("GitHub REST preview reader", () => {
     expect(outbound.mock.calls.map(([url]) => String(url))).toEqual([
       "https://api.github.com/repos/owner/repository",
       "https://api.github.com/repositories/42",
-      "https://api.github.com/repos/Owner/Repository/commits/HEAD",
-      `https://api.github.com/repos/Owner/Repository/contents/files?ref=${sha}`,
+      "https://api.github.com/repositories/42/commits/HEAD",
+      `https://api.github.com/repositories/42/contents/files?ref=${sha}`,
       `https://raw.githubusercontent.com/Owner/Repository/${sha}/files/slides.pdf`,
     ]);
     const headHeaders = new Headers(outbound.mock.calls[2]?.[1]?.headers);
@@ -61,8 +64,71 @@ describe("GitHub REST preview reader", () => {
       vi.stubGlobal("fetch", outbound);
       expect(await new GitHubRestReader().isReachable(repository, sha, head)).toBe(reachable);
       expect(String(outbound.mock.calls[0]?.[0])).toBe(
-        `https://api.github.com/repos/Owner/Repository/compare/${head}...${sha}?per_page=1&page=2`,
+        `https://api.github.com/repositories/42/compare/${head}...${sha}?per_page=1&page=2`,
       );
+    },
+  );
+
+  it("keeps head and reachability bound to the ID when a name changes hands and back", async () => {
+    let nameHolder = repo.id;
+    const foreignId = 77;
+    const outbound = vi.fn<typeof fetch>(async (url) => {
+      const { pathname } = new URL(String(url));
+      if (pathname === "/repos/Owner/Repository") return Response.json({ ...repo, id: nameHolder });
+      nameHolder = foreignId;
+      try {
+        const id = pathname.startsWith("/repositories/42/") ? repo.id : nameHolder;
+        if (pathname.endsWith("/commits/HEAD")) return new Response(id === repo.id ? head : sha);
+        return Response.json({ status: id === repo.id ? "diverged" : "behind" });
+      } finally {
+        nameHolder = repo.id;
+      }
+    });
+    vi.stubGlobal("fetch", outbound);
+    const reader = new GitHubRestReader();
+    const original = await reader.resolveRepository("Owner", "Repository");
+    expect(await reader.headCommit(original)).toBe(head);
+    expect(await reader.isReachable(original, sha, head)).toBe(false);
+    expect(await reader.resolveRepository("Owner", "Repository")).toEqual(original);
+    expect(outbound.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+      "/repos/Owner/Repository", "/repositories/42/commits/HEAD",
+      `/repositories/42/compare/${head}...${sha}`, "/repos/Owner/Repository",
+    ]);
+  });
+
+  it.each([403, 404])("brackets a name fallback after ID-addressed %s and logs the address used", async (status) => {
+    const log = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const outbound = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status }))
+      .mockResolvedValueOnce(Response.json(repo))
+      .mockResolvedValueOnce(new Response(head))
+      .mockResolvedValueOnce(Response.json(repo));
+    vi.stubGlobal("fetch", outbound);
+    expect(await new GitHubRestReader().headCommit(repository)).toBe(head);
+    expect(outbound.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+      "/repositories/42/commits/HEAD", "/repos/Owner/Repository",
+      "/repos/Owner/Repository/commits/HEAD", "/repos/Owner/Repository",
+    ]);
+    expect(log).toHaveBeenCalledExactlyOnceWith("GitHub preview metadata", { operation: "head", address: "name-fallback" });
+  });
+
+  it.each([404, 502, 200])("discards fallback metadata when the final name check returns %s or a different ID", async (status) => {
+    const outbound = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(Response.json(repo))
+      .mockResolvedValueOnce(new Response(head))
+      .mockResolvedValueOnce(Response.json({ ...repo, id: 77 }, { status }));
+    vi.stubGlobal("fetch", outbound);
+    await expect(new GitHubRestReader().headCommit(repository)).rejects.toMatchObject({ kind: "repo_changed" });
+  });
+
+  it.each([[409, "not_found"], [429, "rate_limited"], [502, "upstream"]])(
+    "does not fall back after an ID-addressed %s",
+    async (status, kind) => {
+      const outbound = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(null, { status }));
+      vi.stubGlobal("fetch", outbound);
+      await expect(new GitHubRestReader().headCommit(repository)).rejects.toMatchObject({ kind });
+      expect(outbound).toHaveBeenCalledOnce();
     },
   );
 
