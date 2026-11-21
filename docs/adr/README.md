@@ -25,3 +25,4 @@ Spec defects that need a decision are tracked in
 | [0009](0009-agent-team-and-model-routing.md) | Agent team and model routing | accepted |
 | [0010](0010-feature-intake-gate-and-build-vs-buy.md) | Feature intake gate and build-versus-buy rule | accepted |
 | [0011](0011-course-outline-dto-for-clients.md) | CourseOutline DTO for reader clients | proposed |
+| [0012](0012-source-serif-4-reading-face.md) | Source Serif 4 as the reading face | accepted |

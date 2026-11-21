@@ -2,7 +2,7 @@
 
 Visual direction for Lectale: a calm reading app for learners of any discipline, who read for hours on six platforms. Structure follows known patterns (`inventory.md`); boldness is spent in one place, the ribbon. All values map to `devchat_ui` roles. No hex appears in widgets; hex values are seeds for the app's `DcColorScheme`s (see Colour).
 
-> **Owner decisions, 2026-11-21.** Warm paper with mulberry (formerly "direction A"), shifted a few degrees toward purple, plus one gold accent that catches the eye (the owner chose gold because it is an uncommon choice). Paper, graphite and mulberry make up about 80 percent of what the learner sees; gold marks the few places that need attention. The cobalt direction is dropped. The reading face is still open (see Type).
+> **Owner decisions, 2026-11-21.** Warm paper with mulberry (formerly "direction A"), shifted a few degrees toward purple, plus one gold accent that catches the eye (the owner chose gold because it is an uncommon choice). Paper, graphite and mulberry make up about 80 percent of what the learner sees; gold marks the few places that need attention. The cobalt direction is dropped. The reading face is Source Serif 4 (see Type).
 
 ## Subject and job
 
@@ -54,31 +54,25 @@ Tell check: warm paper with a serif sits next to the "cream, serif, terracotta" 
 
 ## Type
 
-Bundled in litse-ui: IBM Plex Sans (variable, has Greek) and IBM Plex Mono. UI stays Plex Sans; code, paths and data files stay Plex Mono. The reading face is still open: Literata was proposed, IBM Plex Serif is the fallback, and the researcher is comparing faces with Bulgarian letterforms.
+Bundled in litse-ui: IBM Plex Sans (variable, has Greek) and IBM Plex Mono. UI stays Plex Sans; code, paths and data files stay Plex Mono.
 
-| | Literata (proposed) | IBM Plex Serif (fallback) |
-|---|---|---|
-| Licence | SIL OFL (Literata README) | SIL OFL |
-| Files | two variable files, roman and italic (README); weight axis, so the dark-mode offset works and semibold italic exists | static regular, italic, semibold, plus semibold italic for Markdown bold italic (S10); the dark offset does not apply to the serif slot |
-| Greek (μ, σ, π, Ω, Δ, θ, λ) | present (checked below) | missing: U+03BC and U+03C3 absent (design review, `fc-query`); falls back to Plex Sans, so a μ/σ sentence must be checked visually |
-| Cyrillic, Bulgarian set | present (checked below) | `bg` charset present |
-| Bulgarian localised forms | not in the Google Fonts static instance (no `BGR` language system); check the upstream variable files before relying on it | unverified |
-| Average width, English prose | 0.461 em per character (measured) | 0.474 em (design review) |
-| Also used for | course title, lesson title and content headings, so the reading area has one voice from the first line (Codex §3) | reading text only; headings in Plex Sans |
-| Bundle cost | not measured: the Google static 400 instance is 170,668 bytes; the variable files were not fetched | not measured |
+**Reading face: Source Serif 4**, chosen by the owner on 2026-11-21 from the specimen in `../research/reading-fonts-bulgarian.webp` ([ADR-0012](../adr/0012-source-serif-4-reading-face.md)). Literata was dropped because it has no Bulgarian forms.
 
-**Literata check, 2026-11-21** (fetched with curl; README converted with pandoc; treated as data):
-
-- https://raw.githubusercontent.com/googlefonts/literata/main/README.md: "This wide-ranging family of two variable fonts supports Greek, Cyrillic, PinYin, and Vietnamese", OFL, roman and italic variable files.
-- <https://fonts.googleapis.com/css2?family=Literata:wght@400> serves `cyrillic-ext`, `cyrillic`, `greek-ext`, `greek`, `vietnamese` and Latin subsets.
-- The static instance it links (`fonts.gstatic.com/s/literata/v40/...ttf`): `fc-query` lists the `cyrl` and `grek` scripts and the ranges U+0384–03CE and U+0401–045F; every Bulgarian letter а–я and ѝ/Ѝ and all seven Greek test letters are present. Its GSUB has `locl` for Latin languages only.
-- Blocked: fonts.google.com/specimen/Literata and the TypeTogether PDF specimen (proxy 403).
+| | Source Serif 4 |
+|---|---|
+| Files | upstream variable roman and italic, release 4.005, shipped unmodified (the licence reserves the name "Source", so no subsetting under that name) |
+| Axes | `wght` 200 to 900, so the dark-mode offset and semibold italic work; `opsz` 8 to 60, set to the rendered size with `FontVariation` |
+| Coverage | Latin, Greek (μ, σ, π, Ω, Δ, θ, λ present), Cyrillic with the full Bulgarian alphabet and ѝ |
+| Bulgarian forms | `locl` under language system `BGR`, roman and italic. Reading text and titles set `TextStyle.locale` from `course.language`, so Bulgarian courses get Bulgarian forms and other Cyrillic courses keep the standard ones |
+| Average width, English prose | 0.438 em per character (measured), about 73 characters on a 32 em line |
+| Also used for | course title, lesson title and content headings, so the reading area has one voice from the first line (Codex §3) |
+| Bundle cost | 2,054,244 bytes for both files, 891,224 with brotli. If the web build's first load is slow, load it with `FontLoader` when the first reading screen opens |
 
 ### Sizes and the heading map (M6)
 
 | Role | `DcTypography` slot | Size (line height) | Weight, face |
 |---|---|---|---|
-| Rendered h1: course title, lesson title | `display` | 30 (36) | semibold, reading face, Mulberry |
+| Rendered h1: course title, lesson title | `display` | 30 (36) | semibold, Source Serif 4, Mulberry |
 | Rendered h2 | override (litse-ui's `heading` slot is 21.5) | 24 (32) | semibold, as h1 |
 | Rendered h3 | `heading` | 21.5 (30) | semibold, as h1 |
 | Rendered h4 | override | 19.5 (28) | semibold, as h1 |
@@ -97,9 +91,9 @@ Heading rules, both screens:
 
 Text rules:
 
-- **Measure:** the reading column is capped at 32 em (576 dp at 18 dp; about 69 characters in Literata, 68 in Plex Serif), so it holds when text scales. Left aligned, ragged right, no justification, sentence case, no all-caps, no eyebrows. Breakpoints follow from it (`inventory.md`).
+- **Measure:** the reading column is capped at 32 em (576 dp at 18 dp; about 73 characters in Source Serif 4), so it holds when text scales. Left aligned, ragged right, no justification, sentence case, no all-caps, no eyebrows. Breakpoints follow from it (`inventory.md`).
 - **Text files** (S10): prose `.txt` and `.md` use Reading, wrapped. CSV, TSV, JSON, YAML, logs and code use `code`, unwrapped, with horizontal scroll.
-- Body weight 400; weight only marks hierarchy. Dark mode applies the style's -50 weight offset where the face is variable (Plex Sans, and Literata if chosen).
+- Body weight 400; weight only marks hierarchy. Dark mode applies the style's -50 weight offset where the face is variable (Plex Sans and Source Serif 4).
 - Text scales with the platform setting; layouts reflow at 200 and 400 percent.
 
 ## Spacing, radii, motion
@@ -115,9 +109,9 @@ Name: `DcStyle.reading` (owner decides if it lives in litse-ui or `apps/flutter_
 ```text
 comfortable base: radius 10, spacing 4.5, controls 36/44/52, scale 14/13,
 onDarkWeightOffset -50, shadows none, depth flat, standard motion
-reading slot: the chosen reading face, 18/30, scale does not apply
+reading slot: Source Serif 4, 18/30, opsz 18, scale does not apply
 heading overrides: the map above
-fontFamilyFallback: none for Literata; Plex Sans for Greek with Plex Serif
+fontFamilyFallback: none needed (Source Serif 4 has Greek and Cyrillic)
 ```
 
 `DcTypography` has one `fontFamily` and fixed slot sizes, so the reading face and heading overrides need either a litse-ui change (per-slot family and size) or app-level `TextStyle`s built from `typography.reading.copyWith(...)` inside `resource_renderers`. The second needs no litse-ui change; it is the interim.
@@ -136,7 +130,7 @@ A bookmark ribbon in the accent colour: 8 dp wide, one row tall, with the logo's
 | SaaS card kit, one radius, same shadow | Cards only for file and link cards and alerts; no shadows. Contents, lessons and files are rows. |
 | Eyebrows, middle-dot or pipe meta strings, trailing arrows | None. Facts are labelled pairs; files are rows; no arrows except the real Close and chevron controls. |
 | Gradient, glow, gradient text | Flat colour only. |
-| Inter or Plus Jakarta display; stock scale | Plex Sans UI, Literata or Plex Serif reading; headings from one map. |
+| Inter or Plus Jakarta display; stock scale | Plex Sans UI, Source Serif 4 reading; headings from one map. |
 | Documentation-theme look (C1) | Why the cobalt direction was dropped: cool grey, cobalt and a thin bar read as a docs theme. Mulberry, gold and the swallowtail ribbon are Lectale's own. |
 | Centred hero, feature cards | Home is a form on the start line; no hero or illustration. |
 | Dashboard filler, fake stats | None; no counts in Contents. |
@@ -146,7 +140,7 @@ A bookmark ribbon in the accent colour: 8 dp wide, one row tall, with the logo's
 | Placeholder names, filler verbs | Plain verbs; wireframe names are illustrative and replaced by real fixtures in tests. |
 | Dense header chrome | The top bar holds the brand and nothing else. |
 
-Pre-ship checks (`ai-tells.md`): (1) decoration removed: the kind icons in file lists and the tag badges (S4, S13); (2) the Lectale element is the swallowtail ribbon; (3) every colour, font and effect names a token and a reason, and the owner chose the palette and accent, and picks the reading face; (4) states and reduce-motion are in each screen spec; (5) copy has no filler verbs, no invented numbers.
+Pre-ship checks (`ai-tells.md`): (1) decoration removed: the kind icons in file lists and the tag badges (S4, S13); (2) the Lectale element is the swallowtail ribbon; (3) every colour, font and effect names a token and a reason, and the owner chose the palette, the accent and the reading face; (4) states and reduce-motion are in each screen spec; (5) copy has no filler verbs, no invented numbers.
 
 ## Logo brief (for Codex image concepts)
 

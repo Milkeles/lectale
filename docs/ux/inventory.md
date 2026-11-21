@@ -72,7 +72,7 @@ Breakpoints come from the reading measure, not from device names (Codex §4; Flu
 | Single column, wide gutter | 600 dp up to the wide threshold | panel from the Contents control | window minus 2 × 36 dp, at most 32 em |
 | Wide | window ≥ 36 + 272 + 36 + 32 em + 36 dp (956 dp at 100 percent text, 1532 dp at 200 percent) | 272 dp pane on the start side, open by default, collapsible | 32 em (576 dp at 100 percent), centred in the space beside the pane; headers share its start edge |
 
-- The 32 em cap gives about 69 characters per line in Literata (0.461 em per character on English prose, measured; `token-plan.md`) and about 68 in Plex Serif (0.474 em, design review S10). The skill asks for 60 to 70.
+- The 32 em cap gives about 73 characters per line in Source Serif 4 (0.438 em per character on English prose, measured; `token-plan.md`). The skill asks for 60 to 70.
 - Tables, code blocks and figures may be wider than the text: up to the main area minus gutters, at most 960 dp, centred on the same axis. Beyond that, tables and code scroll sideways in their own region.
 - Opening, closing or resizing the pane keeps the paragraph at the top of the viewport where it is (scroll anchoring), and keeps Previous and Next at the end of the text.
 - At 360 dp the text column is 324 dp, about 39 characters: acceptable on a phone.
@@ -115,7 +115,7 @@ Fetched with curl and converted with pandoc. Treated as data.
 - https://docs.flutter.dev/ui/adaptive-responsive/best-practices (no hardware-type checks; keyboard and pointer; restore state)
 - <https://developer.android.com/develop/ui/compose/layouts/adaptive/canonical-layouts> (list-detail, supporting pane)
 - <https://developer.android.com/develop/ui/compose/layouts/adaptive/use-window-size-classes> (width classes)
-- Literata sources for the token plan are listed in `token-plan.md`.
+- Reading-face sources are in `../research/2026-11-21-reading-fonts-bulgarian.md`.
 
 Blocked: the m3.material.io canonical-layout and window-size-class pages (curl status 000). The names above come from developer.android.com, which describes the same layouts.
 
@@ -171,7 +171,7 @@ Where the two reviews agreed, the shared change is applied above. Where they dif
 | D9 | Ribbon | 3 dp, Contents only, one on screen | 8 to 10 dp swallowtail; on the Contents control when the outline is closed | Both: 8 dp swallowtail; one on screen, in the pane when visible, else on the control. |
 | D10 | Resources of the open lesson | Rows at every width (S7); consider nesting in the pane (C4) | Keep choices visible when there are several | S7 rows in the reading pane at every width. Nesting would make the pane differ between Course and Reader and would vanish on phones. |
 | D11 | Continue reading | Not raised | Add one local entry on Home | Dropped. COOKIE-002 requires granular prior permission for any non-essential device storage and CT-001 gives a new visitor none; a reading position is not strictly necessary and M2 has no consent control. It would store no credentials (course ID, commit, lesson and resource IDs, a scroll offset), but that does not make it necessary. In-memory "Continue: {lesson}" (review M5) is kept. Revisit with a consent setting in a later milestone. |
-| D12 | Colour and type | Cobalt passes; C1 notes it is close to IBM Carbon | Warm paper, graphite, mulberry, Literata | Owner chose warm paper and mulberry, with golden ochre as the one accent (2026-11-21). Reading face still open. |
+| D12 | Colour and type | Cobalt passes; C1 notes it is close to IBM Carbon | Warm paper, graphite, mulberry, Literata | Owner chose warm paper and mulberry, with gold as the one accent and Source Serif 4 as the reading face (2026-11-21). |
 | D13 | Folder in M2 | Card: "Folders open in a later version" | Not addressed | The new folders route makes a list possible with rows and Download buttons only, so M2 lists entries. The sample course's first lesson has a folder; a card would be a dead end. |
 | D14 | YouTube and Vimeo | Link card to the watch page built from `embedUrl` | Not addressed | Link card that opens `embedUrl` as given, so the client never rewrites provider URLs; nothing loads before the tap. The in-app player with consent is M2b. |
 | D15 | Course cover | Not shown (no route) | Not addressed | Shown at 600 dp and wider, above the title, through the files route. Not on phones, where it would push Start course down. |
