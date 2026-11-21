@@ -4,14 +4,15 @@ import 'preview_folder_entry_type.dart';
 
 class PreviewFolderEntry {
   const PreviewFolderEntry({
+    /// Path relative to the manifest folder root.
     required this.name,
     required this.type,
 
     /// Size in bytes. Zero for directories.
     required this.size,
 
-    /// Files-route address for this repository path.
-    required this.href,
+    /// Files-route address for a file. Omitted for directories.
+    this.href,
   });
 
   factory PreviewFolderEntry.fromJson(Map<String, Object?> json) {
@@ -22,10 +23,11 @@ class PreviewFolderEntry {
       name: json["name"] as String,
       type: PreviewFolderEntryType.fromJson(json["type"]),
       size: json["size"] as int,
-      href: json["href"] as String,
+      href: json.containsKey("href") ? json["href"] as String : null,
     );
   }
 
+  /// Path relative to the manifest folder root.
   final String name;
 
   final PreviewFolderEntryType type;
@@ -33,8 +35,8 @@ class PreviewFolderEntry {
   /// Size in bytes. Zero for directories.
   final int size;
 
-  /// Files-route address for this repository path.
-  final String href;
+  /// Files-route address for a file. Omitted for directories.
+  final String? href;
 
   static const _knownKeys = <String>{"name", "type", "size", "href"};
 
@@ -42,6 +44,6 @@ class PreviewFolderEntry {
     "name": this.name,
     "type": this.type.toJson(),
     "size": this.size,
-    "href": this.href,
+    if (this.href != null) "href": this.href,
   };
 }

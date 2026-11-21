@@ -1478,7 +1478,8 @@ paths:
       summary: Fetch a file by repository-relative path
       description: >
         Serve a regular file from the bound public commit after validating its course manifest.
-        Relative README assets, links and the course cover can use this route.
+        Relative README assets, links and the course cover can use this route. Dart callers
+        use Dio.openPreviewFile to preserve path separators and stream partial responses.
       security: []
       responses:
         '200': {$ref: '#/components/responses/PreviewFile'}

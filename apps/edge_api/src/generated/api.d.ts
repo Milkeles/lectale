@@ -921,7 +921,7 @@ export interface paths {
         };
         /**
          * Fetch a file by repository-relative path
-         * @description Serve a regular file from the bound public commit after validating its course manifest. Relative README assets, links and the course cover can use this route.
+         * @description Serve a regular file from the bound public commit after validating its course manifest. Relative README assets, links and the course cover can use this route. Dart callers use Dio.openPreviewFile to preserve path separators and stream partial responses.
          */
         get: operations["getPreviewFile"];
         put?: never;

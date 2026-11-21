@@ -129,22 +129,20 @@ describe("POST /api/courses/import", () => {
         ]) }),
       ]) },
     });
-    expect(resolve.mock.calls).toEqual([
-      ["course-author", "example"], ["Course-Author", "Example"], ["Course-Author", "Example"], ["Course-Author", "Example"],
-    ]);
+    expect(resolve).toHaveBeenCalledExactlyOnceWith("course-author", "example");
     const githubRepo = expect.objectContaining({ owner: "Course-Author", name: "Example", id: 42 });
     expect(head).toHaveBeenCalledExactlyOnceWith(githubRepo);
     expect(list).toHaveBeenCalledExactlyOnceWith(githubRepo, sha, "");
     expect(open).toHaveBeenCalledExactlyOnceWith("Course-Author", "Example", sha, "course.yaml", undefined);
 
     expect(await (await importCourse(repoUrl.toLowerCase())).json()).toEqual(first);
-    expect(resolve).toHaveBeenCalledTimes(4);
+    expect(resolve).toHaveBeenCalledOnce();
     expect(head).toHaveBeenCalledTimes(1);
     expect(list).toHaveBeenCalledTimes(1);
     expect(open).toHaveBeenCalledTimes(1);
     expect(stored.get(`${root}/_lectale-cache/repo-preview:v2:course-author:example`)?.response.headers.get("Cache-Control"))
       .toBe("public, max-age=60");
-    expect(stored.has(`${root}/_lectale-cache/public-course-outline:v2:42:${sha}`)).toBe(true);
+    expect(stored.has(`${root}/_lectale-cache/public-course-outline:v3:42:${sha}`)).toBe(true);
   });
 
   it("returns the same response for private and missing repositories", async () => {
@@ -235,7 +233,7 @@ describe("POST /api/courses/import", () => {
     const imports = await Promise.all(Array.from({ length: 20 }, () => importCourse()));
     expect(imports.every(({ status }) => status === 200)).toBe(true);
     expect(head).toHaveBeenCalledOnce();
-    expect(resolve).toHaveBeenCalledTimes(4);
+    expect(resolve).toHaveBeenCalledOnce();
     expect(open).toHaveBeenCalledOnce();
     const reads = await Promise.all(Array.from({ length: 20 }, () => getFile(readme)));
     expect(reads.every(({ status }) => status === 200)).toBe(true);
@@ -267,6 +265,34 @@ describe("POST /api/courses/import", () => {
     expect((await importCourse()).status).toBe(200);
   });
 
+  it("serves fully cached imports, previews, folders and file ranges during cooldown", async () => {
+    const file = `${files}/materials/slides.pdf`;
+    const folder = `${folders}/first-lesson/folder`;
+    const imported = await (await importCourse()).json();
+    expect(await (await getFile(file)).text()).toBe("first slides");
+    const listing = await (await getFile(folder)).json();
+    const resolve = vi.spyOn(reader, "resolveRepository").mockRejectedValueOnce(new GitHubReadError("rate_limited", 90));
+    await expectError(await importCourse("https://github.com/owner/cold"), 429, "rate_limited");
+
+    app = createApp(reader, cache);
+    const resolveId = vi.spyOn(reader, "resolveRepositoryById");
+    const head = vi.spyOn(reader, "headCommit");
+    const open = vi.spyOn(reader, "openFile");
+    const list = vi.spyOn(reader, "listDirectory");
+    expect(await (await importCourse()).json()).toEqual(imported);
+    expect(await (await getFile(preview)).json()).toEqual(imported);
+    expect(await (await getFile(folder)).json()).toEqual(listing);
+    expect(await (await getFile(file)).text()).toBe("first slides");
+    const range = await getFile(file, { Range: "bytes=-6" });
+    expect(range.status).toBe(206);
+    expect(await range.text()).toBe("slides");
+    await expectError(await getFile(`${files}/more/SLIDES.PDF`), 429, "rate_limited");
+    now += 60_000;
+    await expectError(await getFile(file), 429, "rate_limited");
+    expect(resolve).toHaveBeenCalledOnce();
+    for (const call of [resolveId, head, open, list]) expect(call).not.toHaveBeenCalled();
+  });
+
   it("rechecks warm name visibility when the class D entry expires", async () => {
     expect((await importCourse()).status).toBe(200);
     reader.setVisibility(42, true);
@@ -288,26 +314,13 @@ describe("POST /api/courses/import", () => {
     });
   });
 
-  it("retries a head read when the post-read ID check is unavailable", async () => {
-    const resolve = reader.resolveRepository.bind(reader);
-    vi.spyOn(reader, "resolveRepository")
-      .mockImplementationOnce(resolve)
-      .mockRejectedValueOnce(new GitHubReadError("upstream"));
+  it("retries an import after the adapter rejects a changed repository name", async () => {
+    const resolve = vi.spyOn(reader, "resolveRepository");
+    vi.spyOn(reader, "headCommit").mockRejectedValueOnce(new GitHubReadError("repo_changed"));
     await expectError(await importCourse(), 503, "repository_changed");
     expect([...stored.keys()].some((key) => key.includes("repo-head:"))).toBe(false);
     expect((await importCourse()).status).toBe(200);
-  });
-
-  it("refuses to cache a head observed during a namespace swap", async () => {
-    const next = "b".repeat(40);
-    const head = reader.headCommit.bind(reader);
-    vi.spyOn(reader, "headCommit").mockImplementationOnce((repository) => {
-      reader.rename(42, "Course-Author", "Renamed");
-      reader.addRepository(replacement, next);
-      return head(repository);
-    });
-    expect(await expectError(await importCourse(), 503, "repository_changed")).toMatchObject({ retryable: true });
-    expect([...stored.keys()].some((key) => /repo-head:|import-pin:|public-course-outline:/u.test(key))).toBe(false);
+    expect(resolve).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -417,6 +430,17 @@ describe("pinned preview files", () => {
 });
 
 describe("bound preview links", () => {
+  it("admits preview requests through their separate per-client limiter", async () => {
+    const resolve = vi.spyOn(reader, "resolveRepositoryById");
+    const limit = vi.fn(async () => ({ success: false }));
+    const response = await app.request(`${root}${preview}`, {
+      headers: { "X-Request-Id": "preview-test", "CF-Connecting-IP": "192.0.2.7" },
+    }, { PREVIEW_RATE_LIMIT: { limit } });
+    await expectError(response, 429, "rate_limited");
+    expect(limit).toHaveBeenCalledExactlyOnceWith({ key: "192.0.2.7" });
+    expect(resolve).not.toHaveBeenCalled();
+  });
+
   it("reloads the same CoursePreview as import after the imported SHA leaves the branch", async () => {
     const imported = await (await importCourse()).json();
     reader.forcePush(42, "b".repeat(40));
@@ -470,26 +494,61 @@ describe("bound preview links", () => {
     const head = vi.spyOn(reader, "headCommit");
     reader.forcePush(42, "c".repeat(40));
     await expectError(await getFile(preview), 404, "course_not_found");
-    expect(head).toHaveBeenCalledOnce();
+    expect(head).toHaveBeenCalledTimes(2);
   });
 
-  it("discards a raw file fetched during a namespace swap and accepts a retry at the new name", async () => {
+  it("discards a comparison when the default branch switches during the compare", async () => {
+    const tip = "b".repeat(40);
+    const otherTip = "c".repeat(40);
+    reader.advance(42, tip);
+    const reachability = reader.isReachable.bind(reader);
+    const compare = vi.spyOn(reader, "isReachable").mockImplementationOnce(async (...args) => {
+      reader.switchDefaultBranch(42, "other", otherTip);
+      expect(await reachability(...args)).toBe(true);
+      return true;
+    });
+    const open = vi.spyOn(reader, "openFile");
+    await expectError(await getFile(preview), 503, "repository_changed");
+    expect([...stored.keys()].some((key) => key.includes("reachable:"))).toBe(false);
+    await expectError(await getFile(preview), 404, "course_not_found");
+    expect(compare.mock.calls.map(([, requested, base]) => [requested, base])).toEqual([[sha, tip], [sha, otherTip]]);
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("reads a reachable SHA without a name lookup when the old name serves the same commit", async () => {
     expect((await importCourse()).status).toBe(200);
+    const resolve = vi.spyOn(reader, "resolveRepository");
     const open = reader.openFile.bind(reader);
     vi.spyOn(reader, "openFile").mockImplementationOnce((...args) => {
       reader.rename(42, "Course-Author", "Renamed");
-      reader.addRepository(replacement, sha);
-      reader.setFile("README.md", "bad bytes", "100644", 77);
+      reader.addRepository(replacement, sha, 42);
       return open(...args);
     });
-    expect(await expectError(await getFile(readme), 503, "repository_changed")).toMatchObject({ retryable: true });
-    expect([...stored.keys()].some((key) => /public-course:v1:|raw-failure:/u.test(key))).toBe(false);
     expect(await (await getFile(readme)).text()).toBe("# Example");
+    expect(resolve).not.toHaveBeenCalled();
   });
 });
 
 describe("pinned repository paths and folder resources", () => {
-  it("decodes an allowed path once and serves files outside the manifest", async () => {
+  it.each(["missing", "invalid", "oversized"])("denies file and folder requests for a %s manifest", async (kind) => {
+    // A valid course at another SHA of the same repository cannot authorize these paths.
+    expect((await importCourse()).status).toBe(200);
+    const invalidSha = "d".repeat(40);
+    reader.advance(42, invalidSha);
+    reader.setFile("materials/slides.pdf", "not a course file");
+    if (kind === "invalid") reader.setFile("course.yaml", "{");
+    if (kind === "oversized") reader.setFile("course.yaml", "a".repeat(1024 * 1024 + 1));
+    const open = vi.spyOn(reader, "openFile");
+    const list = vi.spyOn(reader, "listDirectory");
+    const missing = await expectError(await getFile(preview.replace("/42/", "/99/")), 404, "course_not_found");
+    for (const path of [`${files}/materials/slides.pdf`, `${folders}/first-lesson/folder`]) {
+      expect(await expectError(await getFile(path.replace(sha, invalidSha)), 404, "course_not_found")).toEqual(missing);
+    }
+    expect(open.mock.calls.map(([, , , path]) => path)).toEqual(kind === "invalid" ? ["course.yaml"] : []);
+    expect(list.mock.calls.map(([, , path]) => path)).toEqual([""]);
+  });
+
+  it("decodes an allowed path once and serves unlisted files from a validated course", async () => {
     reader.setFile("assets/cover.png", [137, 80, 78, 71, 13, 10, 26, 10, 1]);
     const response = await getFile(`${files}/assets/%63over.png`);
     expect(response.status).toBe(200);
@@ -509,6 +568,7 @@ describe("pinned repository paths and folder resources", () => {
   );
 
   it("returns and briefly caches raw misses without listing the parent directory", async () => {
+    expect((await importCourse()).status).toBe(200);
     const open = vi.spyOn(reader, "openFile");
     const list = vi.spyOn(reader, "listDirectory");
     const path = `${files}/missing/nope.txt`;
@@ -541,11 +601,38 @@ describe("pinned repository paths and folder resources", () => {
     const list = vi.spyOn(reader, "listDirectory");
     expect(await (await getFile(folder)).json()).toEqual({ entries: [
       { name: "slides.pdf", type: "file", size: 12, href: `${files}/materials/slides.pdf` },
-      { name: "subdir", type: "directory", size: 0, href: `${files}/materials/subdir` },
+      { name: "subdir", type: "directory", size: 0 },
     ] });
     await expectError(await getFile(`${folders}/first-lesson/slides`), 404, "course_not_found");
     await expectError(await getFile(`${content}/first-lesson/folder`), 404, "course_not_found");
     expect(list).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ id: 42 }), sha, "materials");
+  });
+
+  it("walks an opted-in folder in filename order and stops before descending at maxEntries", async () => {
+    reader.setFile("course.yaml", manifest.replace('"maxEntries":2', '"maxEntries":3,"recursive":true'));
+    reader.setFile("materials/nested/child.txt", "child");
+    reader.setFile("materials/nested/deeper/other.txt", "outside the entry cap");
+    reader.setFile("materials/nested/.hidden", "hidden");
+    reader.setFile("materials/nested/alias", "child.txt", "120000");
+    reader.setFile("outside/other.txt", "outside the folder root");
+    const list = vi.spyOn(reader, "listDirectory");
+    expect(await (await getFile(`${folders}/first-lesson/folder`)).json()).toEqual({ entries: [
+      { name: "nested", type: "directory", size: 0 },
+      { name: "nested/child.txt", type: "file", size: 5, href: `${files}/materials/nested/child.txt` },
+      { name: "nested/deeper", type: "directory", size: 0 },
+    ] });
+    expect(list.mock.calls.map(([, , path]) => path)).toEqual(["", "materials", "materials/nested"]);
+    expect(await (await getFile(`${files}/materials/nested/child.txt`)).text()).toBe("child");
+  });
+
+  it("defaults folders to 100 entries", async () => {
+    reader.setFile("course.yaml", manifest.replace(',"maxEntries":2', ""));
+    for (let count = 0; count < 101; count++) {
+      reader.setFile(`materials/note-${String(count).padStart(3, "0")}.txt`, "notes");
+    }
+    const response = await getFile(`${folders}/first-lesson/folder`);
+    expect(response.status).toBe(200);
+    expect((await response.json<{ entries: unknown[] }>()).entries).toHaveLength(100);
   });
 
   it.each([
@@ -569,6 +656,39 @@ describe("pinned repository paths and folder resources", () => {
 
 describe("single ranges", () => {
   const path = `${content}/first-lesson/slides`;
+
+  it.each([
+    ["valid PNG", [137, 80, 78, 71, 13, 10, 26, 10, 42, 43], "image/png", null],
+    ["disguised PNG", [60, 115, 118, 103, 62, 32, 32, 32, 42, 43], "application/octet-stream", 'attachment; filename="cover.png"'],
+  ] as const)("keeps MIME and disposition stable for a %s across cold ranges, full reads and cache", async (_label, bytes, mime, disposition) => {
+    reader.setFile("cover.png", [...bytes]);
+    expect((await importCourse()).status).toBe(200);
+    const open = vi.spyOn(reader, "openFile");
+    for (const [range, status, expected] of [
+      ["bytes=-2", 206, bytes.slice(8)],
+      ["bytes=0-0", 206, bytes.slice(0, 1)],
+      [null, 200, bytes],
+      ["bytes=-2", 206, bytes.slice(8)],
+      [null, 200, bytes],
+    ] as const) {
+      const response = await getFile(`${files}/cover.png`, range ? { Range: range } : undefined);
+      expect(response.status).toBe(status);
+      expect(response.headers.get("Content-Type")).toBe(mime);
+      expect(response.headers.get("Content-Disposition")).toBe(disposition);
+      expect([...new Uint8Array(await response.arrayBuffer())]).toEqual(expected);
+    }
+    expect(open.mock.calls.map(([, , , , range]) => range)).toEqual(["bytes=-2", "bytes=0-9", "bytes=0-0", undefined]);
+  });
+
+  it("rejects a cold raster range when the signature probe returns the wrong interval", async () => {
+    reader.setFile("cover.png", [137, 80, 78, 71, 13, 10, 26, 10, 42, 43]);
+    expect((await importCourse()).status).toBe(200);
+    const open = reader.openFile.bind(reader);
+    vi.spyOn(reader, "openFile").mockImplementation((...args) => args[4] === "bytes=0-9"
+      ? Promise.resolve(new Response("bad probe", { status: 206, headers: { "Content-Range": "bytes 0-8/10" } }))
+      : open(...args));
+    await expectError(await getFile(`${files}/cover.png`, { Range: "bytes=-2" }), 502, "github_unavailable");
+  });
 
   it.each(["bytes=0-1,5-8", "bytes=6-5", "bytes=-0", "bytes=-", "none=5-6", "bytes=9007199254740992-", `bytes=${"0".repeat(128)}-`])(
     "rejects invalid ranges %s before opening the file",

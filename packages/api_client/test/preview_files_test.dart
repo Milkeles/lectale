@@ -75,17 +75,19 @@ void main() {
     final folder = PreviewFolder.fromJson({
       'entries': [
         {
-          'name': 'pic.png',
+          'name': 'src/pic.png',
           'type': 'file',
           'size': 9,
-          'href': '$prefix/pic.png',
+          'href': '$prefix/src/pic.png',
         },
-        {'name': 'src', 'type': 'directory', 'size': 0, 'href': '$prefix/src'},
+        {'name': 'src', 'type': 'directory', 'size': 0},
       ],
     });
     expect(folder.entries.first.type, PreviewFolderEntryType.file);
     expect(folder.entries.first.size, 9);
-    expect(folder.entries.first.href, '$prefix/pic.png');
+    expect(folder.entries.first.name, 'src/pic.png');
+    expect(folder.entries.first.href, '$prefix/src/pic.png');
     expect(folder.entries.last.type, PreviewFolderEntryType.directory);
+    expect(folder.entries.last.href, isNull);
   });
 }

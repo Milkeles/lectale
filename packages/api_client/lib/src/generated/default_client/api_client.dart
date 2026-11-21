@@ -2734,7 +2734,7 @@ class ApiClient {
 
   /// Fetch a file by repository-relative path
   ///
-  /// Serve a regular file from the bound public commit. Relative README assets, links and the course cover can use this route.
+  /// Serve a regular file from the bound public commit after validating its course manifest. Relative README assets, links and the course cover can use this route. Dart callers use Dio.openPreviewFile to preserve path separators and stream partial responses.
   Future<List<int>> getPreviewFile({
     Map<String, Object?> extra = const {
       "openapi.servers": [
@@ -2797,7 +2797,7 @@ class ApiClient {
 
   /// List a pinned public folder resource
   ///
-  /// Resolve the folder resource through the validated manifest at the bound public commit. Return direct entries up to the resource's maxEntries (default 100).
+  /// Resolve the folder resource through the validated manifest at the bound public commit. Return direct entries by default. If the resource enables recursive listing, visit entries in depth-first filename order. The resource's maxEntries (default 100) caps the total across all levels, counting directories as entries.
   Future<models.PreviewFolder> getPreviewFolder({
     Map<String, Object?> extra = const {
       "openapi.servers": [

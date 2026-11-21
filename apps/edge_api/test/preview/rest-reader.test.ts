@@ -14,6 +14,7 @@ afterEach(() => {
 
 describe("GitHub REST preview reader", () => {
   it("uses bounded REST metadata and raw for unauthenticated pinned ranges", async () => {
+    const log = vi.spyOn(console, "info").mockImplementation(() => undefined);
     const outbound = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json(repo))
       .mockResolvedValueOnce(Response.json(repo))
@@ -55,6 +56,7 @@ describe("GitHub REST preview reader", () => {
     expect(headers.get("Range")).toBe("bytes=0-2");
     expect(headers.get("Authorization")).toBeNull();
     expect(headers.get("Cookie")).toBeNull();
+    expect(log.mock.calls).toContainEqual(["GitHub preview metadata", { operation: "head", address: "id" }]);
   });
 
   it.each([["behind", true], ["identical", true], ["ahead", false], ["diverged", false]])(
@@ -197,13 +199,15 @@ describe("GitHub REST preview reader", () => {
 
   it("maps GitHub's 403 primary rate limit to a retry delay", async () => {
     const reset = Math.ceil(Date.now() / 1000) + 30;
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValueOnce(new Response(null, {
+    const outbound = vi.fn().mockResolvedValueOnce(new Response(null, {
       status: 403,
       headers: { "X-RateLimit-Remaining": "0", "X-RateLimit-Reset": String(reset) },
-    })));
-    await expect(new GitHubRestReader().resolveRepositoryById(42)).rejects.toMatchObject({
+    }));
+    vi.stubGlobal("fetch", outbound);
+    await expect(new GitHubRestReader().headCommit(repository)).rejects.toMatchObject({
       kind: "rate_limited", retryAfterSeconds: expect.any(Number),
     });
+    expect(outbound).toHaveBeenCalledOnce();
   });
 
   it("recognizes secondary rate limiting without Retry-After", async () => {
