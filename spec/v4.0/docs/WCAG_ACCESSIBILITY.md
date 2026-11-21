@@ -1,0 +1,23 @@
+# Accessibility requirements — v3.1
+
+**Technical target:** WCAG 2.2 Level AA for all platform-controlled web screens (including auth, course catalog, video consent placeholder, viewer chrome, file submission, grading, paid checkout initiation, legal documents, error states, cookie settings) and equivalent native mobile access (VoiceOver/TalkBack, system text scaling). Include a documented accessibility statement and feedback/reporting route. EU Accessibility Act (Directive EU 2019/882) covers e-commerce services from 28 June 2025, subject to applicable exceptions and national implementation. Bulgaria enacted a transposing accessibility law in April 2025. Applicability and any microenterprise exception MUST be documented by the solo operator, with independent legal advice optional; do not silently assert exemption or guarantee compliance solely through WCAG.
+
+## UI contract
+
+- A11Y-001 Keyboard-only end-to-end: logical tab order, visible focus, no traps, keyboard escape from modal, skip link and labeled landmark/nav/main. Controls use semantic web equivalents where Flutter Web can provide them; test with screen readers on Chrome/Firefox and mobile.
+- A11Y-002 Text: at least 4.5:1 contrast for regular text, 3:1 for large text and essential UI indicators; 200% zoom and up to 400%/reflow without loss of important functionality; support native font scaling. Do not rely solely on color/icons.
+- A11Y-003 Forms: explicit labels, hints and errors connected semantically; confirmation for financial submissions, destructive repository edits and grades; field-specific error text with suggested correction; clear progress state and cancellation for uploads.
+- A11Y-004 Media: captions/subtitles and transcripts for prerecorded lecture audio/video where required for target accessibility; keyboard operable play/pause, seek, volume, speed, fullscreen and subtitles; never autoplay with sound. Instructor publishing wizard warns and requires attestation or accessible alternative for required media. No claim that a third-party host supplies captions automatically.
+- A11Y-005 PDF: integrated viewer with accessible controls, zoom and search; prefer tagged/accessible PDFs and provide download and reasonable equivalent alternative (text/HTML, OCR only when lawful/appropriate) if the PDF itself is inaccessible. Warn instructors at upload/publish; platform cannot magically make third-party PDF content conformant.
+- A11Y-006 Notebook static reader: cell headings, text/code/out accessibility, no script execution, accessible tables and diagrams with fallback descriptions; syntax highlighting must retain plain-text reading. Unexpected HTML output sanitized and accessible.
+- A11Y-007 Resource lists: descriptive link text, accessible file type/size, breadcrumbs, no focus loss on navigation; documents that cannot preview must have accessible download card. Captions/transcripts presented as first-class resource variants.
+- A11Y-008 Test the real Flutter Web semantics tree and the mobile apps; automatic audit alone is insufficient. Cover NVDA/Firefox, VoiceOver/Safari, TalkBack/Android, keyboard and magnifier. Test with course materials and checkout, not only landing page.
+
+## Release gates and issue severity
+
+- A11Y-T01 Every critical task (sign-in, find course, watch with captions, read PDF, open notebook, submit PDF, check grade, purchase, revoke consent) is keyboard-operable and screen-reader usable. A11Y-T02 200% and 400% viewport tests show no clipping or horizontal scroll that prevents use except inherently 2-D content. A11Y-T03 PDF/video/notebook modules have passing functional tests. A11Y-T04 All known critical/high blockers fixed or documented alternative verified before release. A11Y-T05 Publish an accessibility statement, support contacts, and issue-response workflow; review content-owner vs platform responsibilities.
+
+Primary sources: https://www.w3.org/TR/WCAG22/ ; https://eur-lex.europa.eu/eli/dir/2019/0882 ; https://accessible-eu-centre.ec.europa.eu/content-corner/digital-library/accessibility-requirements-products-and-services-act-zakon-za-iziskvaniyata-za-dostpnost-na-produkti_en
+
+## Bulgarian small-provider exception and third-party source files (v3.2)
+Bulgarian Accessibility Requirements for Products and Services Act (2025): Art 46(3) exempts qualifying microenterprise service providers from specified accessibility duties; Art 2(3)(4) excludes qualifying independent third-party content. Do not claim a blanket GDPR/DSA exemption or assume creator PDFs are automatically accessible. Retain WCAG 2.2 AA as product engineering target; document operator status in `SOLO_OPERATOR_GITHUB_POLICY.md`.

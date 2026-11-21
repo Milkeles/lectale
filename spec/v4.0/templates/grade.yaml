@@ -1,0 +1,15 @@
+schemaVersion: 3
+source: manual
+gradeId: grd_abcdefghijklmnop
+submissionId: sub_abcdefghijklmnop
+courseId: new-course
+assignmentId: assignment-one
+studentKey: stu_abcdefghijklmnop
+status: graded
+score: 0
+maxPoints: 100
+feedback: ''
+graderKey: staff_abcdefghijklmnop
+gradedAt: '2026-11-21T12:01:00Z'
+courseCommit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+revision: 1

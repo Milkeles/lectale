@@ -1,0 +1,6 @@
+digraph G {graph [rankdir=LR,bgcolor="white",pad="0.2",nodesep="0.3",ranksep="0.45"];node[shape=box,style="rounded,filled",fillcolor="#F2F5FB",color="#7790B0",fontname="DejaVu Sans",fontsize=12,margin="0.12,0.1"];edge[color="#6F859D",arrowsize=0.6]; Page[label="Flutter course page
+No external embed on load"];Choice[label="Load video?
+Provider disclosure",shape=diamond,fillcolor="#FFF6E7"];No[label="Keep placeholder
+No external requests"];Yes[label="Consented media load
+Accessible player"];Rev[label="Revoke consent / unload
+Cookie settings"];Page->Choice;Choice->No[label="no"];Choice->Yes[label="yes"];Yes->Rev;Rev->No; }

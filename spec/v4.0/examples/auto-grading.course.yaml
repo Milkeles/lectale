@@ -1,0 +1,85 @@
+schemaVersion: 3
+course:
+  id: sample-course
+  title: A sample course
+  summary: Illustrates general v2 capabilities.
+  language: en
+  version: 1.0.0
+  license: CC-BY-4.0
+  tags:
+  - sample
+  - lecture
+  authors:
+  - name: Course Author
+outline:
+- kind: module
+  id: module-one
+  title: First module
+  children:
+  - kind: lesson
+    id: lesson-one
+    title: A lecture
+    resources:
+    - id: notes
+      title: Lecture PDF
+      type: pdf
+      path: lectures/lesson-one/notes.pdf
+      download: true
+    - id: recording
+      title: Recording
+      type: video
+      provider: youtube
+      url: https://www.youtube.com/watch?v=ABCDEFGHIJK
+    - id: additional
+      title: Extra files
+      type: folder
+      path: lectures/lesson-one/supplements
+      recursive: false
+      maxEntries: 100
+    - id: lecture-audio
+      title: Additional audio
+      type: audio
+      path: lectures/lesson-one/recording.mp3
+      display: inline
+    - id: supplemental-generic
+      title: Additional resource
+      type: auto
+      path: lectures/lesson-one/handout.csv
+      preview: true
+  - kind: assignment
+    id: assignment-ref-one
+    assignmentId: exercise-one
+assignments:
+- id: exercise-one
+  title: Exercise one
+  materials:
+  - id: instructions
+    title: Instructions
+    type: pdf
+    path: assignments/exercise-one/instructions.pdf
+  - id: starter
+    title: Starter notebook
+    type: notebook
+    path: assignments/exercise-one/starter.ipynb
+  submission:
+    allowedExtensions:
+    - .pdf
+    - .ipynb
+    - .py
+    - .zip
+    maxFileBytes: 52428800
+    maxAttemptBytes: 104857600
+    maxFiles: 5
+    maxAttempts: 3
+  grading:
+    mode: hybrid
+    maxPoints: 100
+    allowRevisionAfterGrade: false
+    automatic:
+      provider: github-actions
+      workflowPath: .github/workflows/grade-submission.yml
+      trigger: on-submit
+      resultFormat: course-grading-result/v1
+      timeoutMinutes: 10
+      maxRunsPerAttempt: 2
+      releasePolicy: review-required

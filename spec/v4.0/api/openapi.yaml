@@ -1,0 +1,536 @@
+openapi: 3.1.0
+info:
+  title: Portable Course Platform API
+  version: 4.0.0
+  description: 'Normative route inventory and authorization expectations.
+
+    Detailed object schemas for manifests are in ../schemas/.
+
+    Web uses HttpOnly same-origin session cookies + X-CSRF-Token on mutations;
+
+    native clients use Firebase ID bearer tokens. No admin token is public.
+
+
+    Commerce/grading extension: Stripe is authoritative for money movements. D1 access
+    is granted from verified webhooks only.
+
+
+    V3.1 cookie, accessibility, reporting and root README contract: see docs/COMPLIANCE_API.md.
+
+
+    V4 clarification: source URL preview is core, catalog is opt-in, public-only metadata.
+    See docs/CORE_EXPERIENCE_AND_CATALOG.md and CACHING_PERFORMANCE_COST.md.
+
+    '
+servers:
+- url: /api
+security:
+- WebSession: []
+- FirebaseBearer: []
+components:
+  securitySchemes:
+    WebSession:
+      type: apiKey
+      in: cookie
+      name: __Host-course_session
+    FirebaseBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: FirebaseIDToken
+  schemas:
+    ApiError:
+      type: object
+      required:
+      - code
+      - message
+      - requestId
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        requestId:
+          type: string
+    CourseRef:
+      type: object
+      required:
+      - courseId
+      - status
+      - repoId
+      properties:
+        courseId:
+          type: string
+        status:
+          type: string
+        repoId:
+          type: string
+paths:
+  /auth/session:
+    post:
+      summary: Exchange Firebase ID token for host-only opaque web session cookie
+      security: []
+      description: Strict Origin check, JSON content type, rate limit, Firebase signature
+        and claims validation; return no token in response body.
+      responses:
+        '204':
+          description: Session cookie set
+        '401':
+          description: Invalid ID token
+  /auth/me:
+    get:
+      summary: Return current user profile and coarse permissions
+      responses:
+        '200':
+          description: Authenticated profile
+  /auth/csrf:
+    get:
+      summary: Retrieve session-bound CSRF token, no-store
+      responses:
+        '200':
+          description: CSRF token for X-CSRF-Token header
+  /auth/logout:
+    post:
+      summary: Revoke D1 web session and expire cookie
+      responses:
+        '204':
+          description: Logout completed
+  /courses:
+    get:
+      summary: Optional public opt-in catalog; independent of repository-by-URL reading
+      security: []
+      responses:
+        '200':
+          description: Public catalog
+      description: Only managed, published, explicitly listed public-safe metadata.
+        No GitHub fetch per result; private paid courses may show safe teasers. Cached
+        GET hits still count as Worker requests.
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 120
+        description: 1-5 normalized exact search tokens, indexed; no full scans
+      - name: language
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 20
+        description: BCP47 language filter
+      - name: category
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 64
+        description: Selected public-safe category
+      - name: price
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - free
+          - paid
+        description: Fee category filter
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+        description: Default 20
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          maxLength: 600
+        description: Opaque bounded keyset cursor
+  /courses/import:
+    post:
+      summary: Resolve a GitHub repository URL and preview validated course.yaml
+      description: Core read-only public GitHub repo URL preview. No platform registration,
+        publishing or catalog listing. SSRF-safe GitHub URL normalization and rate
+        limiting required.
+      responses:
+        '200':
+          description: Validated read-only import preview
+  /courses/register:
+    post:
+      summary: Verify GitHub management rights, then register course in D1
+      responses:
+        '201':
+          description: Registered draft course
+  /courses/{courseId}/initialize:
+    post:
+      summary: Explicitly create missing manifest/scaffold after verified GitHub rights
+      responses:
+        '200':
+          description: Repository initialization status
+  /courses/{courseId}/publish:
+    post:
+      summary: Validate pinned commit and approve effective security policy
+      responses:
+        '200':
+          description: Published course
+  /courses/{courseId}/manifest:
+    get:
+      summary: Return sanitized and validated manifest at pinned SHA
+      responses:
+        '200':
+          description: Course manifest
+          restricted when course private: null
+  /courses/{courseId}/content/{resourceId}:
+    get:
+      summary: Return or securely stream a canonical resource after access checks
+      responses:
+        '200':
+          description: Content delivered with appropriate MIME and cache headers
+  /courses/{courseId}/enroll:
+    post:
+      summary: Open enroll or request approval using D1 policy
+      responses:
+        '200':
+          description: Enrollment status
+  /courses/{courseId}/enrollments/{uid}:
+    patch:
+      summary: Instructor approves/revokes a learner
+      responses:
+        '200':
+          description: Enrollment state changed and audit logged
+  /courses/{courseId}/submissions/reserve:
+    post:
+      summary: Authorize attempt and file metadata; create one-time upload reservation
+      responses:
+        '201':
+          description: Upload reservation with safe provider-specific delegated action
+  /courses/{courseId}/submissions/{submissionId}/finalize:
+    post:
+      summary: Verify uploaded objects and finalize immutable attempt
+      responses:
+        '200':
+          description: Finalized submitted attempt
+        '409':
+          description: Reservation already finalized or in conflict
+  /courses/{courseId}/submissions:
+    get:
+      summary: Student sees own attempts; staff see authorized course attempts
+      responses:
+        '200':
+          description: Scoped submission list
+  /courses/{courseId}/grades/{assignmentId}/{uid}:
+    put:
+      summary: Authorized staff records manual grade and immutable audit revision
+      responses:
+        '200':
+          description: Authoritative grade updated
+  /certificates/{certificateId}:
+    get:
+      summary: Public certificate verification endpoint with limited disclosure
+      security: []
+      responses:
+        '200':
+          description: Verification status; no private grade details by default
+  /github/webhook:
+    post:
+      summary: Verify GitHub signature then deduplicate and handle events
+      security: []
+      responses:
+        '202':
+          description: Event accepted or deduplicated
+  /courses/{courseId}/grades/my:
+    get:
+      summary: Return own grades only, scoped from authenticated UID; no user UID
+        parameter
+      responses:
+        '200':
+          description: Current authenticated student grades
+        '403':
+          description: Not an enrolled learner
+  /courses/{courseId}/certificates:
+    post:
+      summary: Authorized instructor issues certificate with name/title/commit snapshot
+        and audit
+      responses:
+        '201':
+          description: New verifiable certificate record
+        '403':
+          description: Insufficient permissions
+  /courses/{courseId}/staff:
+    get:
+      summary: List course staff; private membership requires staff permission
+      responses:
+        '200':
+          description: Scoped staff list
+    post:
+      summary: Only owner adds authorized staff based on verified identity
+      responses:
+        '201':
+          description: Role assignment recorded and audited
+  /creators/payments/onboard:
+    post:
+      summary: Start Stripe-hosted Connect onboarding for verified instructor; return
+        temporary provider URL
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+        '403':
+          description: Forbidden
+  /creators/payments/status:
+    get:
+      summary: Return verified account onboarding state; never expose account secrets
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+        '403':
+          description: Forbidden
+  /courses/{courseId}/offers:
+    get:
+      summary: Return active sale price, currency and status; no private content
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+        '403':
+          description: Forbidden
+  /courses/{courseId}/offers/configure:
+    post:
+      summary: Only verified owner may create/retire an offer; immutable versioned
+        price and fee 500 bps
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+        '403':
+          description: Forbidden
+  /courses/{courseId}/checkout:
+    post:
+      summary: Authenticated learner creates idempotent Stripe-hosted checkout; no
+        client-specified amount
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+        '403':
+          description: Forbidden
+  /orders/{orderId}:
+    get:
+      summary: Buyer views own order status; redirect is not payment proof
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+        '403':
+          description: Forbidden
+  /courses/{courseId}/entitlement:
+    get:
+      summary: Current learner views access status for this course
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+        '403':
+          description: Forbidden
+  /stripe/webhook:
+    post:
+      summary: Raw request body signature verification, replay-safe, only source of
+        paid entitlements
+      responses:
+        '200':
+          description: Valid, recorded idempotent event
+        '400':
+          description: Invalid signature
+      security: []
+  /courses/{courseId}/grading/config:
+    post:
+      summary: Instructor approves workflow path/SHA, quotas and release mode; never
+        student writable
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+        '403':
+          description: Forbidden
+  /courses/{courseId}/submissions/{submissionId}/grading-jobs:
+    post:
+      summary: GET status or POST authorized auto grading run; no execution inside
+        Workers
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+        '403':
+          description: Forbidden
+    get:
+      summary: Own job status or staff course-wide status; never return raw untrusted
+        logs
+      responses:
+        '200':
+          description: Redacted grading jobs
+  /courses/{courseId}/grading-jobs/{jobId}/review:
+    post:
+      summary: Authorized instructor accepts/overrides/rejects proposed result
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+        '403':
+          description: Forbidden
+  /legal/{documentType}:
+    get:
+      summary: Get published, human-approved legal/privacy/cookie/accessibility document
+        without authentication
+      responses:
+        '200':
+          description: Success or accepted with typed response
+        '400':
+          description: Validation or policy error
+        '403':
+          description: Forbidden where applicable
+  /legal/cookie-settings:
+    get:
+      summary: Read consent categories and current optional-purpose preferences
+      responses:
+        '200':
+          description: Success or accepted with typed response
+        '400':
+          description: Validation or policy error
+        '403':
+          description: Forbidden where applicable
+    put:
+      summary: Update consent to optional processing with signed receipt and withdrawal
+      responses:
+        '200':
+          description: Success or accepted with typed response
+        '400':
+          description: Validation or policy error
+        '403':
+          description: Forbidden where applicable
+  /legal/acceptances:
+    post:
+      summary: Accept exact version of applicable service, instructor or purchase
+        terms
+      responses:
+        '200':
+          description: Success or accepted with typed response
+        '400':
+          description: Validation or policy error
+        '403':
+          description: Forbidden where applicable
+  /privacy/requests:
+    post:
+      summary: File a GDPR data-subject rights request
+      responses:
+        '200':
+          description: Success or accepted with typed response
+        '400':
+          description: Validation or policy error
+        '403':
+          description: Forbidden where applicable
+    get:
+      summary: List own data-subject rights requests
+      responses:
+        '200':
+          description: Success or accepted with typed response
+        '400':
+          description: Validation or policy error
+        '403':
+          description: Forbidden where applicable
+  /notices:
+    post:
+      summary: Report potentially illegal content or a course listing
+      responses:
+        '200':
+          description: Success or accepted with typed response
+        '400':
+          description: Validation or policy error
+        '403':
+          description: Forbidden where applicable
+  /notices/{noticeId}:
+    get:
+      summary: Retrieve a scoped notice-and-action case status
+      responses:
+        '200':
+          description: Success or accepted with typed response
+        '400':
+          description: Validation or policy error
+        '403':
+          description: Forbidden where applicable
+  /courses/{courseId}/description:
+    get:
+      summary: Render sanitized root README.md at pinned git SHA, access checked
+      responses:
+        '200':
+          description: Success or accepted with typed response
+        '400':
+          description: Validation or policy error
+        '403':
+          description: Forbidden where applicable
+  /instructors/lfs-guidance:
+    get:
+      summary: Show current GitHub LFS owner allowances and source link
+      responses:
+        '200':
+          description: Success or accepted with typed response
+        '400':
+          description: Validation or policy error
+        '403':
+          description: Forbidden where applicable
+  /courses/{courseId}/catalog:
+    put:
+      summary: Owner opt-in/opt-out and approve public-safe catalog metadata
+      description: Managed course only, owner required, expectedRevision CAS, default
+        unlisted, private README never extracted. Unlisting must invalidate cached
+        catalog responses or TTL<=60s.
+      parameters:
+      - in: path
+        name: courseId
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+              - listing
+              - expectedRevision
+              properties:
+                listing:
+                  type: string
+                  enum:
+                  - listed
+                  - unlisted
+                expectedRevision:
+                  type: integer
+                  minimum: 0
+                title:
+                  type: string
+                  maxLength: 180
+                summary:
+                  type: string
+                  maxLength: 500
+                language:
+                  type: string
+                  maxLength: 20
+                category:
+                  type: string
+                  maxLength: 64
+                tags:
+                  type: array
+                  maxItems: 8
+                  items:
+                    type: string
+                    maxLength: 30
+                coverUrl:
+                  type:
+                  - string
+                  - 'null'
+                  format: uri
+      responses:
+        '200':
+          description: Listing revision updated
+        '403':
+          description: Not owner
+        '409':
+          description: Revision conflict

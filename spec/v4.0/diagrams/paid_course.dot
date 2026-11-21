@@ -1,0 +1,12 @@
+digraph G {graph [rankdir=LR, bgcolor="white", pad="0.24", nodesep="0.3", ranksep="0.42"];node [shape=box,style="rounded,filled",fillcolor="#EEF4FC",color="#7393B9",fontname="DejaVu Sans",fontsize=12,margin="0.12,0.09"];edge [color="#7290AE",arrowsize=0.65];
+creator [label="Creator + verified
+GitHub ownership"];connect [label="Stripe Connect
+creator onboarding"];offer [label="Cloudflare D1
+approved paid offer"];learner [label="Student
+Flutter Web"];checkout [label="Stripe hosted
+Checkout"];webhook [label="Worker: verify signed
+payment webhook"];ent [label="D1: paid order +
+learner entitlement"];private [label="Private GitHub /
+protected video provider"];
+creator->connect->offer;learner->checkout;offer->checkout;checkout->webhook->ent->private;
+}

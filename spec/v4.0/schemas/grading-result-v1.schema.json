@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:portable-course:grading-result-v1",
+  "title": "Untrusted automated grader result (validated, not an authorization source)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "jobId",
+    "submissionId",
+    "status",
+    "maxPoints",
+    "score",
+    "tests"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "course-grading-result/v1"
+    },
+    "jobId": {
+      "type": "string",
+      "pattern": "^job_[A-Za-z0-9_-]{12,100}$"
+    },
+    "submissionId": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "status": {
+      "enum": [
+        "completed",
+        "failed",
+        "timed-out"
+      ]
+    },
+    "score": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "minimum": 0,
+      "maximum": 1000000
+    },
+    "maxPoints": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1000000
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 8000
+    },
+    "tests": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "status",
+          "points",
+          "maxPoints"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "status": {
+            "enum": [
+              "pass",
+              "fail",
+              "skip",
+              "error"
+            ]
+          },
+          "points": {
+            "type": "number",
+            "minimum": 0
+          },
+          "maxPoints": {
+            "type": "number",
+            "minimum": 0
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "completed"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "score": {
+            "type": "number"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "score": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}
