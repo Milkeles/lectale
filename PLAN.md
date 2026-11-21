@@ -10,7 +10,7 @@ Every task gets a spec in `spec/tasks/` that opens with the intake gate (Why / S
 ## Waiting on the owner
 
 - [x] **Logo:** the owner chose 01 Ribbon Cut (2026-11-21). SVGs are in `docs/ux/brand/logo-01-ribbon-cut-*.svg`. The colour follows the palette decision below.
-- [ ] **Pick the colour direction** in `docs/ux/token-plan.md`: the warm paper, graphite and mulberry palette with Literata (proposed by Codex's design review), or the original cobalt.
+- [x] **Palette:** the owner chose B, mulberry on warm paper (2026-11-21), so the logo is `logo-01-ribbon-cut-mulberry.svg`. Still open: the reading font, because Literata's Google Fonts build lacks Bulgarian letterforms (see `docs/ux/token-plan.md`).
 - [ ] **Create the GitHub App sooner rather than later.** Anonymous GitHub API calls allow only 60 per hour per IP, so a deployed preview would run dry quickly. The App's installation token allows at least 5,000 per hour. Whether that token can read public repositories the App isn't installed on is still unverified; it's the first thing to test once the App exists.
 - [ ] **Decide where the missing components live** (app bar, skip link, breadcrumb, list row, tree, scrollable tabs, progress). Until you say otherwise, they're built inside Lectale on litse-ui's foundations, without Material, so they can move into litse-ui later.
 
