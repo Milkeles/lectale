@@ -9,6 +9,11 @@ Every task gets a spec in `spec/tasks/` that opens with the intake gate (Why / S
 
 ## Waiting on the owner
 
+- [ ] **Pick a logo direction.** Four Codex concepts are in `docs/ux/brand/logo-concepts.png`; the notes are beside it. Agents prefer 2 (ribbon over page) and 4 (L with a bookmark tab).
+- [ ] **Pick the colour direction** in `docs/ux/token-plan.md`: the warm paper, graphite and mulberry palette with Literata (proposed by Codex's design review), or the original cobalt.
+- [ ] **Create the GitHub App sooner rather than later.** Anonymous GitHub API calls allow only 60 per hour per IP, so a deployed preview would run dry quickly. The App's installation token allows at least 5,000 per hour. Whether that token can read public repositories the App isn't installed on is still unverified; it's the first thing to test once the App exists.
+- [ ] **Decide where the missing components live** (app bar, skip link, breadcrumb, list row, tree, scrollable tabs, progress). Until you say otherwise, they're built inside Lectale on litse-ui's foundations, without Material, so they can move into litse-ui later.
+
 - [ ] After M2 deploys and production CPU is measured: decide how to handle validation CPU on the Free plan (errata N7: cap course size, $5/month Paid plan, or a faster YAML parser).
 
 - [ ] Protect `main` in GitHub settings against force-pushes and deletion (not "require pull requests": agents merge directly by the owner's choice), and move `LITSE_UI_DEPLOY_KEY` into an Actions environment that only `main` can use. Hooks can't stop a pushed workflow from reading a repository secret; only these server-side settings can.
