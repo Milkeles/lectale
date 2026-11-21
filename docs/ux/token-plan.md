@@ -76,8 +76,8 @@ Bundled in litse-ui: IBM Plex Sans (variable, has Greek) and IBM Plex Mono. UI s
 | Role | `DcTypography` slot | Size (line height) | Weight, face |
 |---|---|---|---|
 | Rendered h1: course title, lesson title | `display` | 30 (36) | semibold, reading face in A, Sans in B |
-| Rendered h2 | `heading` | 24 (32) | semibold, as h1 |
-| Rendered h3 | override | 21.5 (30) | semibold, as h1 |
+| Rendered h2 | override (litse-ui's `heading` slot is 21.5) | 24 (32) | semibold, as h1 |
+| Rendered h3 | `heading` | 21.5 (30) | semibold, as h1 |
 | Rendered h4 | override | 19.5 (28) | semibold, as h1 |
 | Rendered h5, h6 | override | 18 (28) | semibold, as h1; told apart by space above, not size |
 | **Reading** | `reading` (override) | **18 (30)** | regular, reading face |

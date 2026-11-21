@@ -22,7 +22,7 @@ Defined once here; `course.md` and `reader.md` list the same rows and point here
 
 **Top bar** (all three screens): the mark and the wordmark "Lectale". On Course and Reader it is one link named "Lectale home". On Home it is plain text, not a link (design review S14). It scrolls away with the page at every width (C13).
 
-**Contents bar** (Course and Reader): one 44 dp row under the top bar that stays put when the page scrolls. It holds the **Contents control**, a `DcButton` ghost whose visible text and accessible name are both "Contents".
+**Contents bar** (Course and Reader): a row under the top bar, at least 44 dp tall and growing with its text, that stays put when the page scrolls. At large text sizes the place title wraps to at most two lines, then ends with an ellipsis whose full text is the control's tooltip and accessible description. Scrolling keeps the focused element clear of the bar (`Scrollable.ensureVisible` with the bar's height as padding), so focus is never hidden behind it (WCAG 2.2 2.4.11). It holds the **Contents control**, a `DcButton` ghost whose visible text and accessible name are both "Contents".
 
 - Wide layout: it opens and closes the pane, with `expanded` semantics.
 - Single-column layout: it opens the Contents panel.

@@ -459,3 +459,98 @@ The must-fix items below cover these as M1 to M6. M1 and M3 are the two dead end
 
 - **Codex second opinion** (`docs/ux/README.md` step 4): not run. The role runs Codex on screenshots, so for the specs it is left to the caller.
 - **Visual review:** after build, against these specs, with screenshots at 360, 768 and 1440 px in light and dark.
+
+---
+
+## Re-review (2026-11-21, revision 5995b25)
+
+| | |
+|---|---|
+| **Stage** | Spec re-review; still no screenshots |
+| **Files** | `journeys-m2.md`, `inventory.md`, `token-plan.md`, `screens/home.md`, `course.md`, `reader.md` |
+| **Checked against** | the spec text itself, not the resolution table; `spec/errata/openapi.yaml` (`getPreview`, files and folders routes, `PreviewFolder`, `OutlineResource`); `apps/edge_api/src/preview/` (`routes.ts`, `errors.ts`, `outline.ts`); `litse-ui-private/lib/src/theme/typography.dart`; direction A contrast recomputed from the seeds (all figures in `token-plan.md` match) |
+
+### Verdict: revise (three small edits)
+
+Home can go to build as it stands. Course and Reader need the three edits R1 to R3 below before build. Each would show up as a hard stop at visual review. All six must-fix items are resolved in the spec text. Fourteen of the fifteen should-fix items are resolved; S8 is only partly resolved (R2). The direction A or B owner decision (D12) does not block build, as long as the palette goes through `fromPalettes` and the reading face is one style slot.
+
+### Must-fix from the first review
+
+| ID | Status | Evidence in the specs |
+|---|---|---|
+| M1 | Resolved | `getPreview` exists in the contract and in `routes.ts`. Course §6 and Reader §6 design the cold open: a skeleton, then "Course not available" with "Enter the GitHub address", or Try again when J5 allows. "Open course" now has one meaning. A not-found never re-imports by itself (J5 rules). |
+| M2 | Resolved | The files route exists. Course §5 gives a case table for links and images, Reader §5 states its two differences, and D17 makes it an explicit M2 decision that relative images in lessons don't load. See S-b for the one gap. |
+| M3 | Resolved | Reader §5 has a table mapping each resource to what it shows and its action. A kind with no viewer always offers Download. Folders list their entries through the folders route (the `PreviewFolder` shape matches). `embedUrl` is `resource.url` in `outline.ts`, so "Watch on YouTube" opens a real page. |
+| M4 | Resolved | The breadcrumb and the back control are gone (D2, D3). The module line is plain text. The Contents control's name is its visible text. The top bar holds only the brand. |
+| M5 | Resolved | One pane on the start side. The ribbon marks the learner's place on both screens and moves to the Contents control when the pane is hidden. Start course becomes "Continue: {lesson title}". |
+| M6 | **Partly** | The rules are right (nothing under 18, nothing over h1, shift by one or two levels). The slot mapping is wrong: see R1. |
+
+### Should-fix from the first review
+
+S1 to S7 and S9 to S15 are resolved in the spec text. S2's truncated-tree state is correctly dropped: no `repository_tree_truncated` appears in `apps/edge_api/src`. S8 is resolved except for truncation and the stacking rule (R2).
+
+### Remaining must-fix
+
+**R1. The heading map names a slot at the wrong size (type-scale drift).** `token-plan.md` "Sizes and the heading map" maps rendered h2 to `heading` at 24/32. In litse-ui, `heading` is 20/28, which comes to 21.5/30 at the comfortable scale of 14/13. That is the size the plan gives the h3 override. Built as written, h2 and h3 render at the same size. On the Reader, the resource h2 (`Text (heading)`, Reader §5) also matches a Markdown h3. Fix:
+- Mark h2 as an override at 24/32 in the token plan.
+- Change the Reader §5 resource heading row from `heading` to "h2 override, 24/32".
+- Note that `display` comes from 28 × 14/13 (30.15/36.6), so the 30 (36) in the plan is rounded.
+
+**R2. Primary labels truncate, and stacking ignores text size.**
+- The Reader 768 wireframe shows "[Next lesson: Sum…]" and the Course 360 wireframe shows "[Load 3 images from img.exa…]".
+- No spec text forbids truncation. The only mention is "(wraps)" beside Previous on the phone wireframe.
+- Reader §5 stacks Previous and Next below 600 dp only. In a 576 dp column, two "Next lesson: {title}" buttons already overflow at 100 percent text, and certainly at 200 percent.
+
+Fix:
+- Add a rule to Reader §5 and §8: button labels wrap and never ellipsize.
+- Stack Previous and Next whenever the two don't fit side by side at the current text size. That means measuring, not a fixed 600 dp, which also matches "breakpoints set by the text".
+- Keep focus order the same as visual order.
+- Redraw the two wireframes.
+
+**R3. The sticky Contents bar is a fixed 44 dp row with a title that wraps.** The inventory's Shared layout section says both "one 44 dp row … stays put" and "the title … wrapping, never truncated". These conflict. On a phone at 200 to 400 percent text, a long lesson title makes the sticky bar two to four lines tall, and it covers focused content. That fails 2.4.11 Focus Not Obscured (Minimum) and is a MAJOR finding. Fix:
+- Make 44 dp the minimum height, not a fixed height.
+- Stop the bar sticking when its height passes 20 percent of the window, or at 200 percent text or more.
+- Scroll focused elements clear of the bar (`Scrollable.ensureVisible` with the bar's height as the offset).
+
+### Should-fix (new in the revision; not blocking)
+
+- **S-a. Title or filename.** Reader §5 and §9 name rows and Next by `{title}`. The wireframes use filenames ("data.md", "Next file: survey.csv") next to a title h2 ("Data and its shape"). Use the resource title in rows, the h2 and Next and Previous. Show the filename only in the Download bar.
+- **S-b. Relative README links to a missing file or a directory.** The files route serves regular files only, so these open the Worker's JSON 404 in a browser tab, which is a dead end outside the app. The inventory's M2 row claims a "missing file" case, but Course §5 has a row for missing images only. Fix: add the row, and ask the edge engineer for a plain HTML 404 page when the request prefers `text/html`.
+- **S-c. Contents with nothing to show.** In three Course states the pane or bar stays on screen with no task:
+  - No lessons: at wide widths, a 272 dp pane holds only "Overview".
+  - No overview, single column: the control is hidden but the sticky bar row is not.
+  - Link fails to open: the control's state is unspecified.
+
+  Remove the Contents bar and the pane in all three.
+- **S-d. A ribbon before any lesson has been opened.** On Course the ribbon then sits on Overview. The Overview row then carries both marks and the name "Overview, last opened", and the bar reads "Contents Overview" while the overview is on screen. Show no ribbon until a lesson has been opened.
+- **S-e. Closing the Contents panel.** Neither Escape nor focus return is specified. Escape should close the panel and return focus to the Contents control (2.1.2 No Keyboard Trap, 2.4.3 Focus Order).
+- **S-f. Phone density on the Reader.** For a lesson with two files at 360 by 640, the module line, h1, description, In this lesson, the h2 and the two-line Download bar take about 460 dp before the first line of the resource, which §4 ranks first. On a single column, put the Download bar on one line. Check this in the first screenshots.
+- **S-g. Plurals.** "{n} problem(s)" (Home §9), "{title}. {n} problems.", "Load {n} images" and "{n} SVG images" need ICU plural forms. "(s)" is a tell, and Bulgarian has its own plural rules.
+- **S-h. Unmapped fields.** `OutlineResource.preview: false` has no row in the M3 table. It should get a file card with Download. Assignment `releaseAt` is also missing from the Reader's date rows.
+- **S-i. The logo brief contradicts direction A.** The brief says "Avoid … purple" and makes the mark the accent colour, and A's accent is mulberry. State in the brief that mulberry is a wine red (hue 353) before Codex draws concepts.
+- **S-j. The safe HTML subset (S11) needs a security ruling.** Before the README renderer is built, the security-reviewer should confirm that mapping `img`, `details`, `summary`, `br`, `sub`, `sup` and `kbd` to native widgets is within AGENTS.md's "Never render HTML … from course content".
+- **S-k. "In this lesson" has no style or role.** Make it a `subtitle` label that names the list, not a heading, so the resource h2 stays the next heading.
+
+### New-problem check
+
+| Check | Result |
+|---|---|
+| One primary action per screen | Pass: Open course; Start course or Continue; Next or Back to course |
+| Elements without a task | Pane and bar in empty states (S-c); ribbon on Overview (S-d) |
+| Dead ends | None in the app. One outside it: the JSON 404 in a browser tab (S-b) |
+| AI tells | "(s)" plurals (S-g). Otherwise pass: no meta strings, icons, eyebrows or card kit |
+| Naming | Title or filename (S-a). Otherwise one name per thing ("Overview", "Back to course", "Enter the GitHub address") |
+| 360, 768, 1440 | Breaks: truncation and stacking (R2); sticky bar at large text (R3); phone density (S-f). Pane and column arithmetic holds at 1440: the 576 dp column is centred in 1060 dp |
+
+### Not done
+
+- Codex was not re-run. The second opinion on the home, course and viewer screens belongs to the screenshot stage.
+- Visual review happens after build, at 360, 768 and 1440 px in light and dark, against these specs.
+
+## Re-review blockers resolved (orchestrator, 2026-11-21)
+
+- **R1:** `token-plan.md` now marks h2 as an explicit 24/32 override, because litse-ui's `heading` slot is 21.5; h3 uses the slot. The Reader's resource h2 row names the override.
+- **R2:** Course and Reader state that button labels never truncate: labels wrap, and groups (Previous and Next, Load buttons) stack full width whenever the full labels don't fit at the current text size, not at a fixed width.
+- **R3:** `inventory.md` defines the Contents bar as at least 44 dp and growing with its text, with the place title wrapping to two lines and the full text available as tooltip and description; scrolling keeps the focused element clear of the bar (WCAG 2.2 2.4.11).
+
+With these, Home, Course and Reader are cleared for implementation. S-a to S-k are handled during the build.

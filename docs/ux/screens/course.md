@@ -160,6 +160,7 @@ Names are illustrative. The overview and pane are unbordered regions (C9); `|` b
 - **Keyboard order:** skip link, Lectale home, Contents control, Contents (one tab stop, roving focus), then main: Start course, author links, the overview in document order (links, Load buttons, scroll regions). Visual order matches.
 - **Landmarks and headings:** banner; `nav` "Course contents"; main holds the h1 and the overview, whose headings shift by one level (README h1 renders as h2).
 - **Labels for icon-only controls:** none. Close in the panel is named "Close contents".
+- **Button labels never truncate.** Labels wrap, and button groups stack full width when their full labels don't fit at the current text size (Load images buttons included).
 - **Touch targets:** Contents rows and buttons at least 44 dp; inline links have a 24 dp hit area (WCAG 2.2 2.5.8).
 - **Motion:** only the ribbon (170 ms, instant under reduce-motion). No scroll animation.
 - **Row names:** "{title}, lesson", "{title}, assignment, due {date and time}" (`dueAt` in the learner's time zone and locale, C6), with ", last opened" on the ribbon row and `selected` on Overview.

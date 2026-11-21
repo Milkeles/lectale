@@ -44,7 +44,7 @@ A learner reading one lesson or assignment wants to read its current resource an
 | Assignment dates (opens, due, closes; only those present) | `Text` rows (`small`) | Know deadlines in my time zone | V4-CORE-01 | Chunking | Metadata list |
 | Assignment note | `Text` (`small`) | Know submitting isn't available | V4-CORE-01 | Tesler | Inline note |
 | In this lesson (two or more resources): rows of title, kind, size if known | **missing** (list row); interim rows; selected row Sand + semibold + `selected` | Choose a file (J4) | A11Y-007 | Miller | Item list above the detail |
-| Resource heading (h2), only with two or more resources | `Text` (`heading`) | Know which file I'm reading | A11Y-007 | Proximity | Document header |
+| Resource heading (h2), only with two or more resources | `Text` (h2 override, 24/32) | Know which file I'm reading | A11Y-007 | Proximity | Document header |
 | Download bar: Download, filename, "{kind}, {size}" | `DcButton` outline + `Text` (`small`, filename in `code`) | Keep a copy; see what the file is | V4-CORE-05, A11Y-007 | Proximity, Jakob | Secondary action in the document header |
 | Markdown viewer | App renderer; rules as Course §5, differences below | Read text with formulas, tables, code | V4-CORE-05, V4-SEC-03 | Jakob | Reading column, 32 em |
 | Text viewer, prose (`.txt`) | `Text` (`reading`), wrapped | Read plain prose | V4-CORE-05 | Jakob | Plain-text document |
@@ -152,7 +152,8 @@ Names are illustrative. Regions are unbordered (C9); `|` is the ribbon, `*` the 
 
 ## 8. Interaction and accessibility
 
-- **Keyboard order:** skip link, Lectale home, Contents control, Contents (one tab stop), then main: In this lesson (one tab stop, roving focus), Download, viewer content (scroll regions, zoom controls, Load buttons, Copy), then Next and Previous in their visual order (Next first below 600 dp, Previous first from 600).
+- **Keyboard order:** skip link, Lectale home, Contents control, Contents (one tab stop), then main: In this lesson (one tab stop, roving focus), Download, viewer content (scroll regions, zoom controls, Load buttons, Copy), then Next and Previous in their visual order (Next first when stacked, Previous first when side by side).
+- **Button labels never truncate.** Labels wrap. Previous and Next sit side by side only when both full labels fit at the current text size; otherwise they stack full width, Next first. The same rule applies to Load buttons and every other button on Course and Reader.
 - **Focus:** opening the screen puts focus on the h1. After Next or Previous, focus goes to the new h1 if the lesson changed, else to the new h2, and the page scrolls to the top (S8). Choosing a row in In this lesson moves focus to the h2.
 - **History:** a lesson change pushes a history entry; a file change within a lesson replaces it, so system Back leaves the lesson rather than replaying its files (S8).
 - **Shortcuts:** none beyond defaults (+, - and 0 on the image viewer); Next and Previous are not bound to arrow keys.
