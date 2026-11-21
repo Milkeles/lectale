@@ -17,7 +17,7 @@ case passes, fill the test column with the test file and add the commit SHA.
 
 | ID | Requirement (short) | Milestone | Test(s) | Status |
 | --- | --- | --- | --- | --- |
-| V4-CORE-01 | Public repo URL preview shows course.yaml and README, no login, no GitHub writes | M2 | - | not started |
+| V4-CORE-01 | Public repo URL preview shows course.yaml and README, no login, no GitHub writes | M2 | [M1 public route contract](../tool/test_openapi_contract.py) | in progress |
 | V4-CORE-02 | Preview needs no catalog registration or GitHub org | M2 | - | not started |
 | V4-CORE-03 | Verified author registers, scaffolds, repins and updates via selected-repo App | M4 | - | not started |
 | V4-CORE-04 | Invalid or missing YAML gives exact error; old course stays pinned | M4 | [M1 manifest diagnostics](../apps/edge_api/test/contract/course-manifest.test.ts) | in progress |
@@ -42,7 +42,7 @@ case passes, fill the test column with the test file and add the commit SHA.
 | V4-SEC-06 | One student cannot read or overwrite another's files or grade | M5 | - | not started |
 | V4-SEC-07 | Checkout uses signed Stripe webhook; idempotent purchases and refunds | M9 | - | not started |
 | V4-SEC-08 | Auto-grader runs untrusted code only on instructor runner with no platform secrets | M8 | - | not started |
-| V4-SEC-09 | Errors carry code, retryable, requestId; retries and duplicates are idempotent | M6 | - | not started |
+| V4-SEC-09 | Errors carry code, retryable, requestId; retries and duplicates are idempotent | M6 | [M1 error and idempotency contract](../tool/test_openapi_contract.py) | in progress |
 | V4-SEC-10 | Terms, privacy, cookie settings, notices, reporting, WCAG 2.2 AA checks pass | M7 | - | not started |
 | V4-COST-01 | Cost modeled at 1k, 10k, 50k MAU free and 100k, 1M paid | M11 | - | not started |
 | V4-COST-02 | Index-backed catalog, `rows_read` metrics, over-limit handling, budget alerts | M11 | - | not started |

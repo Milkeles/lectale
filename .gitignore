@@ -41,3 +41,7 @@ node_modules/
 .vscode/
 .DS_Store
 apps/edge_api/src/worker-configuration.d.ts
+
+# Python bytecode
+__pycache__/
+*.pyc

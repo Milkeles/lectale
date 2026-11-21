@@ -15,9 +15,10 @@ setup:
 # Run every test suite
 test: test-spec test-tools test-edge test-flutter
 
-# Run the specification bundle's own contract tests
+# Run the bundled and corrected API contract tests
 test-spec:
     cd spec/v4.0 && for t in tools/test_*.py; do python3 "$t"; done
+    python3 tool/test_openapi_contract.py
 
 # Test the project rule check and the agent guard hook
 test-tools:
