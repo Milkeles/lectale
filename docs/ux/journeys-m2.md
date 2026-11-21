@@ -6,7 +6,7 @@ Actor: a learner of any discipline, signed out, on any of the six platforms. Not
 
 ## Routes the screens call
 
-From `spec/errata/openapi.yaml` at d766458. All are under `/api`.
+From `spec/errata/openapi.yaml` at d766458, with the folder-entry shape from the working copy after it. All are under `/api`.
 
 | Route | Returns | Used for |
 |---|---|---|
@@ -14,7 +14,7 @@ From `spec/errata/openapi.yaml` at d766458. All are under `/api`.
 | `GET /preview/{repoId}/{sha}` | the same `CoursePreview` | Course and Reader after a reload, a bookmark, a shared link or a restored tab (J3a) |
 | `GET /preview/{repoId}/{sha}/readme` | root README as Markdown | Course overview |
 | `GET` `OutlineResource.href` (`.../content/{lessonId}/{resourceId}`) | the resource's bytes | Reader viewers and Download |
-| `GET` `OutlineResource.href` for a `folder` (`.../folders/{lessonId}/{resourceId}`) | `PreviewFolder.entries[]`: `name`, `type` (`file` or `directory`), `size`, `href`; direct entries only, at most `maxEntries` (default 100) | Reader folder list |
+| `GET` `OutlineResource.href` for a `folder` (`.../folders/{lessonId}/{resourceId}`) | `PreviewFolder.entries[]`: `name` (path relative to the folder), `type` (`file` or `directory`), `size`, and `href` for files only; direct entries, or every level depth-first when the resource is `recursive`; at most `maxEntries` in total (default 100) | Reader folder list |
 | `GET /preview/{repoId}/{sha}/files/{path}` | any regular file at the pinned commit, same safe-MIME and download rules as content | README images and relative links, the course cover, folder entries |
 
 The client uses `href` values as returned (ADR-0008, ADR-0011). It builds a files-route address in one case only: a path from the README or `course.cover`, resolved against the repository root, with `./` and `../` collapsed; a path that would leave the root, or that fails the route's path pattern, is not requested.

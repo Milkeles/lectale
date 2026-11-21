@@ -140,7 +140,7 @@ No border is drawn around the column; the boxes below are alerts only (C9).
 | | ! course.yaml can't be used                           |                    |
 | |   Use a repository-relative path.                     |                    |
 | |   Outline item 3, resource 1, path                    |                    |
-| |   /outline/2/resources/0/path   invalid_path          |                    |
+| |   /outline/2/resources/0/path   {code}                |                    |
 | |   Reference 4f2a9c                                    |                    |
 | +-------------------------------------------------------+                    |
 +------------------------------------------------------------------------------+
