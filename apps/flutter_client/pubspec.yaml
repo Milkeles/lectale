@@ -15,10 +15,15 @@ dependencies:
     git:
       url: https://github.com/Milkeles/litse-ui-private.git
       ref: 1ba314a75a9de1ba23acdb0c5490d7df8bf4710e
+  # The generated client's transport; the app builds the one Dio instance.
+  dio: ^5.11.0
   flutter:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
+  flutter_riverpod: ^3.5.0
+  go_router: ^18.1.4
+  lectale_api_client: ^0.1.0
 
 dev_dependencies:
   flutter_test:
@@ -26,3 +31,12 @@ dev_dependencies:
 
 flutter:
   generate: false
+  fonts:
+    # The reading face (ADR-0012): the upstream variable files, unmodified,
+    # because the licence reserves the name "Source" for unmodified fonts.
+    # Their licence is beside them in assets/fonts/LICENSE.md.
+    - family: Source Serif 4
+      fonts:
+        - asset: assets/fonts/SourceSerif4Variable-Roman.ttf
+        - asset: assets/fonts/SourceSerif4Variable-Italic.ttf
+          style: italic
