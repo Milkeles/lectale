@@ -37,7 +37,7 @@ Every task gets a spec in `spec/tasks/` that opens with the intake gate (Why / S
 
 ## M1 Contract
 
-- [ ] Corrected OpenAPI in `spec/errata/openapi.yaml`, linted in CI (E1, E7).
+- [x] Corrected OpenAPI in `spec/errata/openapi.yaml`, linted in CI (E1, E7).
 - [ ] TypeScript manifest validator: size cap, YAML 1.2 without aliases or tags, schema v3, semantic rules.
 - [ ] Fixtures: one pass and one fail for every SEMANTIC_VALIDATION rule, plus attack fixtures.
 - [ ] Generated TypeScript types and the Dart client, drift-checked in CI.

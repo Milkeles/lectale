@@ -1,0 +1,1784 @@
+openapi: 3.1.0
+info:
+  title: Lectale API
+  version: 4.0.0
+  description: Corrected contract for E1, E2, E3 and E7. Browser mutations using WebSession require a
+    same-origin Origin and a session-bound X-CSRF-Token. Native clients use a verified Firebase ID bearer
+    token. Access to managed course data is checked against server-side policy.
+servers:
+  - url: /api
+paths:
+  /auth/session:
+    post:
+      operationId: createWebSession
+      summary: Exchange Firebase ID token for host-only opaque web session cookie
+      description: Exchange a verified Firebase bearer token after an exact Origin check. The response
+        sets the host-only HttpOnly session cookie and carries no body.
+      security:
+        - FirebaseBearer: []
+      x-lectale-milestone: M3
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '204':
+          description: Session cookie set
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Opaque __Host-course_session cookie with Secure, HttpOnly, SameSite=Lax and
+                Path=/.
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+        '401':
+          description: Invalid ID token
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      summary: Return current user profile and coarse permissions
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M3
+      responses:
+        '200':
+          description: Authenticated profile
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /auth/csrf:
+    get:
+      operationId: getCsrfToken
+      summary: Retrieve session-bound CSRF token, no-store
+      security:
+        - WebSession: []
+      x-lectale-milestone: M3
+      responses:
+        '200':
+          description: CSRF token for X-CSRF-Token header
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /auth/logout:
+    post:
+      operationId: logout
+      summary: Revoke D1 web session and expire cookie
+      security:
+        - WebSession: []
+      x-lectale-milestone: M3
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '204':
+          description: Logout completed
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+              description: Expires the host-only session cookie.
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses:
+    get:
+      operationId: listCatalogCourses
+      summary: Optional public opt-in catalog; independent of repository-by-URL reading
+      description: Only managed, published, explicitly listed public-safe metadata. No GitHub fetch per
+        result; private paid courses may show safe teasers. Cached GET hits still count as Worker requests.
+      security: []
+      x-lectale-milestone: M10
+      parameters:
+        - name: q
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 120
+          description: 1-5 normalized exact search tokens, indexed; no full scans
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 20
+          description: BCP47 language filter
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 64
+          description: Selected public-safe category
+        - name: price
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - free
+              - paid
+          description: Fee category filter
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+          description: Default 20
+        - name: cursor
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 600
+          description: Opaque bounded keyset cursor
+      responses:
+        '200':
+          description: Public catalog
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CatalogPage'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/import:
+    post:
+      operationId: importCourse
+      summary: Open a public GitHub course by repository URL
+      description: >
+        Resolve the repository to a numeric ID and a full commit SHA, and validate course.yaml at that
+        commit. This is a read-only preview with no GitHub writes, course registration, or catalog listing
+        (E1, E3, V4-CORE-01). Accept canonical HTTPS GitHub repository URLs only and apply the class D
+        repository lookup cache (up to 300 seconds, with negative lookups up to 30 seconds).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ImportCourseRequest'}
+      responses:
+        '200':
+          description: Validated preview at a single pinned commit
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CoursePreview'}
+        '400':
+          description: Invalid GitHub repository URL or request body
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        '404': {$ref: '#/components/responses/PreviewUnavailable'}
+        '413':
+          description: Course manifest exceeds the input size limit
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        '422':
+          description: Missing course.yaml or invalid course manifest
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        '429': {$ref: '#/components/responses/PreviewThrottled'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/register:
+    post:
+      operationId: registerCourse
+      summary: Verify GitHub management rights, then register course in D1
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M4
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '201':
+          description: Registered draft course
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CourseRef'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/initialize:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    post:
+      operationId: initializeCourse
+      summary: Explicitly create missing manifest/scaffold after verified GitHub rights
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M4
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '200':
+          description: Repository initialization status
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/publish:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    post:
+      operationId: publishCourse
+      summary: Validate pinned commit and approve effective security policy
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M4
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '200':
+          description: Published course
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/manifest:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    get:
+      operationId: getCourseManifest
+      summary: Return sanitized and validated manifest at pinned SHA
+      security:
+        # Public courses are readable anonymously (spec: public offers and
+        # manifests); the Worker still checks access for private courses.
+        - {}
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M4
+      responses:
+        '200':
+          description: Course manifest
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/content/{lessonId}/{resourceId}:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+      - {$ref: '#/components/parameters/lessonId'}
+      - {$ref: '#/components/parameters/resourceId'}
+    get:
+      operationId: getCourseContent
+      summary: Return or securely stream a canonical resource after access checks
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M4
+      responses:
+        '200':
+          description: Content delivered with appropriate MIME and cache headers
+          content:
+            '*/*':
+              schema: {$ref: '#/components/schemas/BinaryContent'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+      description: Resolve the scoped resource against the managed course's validated manifest (E2, ADR-0008).
+        Check current access before serving content and mask inaccessible private course existence with
+        404.
+  /courses/{courseId}/enroll:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    post:
+      operationId: enrollInCourse
+      summary: Open enroll or request approval using D1 policy
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M5
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '201':
+          description: Enrollment created with active or pending status
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/enrollments/{uid}:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+      - {$ref: '#/components/parameters/uid'}
+    patch:
+      operationId: updateEnrollment
+      summary: Instructor approves/revokes a learner
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M5
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '200':
+          description: Enrollment state changed and audit logged
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/submissions/reserve:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    post:
+      operationId: reserveSubmission
+      summary: Authorize attempt and file metadata; create one-time upload reservation
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M6
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '201':
+          description: Upload reservation with safe provider-specific delegated action
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/submissions/{submissionId}/finalize:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+      - {$ref: '#/components/parameters/submissionId'}
+    post:
+      operationId: finalizeSubmission
+      summary: Verify uploaded objects and finalize immutable attempt
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M6
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '200':
+          description: Finalized submitted attempt
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '409':
+          description: Reservation already finalized or in conflict
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/submissions:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    get:
+      operationId: listSubmissions
+      summary: Student sees own attempts; staff see authorized course attempts
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M6
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Scoped submission list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedResult'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/grades/{assignmentId}/{uid}:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+      - {$ref: '#/components/parameters/assignmentId'}
+      - {$ref: '#/components/parameters/uid'}
+    put:
+      operationId: recordGrade
+      summary: Authorized staff records manual grade and immutable audit revision
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M7
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '200':
+          description: Authoritative grade updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /certificates/{certificateId}:
+    parameters:
+      - {$ref: '#/components/parameters/certificateId'}
+    get:
+      operationId: verifyCertificate
+      summary: Public certificate verification endpoint with limited disclosure
+      security: []
+      x-lectale-milestone: M7
+      responses:
+        '200':
+          description: Verification status; no private grade details by default
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /github/webhook:
+    post:
+      operationId: receiveGitHubWebhook
+      summary: Verify GitHub signature then deduplicate and handle events
+      description: Verify the HMAC over the raw request bytes before parsing. Deduplicate by GitHub delivery ID.
+      security:
+        - GitHubSignature: []
+      x-lectale-milestone: M4
+      parameters:
+        - name: X-GitHub-Delivery
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '202':
+          description: Event accepted or deduplicated
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/grades/my:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    get:
+      operationId: listMyGrades
+      summary: Return own grades only, scoped from authenticated UID; no user UID parameter
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M7
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Current authenticated student grades
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedResult'}
+        '403':
+          description: Not an enrolled learner
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/certificates:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    post:
+      operationId: issueCertificate
+      summary: Authorized instructor issues certificate with name/title/commit snapshot and audit
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M7
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '201':
+          description: New verifiable certificate record
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '403':
+          description: Insufficient permissions
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/staff:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    get:
+      operationId: listCourseStaff
+      summary: List course staff; private membership requires staff permission
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M5
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Scoped staff list
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedResult'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+    post:
+      operationId: addCourseStaff
+      summary: Only owner adds authorized staff based on verified identity
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M5
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '201':
+          description: Role assignment recorded and audited
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /creators/payments/onboard:
+    post:
+      operationId: startCreatorOnboarding
+      summary: Start Stripe-hosted Connect onboarding for verified instructor; return temporary provider
+        URL
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M9
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '403':
+          description: Forbidden
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /creators/payments/status:
+    get:
+      operationId: getCreatorPaymentStatus
+      summary: Return verified account onboarding state; never expose account secrets
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M9
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '403':
+          description: Forbidden
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/offers:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    get:
+      operationId: getCourseOffer
+      summary: Return active sale price, currency and status; no private content
+      security:
+        # Public courses are readable anonymously (spec: public offers and
+        # manifests); the Worker still checks access for private courses.
+        - {}
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M9
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/offers/configure:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    post:
+      operationId: configureCourseOffer
+      summary: Only verified owner may create/retire an offer; immutable versioned price and fee 500 bps
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M9
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '403':
+          description: Forbidden
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/checkout:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    post:
+      operationId: createCheckout
+      summary: Authenticated learner creates idempotent Stripe-hosted checkout; no client-specified amount
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M9
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CheckoutRequest'}
+      responses:
+        '201':
+          description: Order and Stripe-hosted Checkout Session created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '403':
+          description: Forbidden
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+        '409':
+          description: Already entitled or checkout intent conflicts
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+  /orders/{orderId}:
+    parameters:
+      - {$ref: '#/components/parameters/orderId'}
+    get:
+      operationId: getOrder
+      summary: Buyer views own order status; redirect is not payment proof
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M9
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '403':
+          description: Forbidden
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/entitlement:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    get:
+      operationId: getCourseEntitlement
+      summary: Current learner views access status for this course
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M9
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '403':
+          description: Forbidden
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /stripe/webhook:
+    post:
+      operationId: receiveStripeWebhook
+      summary: Raw request body signature verification, replay-safe, only source of paid entitlements
+      security:
+        - StripeSignature: []
+      x-lectale-milestone: M9
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '200':
+          description: Valid, recorded idempotent event
+        '400':
+          description: Invalid signature
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+      description: Verify the Stripe signature over the raw request bytes before parsing. Deduplicate
+        by Stripe event ID.
+  /courses/{courseId}/grading/config:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    post:
+      operationId: configureGrading
+      summary: Instructor approves workflow path/SHA, quotas and release mode; never student writable
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M8
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '403':
+          description: Forbidden
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/submissions/{submissionId}/grading-jobs:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+      - {$ref: '#/components/parameters/submissionId'}
+    post:
+      operationId: createGradingJob
+      summary: Queue an authorized automatic grading run
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M8
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      responses:
+        '202':
+          description: Automatic grading job queued
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '403':
+          description: Forbidden
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+    get:
+      operationId: listGradingJobs
+      summary: Own job status or staff course-wide status; never return raw untrusted logs
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M8
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Redacted grading jobs
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedResult'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/grading-jobs/{jobId}/review:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+      - {$ref: '#/components/parameters/jobId'}
+    post:
+      operationId: reviewGradingJob
+      summary: Authorized instructor accepts/overrides/rejects proposed result
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M8
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '200':
+          description: Operation processed, authorization rules apply
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '403':
+          description: Forbidden
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /legal/{documentType}:
+    parameters:
+      - {$ref: '#/components/parameters/documentType'}
+    get:
+      operationId: getLegalDocument
+      summary: Get a published operator-reviewed legal document
+      security: []
+      x-lectale-milestone: M7
+      responses:
+        '200':
+          description: Success or accepted with typed response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '400':
+          description: Validation or policy error
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+        '404':
+          description: Document is unpublished or unavailable
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+  /legal/cookie-settings:
+    get:
+      operationId: getCookieSettings
+      summary: Read consent categories and current optional-purpose preferences
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M7
+      responses:
+        '200':
+          description: Success or accepted with typed response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '400':
+          description: Validation or policy error
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        '403':
+          description: Forbidden where applicable
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+    put:
+      operationId: updateCookieSettings
+      summary: Update consent to optional processing with signed receipt and withdrawal
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M7
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '200':
+          description: Success or accepted with typed response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '400':
+          description: Validation or policy error
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        '403':
+          description: Forbidden where applicable
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /legal/acceptances:
+    post:
+      operationId: acceptLegalTerms
+      summary: Accept exact version of applicable service, instructor or purchase terms
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M7
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '201':
+          description: Versioned acceptance recorded
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '400':
+          description: Validation or policy error
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        '403':
+          description: Forbidden where applicable
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /privacy/requests:
+    post:
+      operationId: createPrivacyRequest
+      summary: File a GDPR data-subject rights request
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M7
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '201':
+          description: Data-subject rights case created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '400':
+          description: Validation or policy error
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        '403':
+          description: Forbidden where applicable
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+    get:
+      operationId: listPrivacyRequests
+      summary: List own data-subject rights requests
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M7
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Success or accepted with typed response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PagedResult'}
+        '400':
+          description: Validation or policy error
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        '403':
+          description: Forbidden where applicable
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /notices:
+    post:
+      operationId: createNotice
+      summary: Report potentially illegal content or a course listing
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M7
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/DeferredJson'}
+      responses:
+        '201':
+          description: Notice-and-action case created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '400':
+          description: Validation or policy error
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        '403':
+          description: Forbidden where applicable
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /notices/{noticeId}:
+    parameters:
+      - {$ref: '#/components/parameters/noticeId'}
+    get:
+      operationId: getNotice
+      summary: Retrieve a scoped notice-and-action case status
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M7
+      responses:
+        '200':
+          description: Success or accepted with typed response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '400':
+          description: Validation or policy error
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        '403':
+          description: Forbidden where applicable
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/description:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    get:
+      operationId: getCourseDescription
+      summary: Render sanitized root README.md at pinned git SHA, access checked
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M4
+      responses:
+        '200':
+          description: Success or accepted with typed response
+          content:
+            text/markdown:
+              schema:
+                type: string
+        '400':
+          description: Validation or policy error
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        '403':
+          description: Forbidden where applicable
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /instructors/lfs-guidance:
+    get:
+      operationId: getLfsGuidance
+      summary: Show current GitHub LFS owner allowances and source link
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M6
+      responses:
+        '200':
+          description: Success or accepted with typed response
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '400':
+          description: Validation or policy error
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        '403':
+          description: Forbidden where applicable
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /courses/{courseId}/catalog:
+    parameters:
+      - {$ref: '#/components/parameters/courseId'}
+    put:
+      operationId: updateCourseCatalog
+      summary: Owner opt-in/opt-out and approve public-safe catalog metadata
+      description: Managed course only, owner required, expectedRevision CAS, default unlisted, private
+        README never extracted. Unlisting must invalidate cached catalog responses or TTL<=60s.
+      security:
+        - WebSession: []
+        - FirebaseBearer: []
+      x-lectale-milestone: M10
+      parameters:
+        - {$ref: '#/components/parameters/IdempotencyKey'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - listing
+                - expectedRevision
+              properties:
+                listing:
+                  type: string
+                  enum:
+                    - listed
+                    - unlisted
+                expectedRevision:
+                  type: integer
+                  minimum: 0
+                title:
+                  type: string
+                  maxLength: 180
+                summary:
+                  type: string
+                  maxLength: 500
+                language:
+                  type: string
+                  maxLength: 20
+                category:
+                  type: string
+                  maxLength: 64
+                tags:
+                  type: array
+                  maxItems: 8
+                  items:
+                    type: string
+                    maxLength: 30
+                coverUrl:
+                  type:
+                    - string
+                    - 'null'
+                  format: uri
+      responses:
+        '200':
+          description: Listing revision updated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DeferredJson'}
+        '403':
+          description: Not owner
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        '409':
+          description: Revision conflict
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApiError'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /health:
+    get:
+      operationId: getHealth
+      summary: Check API liveness
+      description: Reports Worker liveness without checking storage bindings or upstream services.
+      security: []
+      responses:
+        '200':
+          description: Worker responds
+          headers:
+            Cache-Control: {$ref: '#/components/headers/NoStore'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Health'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /preview/{repoId}/{sha}/readme:
+    parameters:
+      - {$ref: '#/components/parameters/repoId'}
+      - {$ref: '#/components/parameters/sha'}
+    get:
+      operationId: getPreviewReadme
+      summary: Fetch the root README for a pinned public preview
+      description: >
+        Return root README.md as UTF-8 Markdown from the pinned commit of an unambiguously public
+        repository. Render it using a safe Markdown renderer (README-001, README-003). Cache class B
+        applies only to public immutable bytes, keyed by numeric repository ID, full SHA, normalized
+        README path and renderer version (E3, CACHE-005).
+      security: []
+      responses:
+        '200':
+          description: Root README Markdown
+          headers:
+            Cache-Control: {$ref: '#/components/headers/PublicPreviewCache'}
+          content:
+            text/markdown:
+              schema:
+                type: string
+        '404': {$ref: '#/components/responses/PreviewUnavailable'}
+        '429': {$ref: '#/components/responses/PreviewThrottled'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+  /preview/{repoId}/{sha}/content/{lessonId}/{resourceId}:
+    parameters:
+      - {$ref: '#/components/parameters/repoId'}
+      - {$ref: '#/components/parameters/sha'}
+      - {$ref: '#/components/parameters/lessonId'}
+      - {$ref: '#/components/parameters/resourceId'}
+    get:
+      operationId: getPreviewContent
+      summary: Fetch a scoped resource from a pinned public preview
+      description: >
+        Use the resource href returned by import. Resolve the address against the validated manifest at
+        the supplied SHA and serve only a canonical repository path from an unambiguously public repository
+        (E2, E3, ADR-0008, V4-CORE-01). Cache class B applies to public immutable content, keyed by numeric
+        repository ID, full SHA, normalized resource path and renderer version. The class D lookup applies
+        when resolving the repository to a commit during import.
+      security: []
+      responses:
+        '200':
+          description: File bytes with a safe media type. Serve active formats as an attachment.
+          headers:
+            Cache-Control: {$ref: '#/components/headers/PublicPreviewCache'}
+            Content-Disposition:
+              description: Attachment disposition for downloads.
+              schema:
+                type: string
+          content:
+            text/plain:
+              schema:
+                type: string
+            text/markdown:
+              schema:
+                type: string
+            image/*:
+              schema:
+                $ref: '#/components/schemas/BinaryContent'
+                description: Allowed raster image types.
+            application/pdf:
+              schema: {$ref: '#/components/schemas/BinaryContent'}
+            application/octet-stream:
+              schema: {$ref: '#/components/schemas/BinaryContent'}
+        '404': {$ref: '#/components/responses/PreviewUnavailable'}
+        '429': {$ref: '#/components/responses/PreviewThrottled'}
+        4XX: {$ref: '#/components/responses/ClientError'}
+        5XX: {$ref: '#/components/responses/ServerError'}
+components:
+  securitySchemes:
+    WebSession:
+      type: apiKey
+      in: cookie
+      name: __Host-course_session
+    FirebaseBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: FirebaseIDToken
+    GitHubSignature:
+      type: apiKey
+      in: header
+      name: X-Hub-Signature-256
+      description: GitHub HMAC signature over the raw request bytes.
+    StripeSignature:
+      type: apiKey
+      in: header
+      name: Stripe-Signature
+      description: Stripe signature over the raw request bytes.
+  parameters:
+    courseId:
+      name: courseId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/ManifestId'}
+    lessonId:
+      name: lessonId
+      in: path
+      required: true
+      description: Lesson ID or assignment scope returned with the resource address (E2, ADR-0008).
+      schema: {$ref: '#/components/schemas/ResourceParentId'}
+    resourceId:
+      name: resourceId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/ManifestId'}
+    assignmentId:
+      name: assignmentId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/ManifestId'}
+    uid:
+      name: uid
+      in: path
+      required: true
+      description: Target learner ID for an authorized staff operation.
+      schema:
+        type: string
+        minLength: 1
+    submissionId:
+      name: submissionId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^sub_[a-z0-9]{16,40}$
+    certificateId:
+      name: certificateId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    orderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    jobId:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+        pattern: ^job_[A-Za-z0-9_-]{12,100}$
+    documentType:
+      name: documentType
+      in: path
+      required: true
+      schema:
+        type: string
+        enum:
+          - terms
+          - privacy
+          - cookies
+          - accessibility
+    noticeId:
+      name: noticeId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+    repoId:
+      name: repoId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/GitHubRepoId'}
+    sha:
+      name: sha
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/CommitSha'}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Replay the same mutation with the same key within 24 hours to receive its first result
+        (E7, V4-SEC-09).
+      schema:
+        type: string
+        format: uuid
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+    Cursor:
+      name: cursor
+      in: query
+      description: Opaque cursor from the previous page.
+      schema:
+        type: string
+  headers:
+    NoStore:
+      description: The response may not be stored by caches.
+      schema:
+        type: string
+        const: no-store
+    PublicPreviewCache:
+      description: Cache class B. Public cache directive with a bounded max-age.
+      schema:
+        type: string
+        example: public, max-age=300
+  responses:
+    ClientError:
+      description: Request rejected
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStore'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    ServerError:
+      description: Service or upstream provider failure
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStore'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    PreviewUnavailable:
+      description: Pinned public content is unavailable. Use the same response for private repositories
+        and unsafe or unknown resource addresses.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStore'}
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+    PreviewThrottled:
+      description: Preview request rate limited. Retry after the indicated delay when available.
+      headers:
+        Cache-Control: {$ref: '#/components/headers/NoStore'}
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 0
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ApiError'}
+  schemas:
+    ApiError:
+      description: Stable error body with a safe user-facing message (E7, V4-SEC-09).
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - requestId
+        - retryable
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable code.
+        message:
+          type: string
+          description: User-facing explanation with internal details redacted.
+        requestId:
+          type: string
+          description: Opaque support reference.
+        retryable:
+          type: boolean
+        retryAfterSeconds:
+          type: number
+          minimum: 0
+        details:
+          type: object
+          description: Optional structured, code-specific diagnostics with sensitive values redacted.
+          additionalProperties: true
+    ManifestId:
+      type: string
+      pattern: ^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$
+      maxLength: 80
+    ResourceParentId:
+      type: string
+      pattern: '^(?:assignment~)?(?=[a-z0-9-]{1,80}$)[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'
+      maxLength: 91
+      description: A manifest lesson ID or assignment~ followed by the manifest assignment ID.
+    GitHubRepoId:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Stable numeric GitHub repository ID.
+    CommitSha:
+      type: string
+      pattern: ^[0-9a-f]{40}$
+      description: Full pinned Git commit SHA in lowercase hexadecimal.
+    Health:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          const: ok
+    ImportCourseRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          pattern: ^https://github\.com/[A-Za-z0-9-]+/(?!(?:\.{1,2})/?$)[A-Za-z0-9_.-]+/?$
+          description: HTTPS GitHub repository URL in owner/repository form.
+          example: https://github.com/course-author/example-course
+    CoursePreview:
+      type: object
+      additionalProperties: false
+      required:
+        - repoId
+        - sha
+        - manifest
+        - readmePresent
+        - resourceAddresses
+      properties:
+        repoId: {$ref: '#/components/schemas/GitHubRepoId'}
+        sha: {$ref: '#/components/schemas/CommitSha'}
+        manifest: {$ref: ../v4.0/schemas/course-v3.schema.json}
+        readmePresent:
+          type: boolean
+          description: Whether root README.md exists at the same pinned commit.
+        resourceAddresses:
+          type: array
+          description: Resource addresses in the validated manifest, including assignment resources.
+          items: {$ref: '#/components/schemas/PreviewResourceAddress'}
+    PreviewResourceAddress:
+      type: object
+      additionalProperties: false
+      required:
+        - lessonId
+        - resourceId
+        - href
+      properties:
+        lessonId: {$ref: '#/components/schemas/ResourceParentId'}
+        resourceId: {$ref: '#/components/schemas/ManifestId'}
+        href:
+          type:
+            - string
+            - 'null'
+          format: uri-reference
+          pattern: '^/api/preview/[1-9][0-9]*/[0-9a-f]{40}/content/(?:assignment~)?[a-z][a-z0-9]*(?:-[a-z0-9]+)*/[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'
+          description: Same-origin scoped preview URL for a repository resource. Null for URL-only resources,
+            which the client reads from the validated manifest.
+    BinaryContent:
+      type: string
+      format: binary
+    CourseRef:
+      type: object
+      required:
+        - courseId
+        - status
+        - repoId
+      properties:
+        courseId: {$ref: '#/components/schemas/ManifestId'}
+        status:
+          type: string
+        repoId: {$ref: '#/components/schemas/GitHubRepoId'}
+    CheckoutRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - offerId
+      properties:
+        offerId:
+          type: string
+    DeferredJson:
+      type: object
+      description: Payload fields are defined in the operation's indicated milestone.
+      additionalProperties: true
+    PagedResult:
+      type: object
+      required:
+        - nextCursor
+      properties:
+        nextCursor:
+          type:
+            - string
+            - 'null'
+          description: Opaque continuation cursor, or null at the end of the list.
+      additionalProperties: true
+    CatalogPage:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - nextCursor
+        - generatedAt
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items: {$ref: '#/components/schemas/DeferredJson'}
+        nextCursor:
+          type:
+            - string
+            - 'null'
+        generatedAt:
+          type: string
+          format: date-time
