@@ -26,7 +26,7 @@ Every task gets a spec in `spec/tasks/` that opens with the intake gate (Why / S
 
 - [ ] Review `spec/errata/ERRATA.md` and mark each entry accepted or changed.
 - [x] Create the read-only deploy key `LITSE_UI_DEPLOY_KEY` so CI can fetch litse-ui (steps in `docs/runbooks/litse-ui-deploy-key.md`).
-- [ ] M2: Cloudflare. The owner agreed to use the existing account for now. The session's Cloudflare connector reaches it (it already runs three other Workers, which share the Free plan's daily request quota). Still needed: an API token (template "Edit Cloudflare Workers" plus Account D1 Edit, limited to that account) saved by the owner as the GitHub Actions secret `CLOUDFLARE_API_TOKEN`, with the account ID as `CLOUDFLARE_ACCOUNT_ID`. Agents never see the token.
+- [ ] M2: Cloudflare. The owner agreed to use the existing account for now. The session's Cloudflare connector reaches it (it already runs three other Workers, which share the Free plan's daily request quota). Still needed: an API token (template "Edit Cloudflare Workers" plus Account D1 Edit, limited to that account) saved by the owner as a secret of the GitHub environment `preview` (Settings → Environments → New environment → `preview` → Add environment secret): `CLOUDFLARE_API_TOKEN`, plus the account ID as `CLOUDFLARE_ACCOUNT_ID`. The manual workflow "Deploy preview" (`.github/workflows/deploy-preview.yml`) reads them; agents never see the token.
 - [ ] M2: Create the GitHub App from the manifest the edge engineer prepares.
 - [ ] M3 (not needed yet): Firebase project on the Spark plan, Web app, Authorized Domains. Either the owner creates it, or logs the session's Firebase tool in and an agent creates it. Only the public web config is needed; the Worker has no Firebase secret.
 
