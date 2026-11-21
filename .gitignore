@@ -1,5 +1,6 @@
 # Dart and Flutter
 .dart_tool/
+/packages/api_client/lib/src/generated/.swagger_parser.lock
 .flutter-plugins
 .flutter-plugins-dependencies
 build/

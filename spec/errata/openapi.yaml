@@ -276,7 +276,7 @@ paths:
       - {$ref: '#/components/parameters/courseId'}
     get:
       operationId: getCourseManifest
-      summary: Return sanitized and validated manifest at pinned SHA
+      summary: Return the course outline at the pinned SHA
       security:
         # Public courses are readable anonymously (spec: public offers and
         # manifests); the Worker still checks access for private courses.
@@ -286,10 +286,10 @@ paths:
       x-lectale-milestone: M4
       responses:
         '200':
-          description: Course manifest
+          description: Course outline for the authorized reader, with managed course resource hrefs
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/DeferredJson'}
+              schema: {$ref: '#/components/schemas/CourseOutline'}
         4XX: {$ref: '#/components/responses/ClientError'}
         5XX: {$ref: '#/components/responses/ServerError'}
   /courses/{courseId}/content/{lessonId}/{resourceId}:
@@ -1694,38 +1694,159 @@ components:
       required:
         - repoId
         - sha
-        - manifest
+        - outline
         - readmePresent
-        - resourceAddresses
       properties:
         repoId: {$ref: '#/components/schemas/GitHubRepoId'}
         sha: {$ref: '#/components/schemas/CommitSha'}
-        manifest: {$ref: ../v4.0/schemas/course-v3.schema.json}
+        outline: {$ref: '#/components/schemas/CourseOutline'}
         readmePresent:
           type: boolean
           description: Whether root README.md exists at the same pinned commit.
-        resourceAddresses:
+    CourseOutline:
+      type: object
+      description: Read-only view of validated course content (ADR-0003, ADR-0011).
+      additionalProperties: false
+      required: [course, nodes, assignments]
+      properties:
+        course: {$ref: '#/components/schemas/OutlineCourse'}
+        nodes:
           type: array
-          description: Resource addresses in the validated manifest, including assignment resources.
-          items: {$ref: '#/components/schemas/PreviewResourceAddress'}
-    PreviewResourceAddress:
+          description: Top-level entries in manifest order.
+          items: {$ref: '#/components/schemas/CourseOutlineNode'}
+        assignments:
+          type: array
+          items: {$ref: '#/components/schemas/OutlineAssignment'}
+        display: {$ref: '#/components/schemas/OutlineDisplay'}
+    OutlineCourse:
       type: object
       additionalProperties: false
-      required:
-        - lessonId
-        - resourceId
-        - href
+      required: [id, title, summary, language, version]
       properties:
-        lessonId: {$ref: '#/components/schemas/ResourceParentId'}
-        resourceId: {$ref: '#/components/schemas/ManifestId'}
+        id: {$ref: '#/components/schemas/ManifestId'}
+        title: {type: string}
+        summary: {type: string}
+        description: {type: string}
+        language: {type: string}
+        version: {type: string}
+        license: {type: string}
+        tags:
+          type: array
+          items: {type: string}
+        authors:
+          type: array
+          items: {$ref: '#/components/schemas/OutlineAuthor'}
+        homepage: {type: string, format: uri}
+        estimatedMinutes: {type: integer, minimum: 0}
+        level:
+          type: string
+          enum: [introductory, intermediate, advanced, mixed]
+        cover:
+          type: string
+          description: Repository-relative cover image hint. Resource retrieval uses a scoped href.
+        publishedAt: {type: string, format: date-time}
+    OutlineAuthor:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: {type: string}
+        url: {type: string, format: uri}
+    CourseOutlineNode:
+      type: object
+      additionalProperties: false
+      required: [id, kind, title, children, resources]
+      properties:
+        id: {$ref: '#/components/schemas/ManifestId'}
+        kind:
+          type: string
+          enum: [module, lesson, assignment]
+        title: {type: string}
+        description: {type: string}
+        recordedAt: {type: string, format: date-time}
+        children:
+          type: array
+          description: Module children in manifest order. Empty for lessons and assignment links.
+          items: {$ref: '#/components/schemas/CourseOutlineNode'}
+        resources:
+          type: array
+          description: Lesson resources in manifest order. Empty for modules and assignment links.
+          items: {$ref: '#/components/schemas/OutlineResource'}
+        assignmentId:
+          $ref: '#/components/schemas/ManifestId'
+          description: Assignment ID for an assignment link.
+    OutlineResource:
+      type: object
+      additionalProperties: false
+      required: [id, kind, title, href]
+      properties:
+        id: {$ref: '#/components/schemas/ManifestId'}
+        kind:
+          type: string
+          enum: [auto, pdf, notebook, markdown, image, video, audio, text, code, file, folder, external]
+        title: {type: string}
+        description: {type: string}
         href:
           type:
             - string
             - 'null'
           format: uri-reference
-          pattern: '^/api/preview/[1-9][0-9]*/[0-9a-f]{40}/content/(?:assignment~)?[a-z][a-z0-9]*(?:-[a-z0-9]+)*/[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'
-          description: Same-origin scoped preview URL for a repository resource. Null for URL-only resources,
-            which the client reads from the validated manifest.
+          pattern: '^/api/(?:preview/[1-9][0-9]*/[0-9a-f]{40}|courses/[a-z][a-z0-9]*(?:-[a-z0-9]+)*)/content/(?:assignment~)?[a-z][a-z0-9]*(?:-[a-z0-9]+)*/[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'
+          description: Same-origin scoped content route (ADR-0008). Null for URL-only resources.
+        url:
+          type: string
+          format: uri
+          description: External HTTPS link without user credentials for a resource without a repository path or canonical embed.
+        provider:
+          type: string
+          enum: [youtube, vimeo, external]
+          description: Provider for a URL-backed video. External videos are link-only.
+        embedUrl:
+          type: string
+          format: uri
+          description: Canonical player URL from validation for an allowlisted video provider.
+        mediaType:
+          type: string
+          description: Advisory MIME hint.
+        fileExtension:
+          type: string
+          description: Lowercase filename suffix without the dot, if known.
+        sizeBytes:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Resource size in bytes when available from repository metadata.
+        language: {type: string}
+        display:
+          type: string
+          enum: [inline, attachment, auto]
+        preview: {type: boolean}
+        download: {type: boolean}
+        recursive: {type: boolean}
+        maxEntries: {type: integer, minimum: 1, maximum: 1000}
+    OutlineAssignment:
+      type: object
+      additionalProperties: false
+      required: [id, title, resources]
+      properties:
+        id: {$ref: '#/components/schemas/ManifestId'}
+        title: {type: string}
+        description: {type: string}
+        releaseAt: {type: string, format: date-time}
+        openAt: {type: string, format: date-time}
+        dueAt: {type: string, format: date-time}
+        closeAt: {type: string, format: date-time}
+        resources:
+          type: array
+          description: Instruction resources in manifest order.
+          items: {$ref: '#/components/schemas/OutlineResource'}
+    OutlineDisplay:
+      type: object
+      additionalProperties: false
+      properties:
+        showEstimatedDuration: {type: boolean}
+        showFileDownloads: {type: boolean}
+        themeAccent: {type: string}
     BinaryContent:
       type: string
       format: binary

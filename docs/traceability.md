@@ -17,7 +17,7 @@ case passes, fill the test column with the test file and add the commit SHA.
 
 | ID | Requirement (short) | Milestone | Test(s) | Status |
 | --- | --- | --- | --- | --- |
-| V4-CORE-01 | Public repo URL preview shows course.yaml and README, no login, no GitHub writes | M2 | [M1 public route contract](../tool/test_openapi_contract.py) | in progress |
+| V4-CORE-01 | Public repo URL preview shows course.yaml and README, no login, no GitHub writes | M2 | [M1 public route contract](../tool/test_openapi_contract.py), [outline projection](../apps/edge_api/test/preview/outline.test.ts), [Dart preview decoding](../packages/api_client/test/course_preview_test.dart) | in progress |
 | V4-CORE-02 | Preview needs no catalog registration or GitHub org | M2 | - | not started |
 | V4-CORE-03 | Verified author registers, scaffolds, repins and updates via selected-repo App | M4 | - | not started |
 | V4-CORE-04 | Invalid or missing YAML gives exact error; old course stays pinned | M4 | [M1 manifest diagnostics](../apps/edge_api/test/contract/course-manifest.test.ts) | in progress |
