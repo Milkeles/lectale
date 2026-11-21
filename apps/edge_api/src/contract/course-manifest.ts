@@ -1,31 +1,22 @@
-import { Validator, type OutputUnit, type Schema } from "@cfworker/json-schema";
-import { isAlias, isMap, isScalar, isSeq, LineCounter, parseDocument, type Node } from "yaml";
-import schema from "../../../../spec/v4.0/schemas/course-v3.schema.json";
-import { validateManifestSemantics } from "./course-manifest-semantics";
+import { Composer, CST, isAlias, isMap, isScalar, isSeq, Lexer, LineCounter, Parser, type Node } from "yaml";
+import { diagnosticLimit, keyPointer, ManifestDiagnostics, publicPointer } from "./course-manifest-diagnostics.ts";
+import { checkManifestLimits, validateManifestSchema } from "./course-manifest-schema.ts";
+import { validateManifestSemantics } from "./course-manifest-semantics.ts";
 import type { CourseManifest, ValidationError, ValidationResult } from "./course-manifest-types";
 
 export type { CourseManifest, ValidationError, ValidationResult } from "./course-manifest-types";
 
 const MAX_MANIFEST_BYTES = 1024 * 1024;
-const schemaValidator = new Validator(schema as Schema, "2020-12");
-const schemaWrappers = new Set(["properties", "items", "$ref", "allOf", "if", "false"]);
+const MAX_YAML_DEPTH = 32;
+const MAX_YAML_NODES = 250_000;
+const yamlDepthLimit = Symbol("manifest YAML depth limit");
+const yamlNodeLimit = Symbol("manifest YAML node limit");
+const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
 type Failure = Extract<ValidationResult, { ok: false }>;
 
 function failure(code: ValidationError["code"], path: string, message: string): Failure {
   return { ok: false, errors: [{ code, path, message }] };
-}
-
-function publicPointer(path: string): string {
-  // A pointer can contain unrecognized mapping keys supplied by the author.
-  // Use a complete ancestor pointer when a segment cannot safely be echoed.
-  const unsafe = /[\p{Cc}\p{Cf}]/u.exec(path)?.index ?? path.length;
-  const end = Math.min(unsafe, 80);
-  return end >= path.length ? path : path.slice(0, Math.max(0, path.lastIndexOf("/", end)));
-}
-
-function keyPointer(path: string, key: string): string {
-  return `${path}/${key.replaceAll("~", "~0").replaceAll("/", "~1")}`;
 }
 
 function nodeProperties(node: Node | null, path: string): Failure | undefined {
@@ -75,22 +66,50 @@ function inspectYaml(node: Node | null, path: string): Failure | undefined {
   }
 }
 
+function* boundedYamlTokens(text: string, lines: LineCounter): Generator<CST.Token> {
+  let remainingNodes = MAX_YAML_NODES;
+  function count(token: CST.Token | null | undefined): void {
+    if (--remainingNodes < 0) throw yamlNodeLimit;
+    if (!CST.isCollection(token)) return;
+    for (const item of token.items) {
+      if (item.key !== undefined) count(item.key);
+      count(item.value);
+    }
+  }
+
+  // yaml has no parse depth or node limit. Its maxAliasCount only applies
+  // during toJS. Limit the parser stack, then check CST size before composition.
+  const parser = new Parser(lines.addNewLine);
+  lines.addNewLine(0);
+  for (const lexeme of new Lexer().lex(text)) {
+    for (const token of parser.next(lexeme)) {
+      if (token.type === "document") count(token.value);
+      yield token;
+    }
+    if (parser.stack.length > MAX_YAML_DEPTH) throw yamlDepthLimit;
+  }
+  for (const token of parser.end()) {
+    if (token.type === "document") count(token.value);
+    yield token;
+  }
+}
+
 function parseManifest(text: string): { ok: true; value: unknown } | Failure {
   const lines = new LineCounter();
   try {
-    const document = parseDocument(text, {
+    const composer = new Composer({
       version: "1.2",
       schema: "core",
       merge: false,
       resolveKnownTags: false,
       uniqueKeys: false,
       prettyErrors: false,
-      lineCounter: lines,
     });
+    const documents = composer.compose(boundedYamlTokens(text, lines), true, text.length);
+    const first = documents.next();
+    if (first.done) return failure("YAML_SINGLE_DOCUMENT", "", "Provide exactly one YAML document.");
+    const document = first.value;
     const issue = document.errors[0];
-    if (issue?.code === "MULTIPLE_DOCS") {
-      return failure("YAML_SINGLE_DOCUMENT", "", "Provide exactly one YAML document.");
-    }
     if (issue?.code === "TAG_RESOLVE_FAILED") {
       return failure("YAML_TAG_FORBIDDEN", "", "Explicit YAML tags are forbidden.");
     }
@@ -98,6 +117,10 @@ function parseManifest(text: string): { ok: true; value: unknown } | Failure {
       const { line, col } = lines.linePos(issue.pos[0]);
       const reason = issue.code.toLowerCase().replaceAll("_", " ");
       return failure("YAML_INVALID", "", `Invalid YAML at line ${line}, column ${col} (${reason}).`);
+    }
+    if (!documents.next().done) {
+      documents.return();
+      return failure("YAML_SINGLE_DOCUMENT", "", "Provide exactly one YAML document.");
     }
     if (document.directives?.yaml.version !== "1.2") {
       return failure("YAML_VERSION_UNSUPPORTED", "", "Use YAML 1.2.");
@@ -112,108 +135,44 @@ function parseManifest(text: string): { ok: true; value: unknown } | Failure {
     }
     return { ok: true, value: document.toJS({ maxAliasCount: 0 }) };
   } catch (error) {
-    if (!(error instanceof RangeError)) throw error;
-    return failure("YAML_INVALID", "", "The YAML document is too deeply nested to parse.");
-  }
-}
-
-function schemaMessage(issue: OutputUnit, path: string): string {
-  switch (issue.keyword) {
-    case "additionalProperties":
-      return "This field is not allowed.";
-    case "pattern":
-      if (path.endsWith("/path") || path === "/course/cover") {
-        return "Use a canonical repository-relative path with no traversal, backslashes or URL schemes.";
-      }
-      if (path === "/course/homepage" || path.endsWith("/url")) return "Use an HTTPS URL.";
-      return "The value does not match the required format for this field.";
-    case "not":
-      return "This combination of fields is not allowed.";
-    case "oneOf":
-      if (issue.keywordLocation.endsWith("/allOf/0/oneOf")) {
-        return "Provide exactly one resource location, either path or url.";
-      }
-      return "The fields must match exactly one of the allowed shapes.";
-    default:
-      // The remaining diagnostics for this schema describe trusted constraints.
-      return issue.error;
-  }
-}
-
-function schemaErrors(issues: OutputUnit[]): ValidationError[] {
-  const suppressedBranches = new Set<string>();
-  const kindSuffix = "/properties/kind/const";
-  for (const issue of issues) {
-    if (issue.keywordLocation.endsWith(`/$ref${kindSuffix}`)) {
-      suppressedBranches.add(issue.keywordLocation.slice(0, -kindSuffix.length));
-    } else if (issue.keyword === "oneOf" && issue.keywordLocation.endsWith("At/oneOf")) {
-      suppressedBranches.add(issue.keywordLocation);
+    if (error === yamlNodeLimit) return failure("YAML_INVALID", "", "The YAML document exceeds the node budget.");
+    if (error === yamlDepthLimit || error instanceof RangeError) {
+      return failure("YAML_INVALID", "", "The YAML document exceeds the nesting budget.");
     }
+    throw error;
   }
-
-  const errors = new Map<string, ValidationError>();
-  const outlineErrors = new Map<string, ValidationError>();
-  const branches = [...suppressedBranches];
-  for (const [index, issue] of issues.entries()) {
-    // An outline diagnosis should come from the branch for its declared kind.
-    // Nullable timestamps have a single explanation for both branches.
-    if (schemaWrappers.has(issue.keyword)
-        || branches.some((branch) => issue.keywordLocation.startsWith(`${branch}/`))) continue;
-    // The additionalProperties wrapper points at the object. Its false
-    // subschema points at the exact rejected property.
-    const next = issues[index + 1];
-    const location = issue.keyword === "additionalProperties" && next?.keyword === "false"
-      ? next.instanceLocation : issue.instanceLocation;
-    const pointer = decodeURIComponent(location.slice(1));
-    if (issue.keyword === "oneOf" && issue.keywordLocation.endsWith("/items/oneOf")) {
-      outlineErrors.set(pointer, {
-        code: "SCHEMA_INVALID",
-        path: pointer,
-        message: "Use an outline node with kind module, lesson or assignment and its required fields.",
-      });
-      continue;
-    }
-    const keyStart = pointer.lastIndexOf("/");
-    const path = issue.keyword === "additionalProperties" && keyStart >= 0
-      ? pointer.slice(0, keyStart) + publicPointer(pointer.slice(keyStart))
-      : pointer;
-    const message = suppressedBranches.has(issue.keywordLocation)
-      ? "Use an RFC 3339 timestamp or null."
-      : schemaMessage(issue, pointer);
-    errors.set(`${path}\0${message}`, { code: "SCHEMA_INVALID", path, message });
-  }
-  const details = [...errors.values()];
-  return details.concat([...outlineErrors.values()].filter(({ path }) =>
-    !details.some((error) => error.path === path || error.path.startsWith(`${path}/`)),
-  ).reverse());
 }
 
 /**
- * Validates course.yaml in size, safe YAML 1.2, Draft 2020-12 schema and
- * manifest semantic order (ADR-0003, FULL §4 item 10, SEC-014, SEC-020,
- * V4-CORE-04). Repository and publication state are checked by callers.
+ * Validates UTF-8 course.yaml bytes or text, safe YAML 1.2, the v3 schema
+ * and manifest rules (ADR-0003, FULL §4 item 10, SEC-014, SEC-020, V4-CORE-04).
  */
-export function validateCourseManifest(text: string): ValidationResult {
-  if (text.length > MAX_MANIFEST_BYTES || new TextEncoder().encode(text).length > MAX_MANIFEST_BYTES) {
+export function validateCourseManifest(input: string | Uint8Array): ValidationResult {
+  const byteLength = typeof input === "string" ? input.length : input.byteLength;
+  if (byteLength > MAX_MANIFEST_BYTES
+      || (typeof input === "string" && new TextEncoder().encode(input).length > MAX_MANIFEST_BYTES)) {
     return failure("MANIFEST_TOO_LARGE", "", "The manifest must be 1 MiB or smaller in UTF-8.");
+  }
+  let text: string;
+  try {
+    text = typeof input === "string" ? input : utf8.decode(input);
+  } catch (error) {
+    if (!(error instanceof TypeError)) throw error;
+    return failure("YAML_INVALID", "", "The manifest must be valid UTF-8.");
   }
   if (!text.isWellFormed()) return failure("YAML_INVALID", "", "The manifest must be well-formed Unicode.");
 
   const parsed = parseManifest(text);
   if (!parsed.ok) return parsed;
-  try {
-    const structural = schemaValidator.validate(parsed.value);
-    if (!structural.valid) {
-      const errors = schemaErrors(structural.errors);
-      return errors.length > 0 ? { ok: false, errors }
-        : failure("SCHEMA_INVALID", "", "The document does not match the v3 course schema.");
-    }
-  } catch (error) {
-    if (!(error instanceof RangeError)) throw error;
-    return failure("SCHEMA_INVALID", "", "The document is too deeply nested to validate against the v3 schema.");
-  }
-
+  const diagnostics = new ManifestDiagnostics();
   const manifest = parsed.value as CourseManifest;
-  const errors = validateManifestSemantics(manifest);
-  return errors.length === 0 ? { ok: true, manifest } : { ok: false, errors };
+  try {
+    checkManifestLimits(parsed.value, diagnostics);
+    if (diagnostics.errors.length === 0) validateManifestSchema(parsed.value, diagnostics);
+    if (diagnostics.errors.length === 0) validateManifestSemantics(manifest, diagnostics);
+  } catch (error) {
+    if (error !== diagnosticLimit) throw error;
+    return { ok: false, errors: diagnostics.errors, truncated: true };
+  }
+  return diagnostics.errors.length === 0 ? { ok: true, manifest } : { ok: false, errors: diagnostics.errors };
 }

@@ -13,6 +13,7 @@ export type Resource = Described & {
     | "audio" | "text" | "code" | "file" | "folder" | "external";
   provider?: "youtube" | "vimeo" | "external";
   path?: string;
+  /** Canonical embed URL for YouTube and Vimeo, or the link as declared. */
   url?: string;
   recursive?: boolean;
   maxEntries?: number;
@@ -124,7 +125,10 @@ export interface ValidationError {
   message: string;
 }
 
-/** The first failed validation phase, or validated content (FULL §4 item 10). */
+/**
+ * The first failed validation phase, or validated content (FULL §4 item 10).
+ * A truncated list omits diagnostics beyond the count or text budget.
+ */
 export type ValidationResult =
   | { ok: true; manifest: CourseManifest }
-  | { ok: false; errors: ValidationError[] };
+  | { ok: false; errors: ValidationError[]; truncated?: true };

@@ -1,4 +1,5 @@
-import type { CourseManifest, OutlineNode, Resource, ValidationError } from "./course-manifest-types";
+import type { ManifestDiagnostics } from "./course-manifest-diagnostics";
+import type { CourseManifest, OutlineNode, Resource } from "./course-manifest-types";
 
 const VIDEO_HOSTS = {
   youtube: new Set(["youtube.com", "www.youtube.com", "youtu.be", "www.youtube-nocookie.com"]),
@@ -39,11 +40,37 @@ function httpsUrl(value: string): URL | undefined {
   }
 }
 
+function embedUrl(value: string, url: URL, provider: "youtube" | "vimeo"): string | undefined {
+  // Compare the original authority too. URL can normalize encoded host names
+  // and discard empty userinfo before exposing the parsed components.
+  const authority = /^https:\/\/([a-z0-9.-]+)(?::[0-9]+)?(?=[/?#]|$)/iu.exec(value);
+  if (!authority || !VIDEO_HOSTS[provider].has(url.hostname)
+      || url.protocol !== "https:" || url.port || url.username || url.password) return;
+
+  if (provider === "vimeo") {
+    const pattern = url.hostname === "player.vimeo.com" ? /^\/video\/(\d+)\/?$/u : /^\/(\d+)\/?$/u;
+    const id = pattern.exec(url.pathname)?.[1];
+    if (id) return `https://player.vimeo.com/video/${id}`;
+    return;
+  }
+
+  let id: string | null | undefined;
+  if (url.hostname === "youtu.be") {
+    id = /^\/([^/]+)\/?$/u.exec(url.pathname)?.[1];
+  } else if (url.hostname === "www.youtube-nocookie.com") {
+    id = /^\/embed\/([^/]+)\/?$/u.exec(url.pathname)?.[1];
+  } else {
+    id = url.pathname === "/watch" ? url.searchParams.get("v")
+      : /^\/(?:embed|shorts|live)\/([^/]+)\/?$/u.exec(url.pathname)?.[1];
+  }
+  if (id && /^[A-Za-z0-9_-]{11}$/u.test(id)) return `https://www.youtube-nocookie.com/embed/${id}`;
+}
+
 function timestamp(value: string): [minute: number, second: string] | undefined {
   const parts = /^(\d{4}-\d\d-\d\dT\d\d:\d\d):(\d\d)(\.\d+)?(Z|[+-]\d\d:\d\d)$/iu.exec(value);
-  if (!parts) return;
-  // Compare UTC minutes, then seconds and fractions to retain leap seconds
-  // and sub-millisecond precision that Date cannot represent.
+  if (!parts || parts[2] === "60") return;
+  // Compare UTC minutes, then seconds and fractions to retain precision
+  // below milliseconds.
   const minute = Date.parse(`${parts[1]}:00${parts[4]}`);
   const fraction = parts[3] ?? "";
   let end = fraction.length;
@@ -53,25 +80,20 @@ function timestamp(value: string): [minute: number, second: string] | undefined 
 }
 
 /**
- * Checks the manifest-only rules in SEMANTIC_VALIDATION.md after schema
- * validation. Repository objects and owner-approved policy need their own checks.
+ * Checks SEMANTIC_VALIDATION.md after schema validation and normalizes
+ * provider-backed video URLs for safe embedding (FULL §4 item 10).
  */
-export function validateManifestSemantics(manifest: CourseManifest): ValidationError[] {
-  const errors: ValidationError[] = [];
-  const report = (code: ValidationError["code"], path: string, message: string) => {
-    errors.push({ code, path, message });
-  };
+export function validateManifestSemantics(manifest: CourseManifest, diagnostics: ManifestDiagnostics): void {
+  const report = diagnostics.report.bind(diagnostics);
   const assignmentIds = new Map<string, string>();
   const nodeIds = new Set<string>();
   const referencedIds = new Set<string>();
-  let nodeCount = 0;
-  let resourceCount = 0;
 
   function checkPath(value: string, path: string): boolean {
     // The schema already excludes absolute paths, backslashes, URL schemes
     // and percent encodings. The repository allowlist governs hidden segments.
-    if (value.split("/").some((part) => part.startsWith(".") && part !== ".well-known")) {
-      report("INVALID_REPO_PATH", path, "Use a canonical repository-relative path without dot segments or hidden entries other than .well-known.");
+    if (value.split("/").some((part) => part.endsWith(".") || (part.startsWith(".") && part !== ".well-known"))) {
+      report("INVALID_REPO_PATH", path, "Use a repository-relative path without trailing dots or hidden entries other than .well-known.");
       return false;
     }
     return true;
@@ -86,12 +108,11 @@ export function validateManifestSemantics(manifest: CourseManifest): ValidationE
   function checkTimestamp(value: string | null | undefined, path: string) {
     if (value == null) return;
     const instant = timestamp(value);
-    if (!instant) report("INVALID_TIMESTAMP", path, "Use an RFC 3339 timestamp with a T separator and a time zone.");
+    if (!instant) report("INVALID_TIMESTAMP", path, "Use an RFC 3339 timestamp with a T separator, a time zone, and seconds from 00 to 59.");
     return instant;
   }
 
   function checkResources(items: Resource[], path: string) {
-    resourceCount += items.length;
     const ids = new Set<string>();
     items.forEach((item, index) => {
       const base = `${path}/${index}`;
@@ -106,18 +127,19 @@ export function validateManifestSemantics(manifest: CourseManifest): ValidationE
       if (item.url !== undefined) {
         const url = checkUrl(item.url, `${base}/url`);
         const provider = item.provider;
-        if (url && (provider === "youtube" || provider === "vimeo") && !VIDEO_HOSTS[provider].has(url.hostname)) {
-          report("VIDEO_PROVIDER_MISMATCH", `${base}/url`, `Use a host allowed for the ${provider} video provider.`);
+        if (url && (provider === "youtube" || provider === "vimeo")) {
+          const canonical = embedUrl(item.url, url, provider);
+          if (canonical) {
+            item.url = canonical;
+          } else {
+            report("VIDEO_PROVIDER_MISMATCH", `${base}/url`, `Use a valid ${provider} video ID on an allowed HTTPS host with no credentials and the default port.`);
+          }
         }
       }
     });
   }
 
-  function checkNodes(items: OutlineNode[], path: string, depth: number) {
-    if (depth === 6 && items.length > 0) {
-      report("OUTLINE_TOO_DEEP", path, "Limit the outline to five levels of nodes.");
-    }
-    nodeCount += items.length;
+  function checkNodes(items: OutlineNode[], path: string) {
     items.forEach((node, index) => {
       const base = `${path}/${index}`;
       if (nodeIds.has(node.id)) {
@@ -126,7 +148,7 @@ export function validateManifestSemantics(manifest: CourseManifest): ValidationE
       nodeIds.add(node.id);
       switch (node.kind) {
         case "module":
-          checkNodes(node.children, `${base}/children`, depth + 1);
+          checkNodes(node.children, `${base}/children`);
           break;
         case "lesson":
           checkTimestamp(node.recordedAt, `${base}/recordedAt`);
@@ -165,7 +187,7 @@ export function validateManifestSemantics(manifest: CourseManifest): ValidationE
     }
   });
 
-  checkNodes(manifest.outline, "/outline", 1);
+  checkNodes(manifest.outline, "/outline");
   manifest.assignments.forEach((assignment, index) => {
     const path = `/assignments/${index}`;
     checkResources(assignment.materials, `${path}/materials`);
@@ -191,16 +213,9 @@ export function validateManifestSemantics(manifest: CourseManifest): ValidationE
       previous = { instant, field };
     }
   });
-  if (nodeCount > 2000) {
-    report("TOO_MANY_OUTLINE_NODES", "/outline", "Limit the outline to 2,000 total nodes.");
-  }
-  if (resourceCount > 10000) {
-    report("TOO_MANY_RESOURCES", "", "Limit the combined lesson resources and assignment materials to 10,000.");
-  }
   for (const [id, path] of assignmentIds) {
     if (!referencedIds.has(id)) {
       report("UNREFERENCED_ASSIGNMENT", path, "Add an outline entry that references this assignment.");
     }
   }
-  return errors;
 }

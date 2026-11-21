@@ -52,13 +52,13 @@ function withAssignment(fields: Record<string, unknown> = {}): string {
   return document({ outline: [reference], assignments: [{ ...assignment, ...fields }] });
 }
 
-function valid(text: string): CourseManifest {
+function valid(text: string | Uint8Array): CourseManifest {
   const result = validateCourseManifest(text);
   if (!result.ok) throw new Error(JSON.stringify(result.errors));
   return result.manifest;
 }
 
-function invalid(text: string, code: ValidationError["code"], path: string): ValidationError[] {
+function invalid(text: string | Uint8Array, code: ValidationError["code"], path: string): ValidationError[] {
   const result = validateCourseManifest(text);
   if (result.ok) throw new Error(`Expected ${code} at ${path || "the document root"}`);
   expect(result.errors).toContainEqual(expect.objectContaining({ code, path }));
@@ -131,8 +131,31 @@ describe("input size and YAML 1.2", () => {
     expect(error?.message).not.toContain(input.slice(0, 81));
   });
 
-  it("handles highly nested input as a validation failure", () => {
-    invalid(`x: ${"[".repeat(10000)}0${"]".repeat(10000)}`, "YAML_INVALID", "");
+  it("rejects well-formed UTF-8 bytes above the byte cap before parsing", () => {
+    invalid(new Uint8Array(maxBytes + 1), "MANIFEST_TOO_LARGE", "");
+  });
+
+  it("accepts UTF-8 bytes, including non-ASCII content and a BOM", () => {
+    const text = document({ course: { ...course, title: "Leçon" } });
+    expect(valid(new TextEncoder().encode(`\uFEFF${text}`)).course.title).toBe("Leçon");
+  });
+
+  it("rejects malformed UTF-8 bytes that replacement decoding would accept", () => {
+    const bytes = new TextEncoder().encode(`${minimalTemplate}\n# `);
+    invalid(new Uint8Array([...bytes, 0xc3, 0x28]), "YAML_INVALID", "");
+  });
+
+  it.each([
+    `x: ${"[".repeat(10000)}0${"]".repeat(10000)}`,
+    `x:\n  ${"- ".repeat(10000)}0`,
+  ])("enforces the nesting budget before YAML composition (%#)", (text) => {
+    const [error] = invalid(text, "YAML_INVALID", "");
+    expect(error?.message).toContain("nesting budget");
+  });
+
+  it("enforces the node budget on wide YAML before composition", () => {
+    const [error] = invalid(`x: [${"0,".repeat(250_000)}0]`, "YAML_INVALID", "");
+    expect(error?.message).toContain("node budget");
   });
 });
 
@@ -162,10 +185,37 @@ describe("Draft 2020-12 schema", () => {
     ["an impossible timestamp", withAssignment({ releaseAt: "2026-02-30T11:00:00Z" }), "/assignments/0/releaseAt"],
     ["a time without a zone", withAssignment({ releaseAt: "2026-11-21T11:00:00" }), "/assignments/0/releaseAt"],
     ["an absolute file size above the schema cap", withAssignment({ submission: { ...assignment.submission, maxFileBytes: 5368709121 } }), "/assignments/0/submission/maxFileBytes"],
-    ["duplicate submission extensions", withAssignment({ submission: { ...assignment.submission, allowedExtensions: [".pdf", ".pdf"] } }), "/assignments/0/submission/allowedExtensions"],
     ["automatic grading that lacks configuration", withAssignment({ grading: { mode: "automatic", maxPoints: 100 } }), "/assignments/0/grading"],
   ])("rejects %s", (_name, text, path) => {
     invalid(text, "SCHEMA_INVALID", path);
+  });
+
+  it("rejects duplicate string extensions within the array limit", () => {
+    const submission = { ...assignment.submission, allowedExtensions: [".pdf", ".txt", ".pdf"] };
+    const [error] = invalid(withAssignment({ submission }), "SCHEMA_INVALID", "/assignments/0/submission/allowedExtensions");
+    expect(error?.message).toContain("unique");
+  });
+
+  it("quickly rejects a large over-limit array of distinct extensions", () => {
+    const allowedExtensions = Array.from({ length: 55_000 }, (_, index) => `.${index.toString(36)}`);
+    const text = withAssignment({ submission: { ...assignment.submission, allowedExtensions } });
+    const start = performance.now();
+    const [error] = invalid(text, "SCHEMA_INVALID", "/assignments/0/submission/allowedExtensions");
+    expect(performance.now() - start).toBeLessThan(3000);
+    expect(error?.message).toContain("30 items");
+  });
+
+  it.each<[string, string, number]>([
+    [document({ course: { ...course, tags: Array(41).fill("tag") } }), "/course/tags", 40],
+    [document({ course: { ...course, authors: Array(31).fill(null) } }), "/course/authors", 30],
+    [document({ outline: Array(251).fill(null) }), "/outline", 250],
+    [document({ outline: [{ kind: "module", children: Array(251).fill(null) }] }), "/outline/0/children", 250],
+    [document({ assignments: Array(501).fill(null) }), "/assignments", 500],
+    [withResources(...Array(101).fill(null)), "/outline/0/resources", 100],
+    [withAssignment({ materials: Array(101).fill(null) }), "/assignments/0/materials", 100],
+  ])("reports an over-limit list before inspecting its items (%#)", (text, path, limit) => {
+    const errors = invalid(text, "SCHEMA_INVALID", path);
+    expect(errors).toEqual([{ code: "SCHEMA_INVALID", path, message: `Limit this list to ${limit} items.` }]);
   });
 
   it("accepts optional HTTPS URLs, generic file types and non-authority display hints", () => {
@@ -219,6 +269,38 @@ describe("Draft 2020-12 schema", () => {
     expect(JSON.stringify(errors)).not.toContain(key.slice(0, 81));
   });
 
+  it.each(["\u2028", "\u2029"])("omits Unicode separators from diagnostic fields (%#)", (separator) => {
+    const key = `before${separator}after`;
+    const structural = invalid(document({ course: { ...course, [key]: 1 } }), "SCHEMA_INVALID", "/course");
+    const yaml = invalid(`course: { "${key}": 1, "${key}": 2 }`, "YAML_DUPLICATE_KEY", "/course");
+    expect([...structural, ...yaml].flatMap(({ path, message }) => [path, message]).join("")).not.toContain(separator);
+  });
+
+  it("bounds the combined unknown key excerpts in diagnostic fields", () => {
+    const keys = Array.from({ length: 20 }, (_, index) => `unknown-field-${index}`);
+    const fields = Object.fromEntries(keys.map((key) => [key, 1]));
+    const errors = invalid(document({ course: { ...course, ...fields } }), "SCHEMA_INVALID", "/course");
+    const excerpts = errors.map(({ path }) => path.startsWith("/course/") ? path.slice("/course/".length) : "");
+    expect(excerpts[0]).toBe(keys[0]);
+    expect(excerpts.join("").length).toBeLessThanOrEqual(80);
+  });
+
+  it.each(["__proto__", "constructor", "prototype"])("rejects the own property %s", (key) => {
+    const pollution = { lectalePolluted: true };
+    invalid(document({ course: { ...course, [key]: pollution } }), "SCHEMA_INVALID", `/course/${key}`);
+    expect(Object.hasOwn(Object.prototype, "lectalePolluted")).toBe(false);
+    expect(valid(document()).course.id).toBe(course.id);
+  });
+
+  it("stops collecting structural diagnostics at the first 50", () => {
+    const outline = Array.from({ length: 80 }, (_, index) => ({ ...lesson, id: index }));
+    const result = validateCourseManifest(document({ outline }));
+    if (result.ok) throw new Error("Expected invalid outline IDs");
+    expect(result.truncated).toBe(true);
+    expect(result.errors.map(({ path }) => path))
+      .toEqual(Array.from({ length: 50 }, (_, index) => `/outline/${index}/id`));
+  });
+
   it("runs structural validation before semantic checks", () => {
     const errors = invalid(document({ schemaVersion: 2, outline: [lesson, lesson] }), "SCHEMA_INVALID", "/schemaVersion");
     expect(errors.every(({ code }) => code === "SCHEMA_INVALID")).toBe(true);
@@ -238,6 +320,10 @@ describe("paths and video providers", () => {
       invalid(withResources({ ...resource, path }), "INVALID_REPO_PATH", "/outline/0/resources/0/path");
     },
   );
+
+  it.each(["docs./notes.pdf", "docs/report."])("rejects a repository segment ending in a dot (%s)", (path) => {
+    invalid(withResources({ ...resource, type: "file", path }), "INVALID_REPO_PATH", "/outline/0/resources/0/path");
+  });
 
   it("accepts the allowlisted hidden segment and a matching case-insensitive extension", () => {
     valid(withResources({ ...resource, path: ".well-known/NOTES.PDF" }));
@@ -271,24 +357,45 @@ describe("paths and video providers", () => {
   );
 
   it.each([
-    ["youtube", "youtube.com"],
-    ["youtube", "www.youtube.com"],
-    ["youtube", "youtu.be"],
-    ["youtube", "www.youtube-nocookie.com"],
-    ["vimeo", "vimeo.com"],
-    ["vimeo", "www.vimeo.com"],
-    ["vimeo", "player.vimeo.com"],
-    ["external", "example.org"],
-  ])("accepts %s video hosted at %s", (provider, host) => {
-    valid(withResources({ ...video, provider, url: `https://${host}/watch` }));
+    ["youtube", "https://youtube.com/watch?v=ABCDEFGHIJK&start=5"],
+    ["youtube", "https://www.youtube.com:443/watch?v=ABCDEFGHIJK"],
+    ["youtube", "https://youtu.be/ABCDEFGHIJK?si=tracking"],
+    ["youtube", "https://www.youtube-nocookie.com/embed/ABCDEFGHIJK#fragment"],
+    ["vimeo", "https://vimeo.com/123?tracking=1"],
+    ["vimeo", "https://www.vimeo.com/123"],
+    ["vimeo", "https://player.vimeo.com/video/123"],
+  ])("canonicalizes %s video at %s", (provider, url) => {
+    const [node] = valid(withResources({ ...video, provider, url })).outline;
+    expect(node?.kind === "lesson" && node.resources[0]?.url).toBe(provider === "youtube"
+      ? "https://www.youtube-nocookie.com/embed/ABCDEFGHIJK" : "https://player.vimeo.com/video/123");
+  });
+
+  it("preserves an external video link", () => {
+    const url = "https://example.org/watch?video=123";
+    const [node] = valid(withResources({ ...video, provider: "external", url })).outline;
+    expect(node?.kind === "lesson" && node.resources[0]?.url).toBe(url);
   });
 
   it.each([
     { ...youtube, url: "https://vimeo.com/123" },
     { ...youtube, url: "https://youtu.be.example.org/ABCDEFGHIJK" },
     { ...youtube, url: "https://youtube.com@example.org/ABCDEFGHIJK" },
+    { ...youtube, url: "https://user:password@youtu.be/ABCDEFGHIJK" },
+    { ...youtube, url: "https://@youtu.be/ABCDEFGHIJK" },
+    { ...youtube, url: "https://youtu.be:444/ABCDEFGHIJK" },
+    { ...youtube, url: "https://%79outu.be/ABCDEFGHIJK" },
     { ...vimeo, url: "https://www.youtube.com/watch?v=ABCDEFGHIJK" },
   ])("rejects a provider/host mismatch at $url", (item) => {
+    invalid(withResources(item), "VIDEO_PROVIDER_MISMATCH", "/outline/0/resources/0/url");
+  });
+
+  it.each([
+    { ...youtube, url: "https://youtu.be/watch" },
+    { ...youtube, url: "https://www.youtube.com/watch?v=ABCDEFGHIJKL" },
+    { ...youtube, url: "https://www.youtube.com/watch?v=ABC.DEF_GHI" },
+    { ...vimeo, url: "https://player.vimeo.com/video/123abc" },
+    { ...vimeo, url: "https://vimeo.com/123/456" },
+  ])("rejects a malformed provider video ID at $url", (item) => {
     invalid(withResources(item), "VIDEO_PROVIDER_MISMATCH", "/outline/0/resources/0/url");
   });
 
@@ -379,7 +486,7 @@ describe("IDs, references, and limits", () => {
   });
 
   it("rejects 2,001 total outline nodes", () => {
-    invalid(nodes(2001), "TOO_MANY_OUTLINE_NODES", "/outline");
+    invalid(nodes(2001).replace('"schemaVersion":3', '"schemaVersion":2'), "TOO_MANY_OUTLINE_NODES", "/outline");
   });
 
   function resources(extra: number): string {
@@ -396,7 +503,28 @@ describe("IDs, references, and limits", () => {
   });
 
   it("rejects 10,001 resources across lessons and assignment materials", () => {
-    invalid(resources(1), "TOO_MANY_RESOURCES", "");
+    invalid(resources(1).replace('"schemaVersion":3', '"schemaVersion":2'), "TOO_MANY_RESOURCES", "");
+  });
+
+  it("stops collecting semantic diagnostics at the first 50", () => {
+    const outline = Array(80).fill(lesson);
+    const result = validateCourseManifest(document({ outline }));
+    if (result.ok) throw new Error("Expected duplicate outline IDs");
+    expect(result.truncated).toBe(true);
+    expect(result.errors.map(({ path }) => path))
+      .toEqual(Array.from({ length: 50 }, (_, index) => `/outline/${index + 1}/id`));
+  });
+
+  it("bounds the total diagnostic text even when the count is below 50", () => {
+    const resources = Array.from({ length: 100 }, (_, index) => ({
+      ...resource, id: `notes-${index}`, path: "docs./notes.pdf",
+    }));
+    const result = validateCourseManifest(nested(5, { ...lesson, resources }));
+    if (result.ok) throw new Error("Expected trailing dots to be rejected");
+    const text = result.errors.map(({ code, path, message }) => code + path + message).join("");
+    expect(text.length).toBeLessThanOrEqual(8192);
+    expect(result.errors.length).toBeLessThan(50);
+    expect(result.truncated).toBe(true);
   });
 });
 
@@ -431,11 +559,10 @@ describe("submission sizes and chronology", () => {
     invalid(withAssignment(fields), "DATES_OUT_OF_ORDER", `/assignments/0/submission/${path}`);
   });
 
-  it("orders an RFC 3339 leap second before the following minute", () => {
-    valid(withAssignment({
-      releaseAt: "2016-12-31T23:59:60.5Z",
-      submission: { ...assignment.submission, openAt: "2017-01-01T00:00:00Z" },
-    }));
+  it("rejects an RFC 3339 leap second in submission timestamps", () => {
+    invalid(withAssignment({
+      submission: { ...assignment.submission, openAt: "2016-12-31T23:59:60.5Z" },
+    }), "INVALID_TIMESTAMP", "/assignments/0/submission/openAt");
   });
 
   it("requires the RFC 3339 date-time separator", () => {
