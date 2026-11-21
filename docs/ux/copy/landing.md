@@ -238,18 +238,19 @@ The other failure texts in `home_copy.dart` stay as they are, except the one in 
 - **Link under the button:** Forgot your password?
 - **Link to the other screen:** No account yet? Create account
 - **Wrong email or password (the same text for an unknown email and a wrong password):** The email or password is not correct. Check both and try again, or reset your password.
-- **Too many attempts:** Too many attempts. Wait a minute, then try again.
+- **Too many attempts:** Too many attempts. Wait a few minutes, then try again.
+- **Correct password, email not confirmed yet:** Confirm your email first. We sent you a link when you created the account. Button: Send the link again
 - **Empty field:** Enter your email. / Enter your password.
 
 ### 5.4 Create account
 
 - **Title:** Create your account
 - **Line under the title:** You need an account to teach, enrol or save courses. You don't need one to read.
-- **Fields:** Email; Password. Password hint: Use a password you don't use anywhere else. {Add the length rule once the auth ADR fixes it.}
+- **Fields:** Email; Password. Password hint: Use at least 12 characters. A password you don't use anywhere else is best.
 - **Button:** Create account
 - **Consent line (no tick box needed, because it is not optional consent):** By creating an account you accept the Terms and the Privacy notice. (Both are links.)
 - **Link to the other screen:** Already have an account? Log in
-- **After submitting, shown for every email, new or already used:** Check your email. If we can create an account for {email}, we have sent a link to finish. It may take a few minutes.
+- **After submitting, shown for every email, new or already used:** Check your email. If {email} can be used for a new account, we have sent a link to confirm it. If you already have an account, log in or reset your password.
 - **Invalid email format:** Enter an email like name@example.com.
 
 ### 5.5 Reset password
@@ -279,3 +280,7 @@ The other failure texts in `home_copy.dart` stay as they are, except the one in 
 6. **Pages the copy links to must exist:** Privacy notice, Terms, Accessibility. The legal line needs the operator's name (spec: human input).
 7. **Android install note.** "Your phone may ask you to allow installing from your browser" is accurate for APKs outside a store, but check it on a real device before launch.
 8. **Header call to action.** Create account is primary in the header; see section 3 for the gold accent suggestion.
+
+## 7. Changes from the security review
+
+Applied on 2026-11-21 from `docs/security/reviews/2026-11-21-auth-and-landing-requirements.md` (A6): the create-account confirmation no longer implies a link was sent for an existing email; "a few minutes" for the lockout, since Firebase publishes no time; a new state for an unconfirmed email; the 12-character password hint. The "Log in" action on the private-or-missing message is approved if it appears for every cause (R23), and becomes "Connect a repository" for a signed-in visitor.
