@@ -61,7 +61,8 @@ Before any task, read in this order:
 |---|---|
 | **Branches** | `feat/<topic>`, `fix/<topic>`; agent sessions use `claude/<topic>` |
 | **Commits** | Conventional Commits, subject at most 72 characters, explain why in the body. The owner is the only author: never commit as an agent, and add no `Co-authored-by` lines unless the owner asks for one on a specific change |
-| **Versions** | Semantic Versioning, computed by release-please from Conventional Commits: `fix` bumps the patch, `feat` the minor, `!` or `BREAKING CHANGE` the major. Versions stay 0.x until Release 1. Never edit versions or changelogs by hand |
+| **Versions** | Semantic Versioning, computed by release-please from Conventional Commits: `fix` bumps the patch, `feat` the minor, `!` or `BREAKING CHANGE` the major. Versions stay 0.x until Release 1. Never edit versions or changelogs by hand. Merge release-please's release pull request when a milestone closes and its CI is green, so each version marks something usable |
+| **Dependency pull requests** | Dependabot's pull requests are checked like any change: read the changelog for breaking changes, check CI, and merge when green and compatible. When an update can't be taken, close it with the reason and add an `ignore` with that reason to `.github/dependabot.yml` |
 | **Merging** | The owner allows agents to merge into `main` without pull requests: when CI is green on the branch, fast-forward `main` to it (`git push origin <branch>:main`). Never force-push. After a merge, delete the merged branch, local and remote, and remove its worktree (the owner asked for this); first check with `git cherry` that every commit's change is in the target. If the cloud sandbox's git proxy refuses a remote deletion, list the branch for the owner in `PLAN.md`. Security-sensitive changes need a security review and a Codex review first, recorded in the commit body |
 
 ## 5. Boundaries
