@@ -1,25 +1,25 @@
 # Token plan, M2
 
-Visual direction for Lectale: a calm reading app for learners of any discipline, who read for hours on six platforms. Structure follows known patterns (`inventory.md`); boldness is spent in one place, the ribbon. All values map to `devchat_ui` roles. No hex appears in widgets; hex values are seeds for the palettes passed to `DcColorTheme.fromPalettes`.
+Visual direction for Lectale: a calm reading app for learners of any discipline, who read for hours on six platforms. Structure follows known patterns (`inventory.md`); boldness is spent in one place, the ribbon. All values map to `devchat_ui` roles. No hex appears in widgets; hex values are seeds for the app's `DcColorScheme`s (see Colour).
 
-> **Owner decision (morning of 2026-11-22): direction A or B.** A, warm paper with mulberry and Literata, is the proposed default (Codex §3; the design review's C1 found B close to IBM Carbon's default look). B, cool Birch with cobalt and Plex Serif, is the earlier plan, kept as the alternative. Everything outside "Colour" and the reading face is shared by both.
+> **Owner decisions, 2026-11-21.** Warm paper with mulberry (formerly "direction A"), plus one golden ochre accent that catches the eye. Paper, graphite and mulberry make up about 80 percent of what the learner sees; ochre marks the few places that need attention. The cobalt direction is dropped. The reading face is still open (see Type).
 
 ## Subject and job
 
-Subject: a course that lives in a Git repository and is read like a book. Audience: students and self-learners, any subject, often on a phone, sometimes for an hour at a time. Job: make long text and course structure easy to read and to find your place in. The visual vocabulary comes from reading: a page, a margin, a bookmark ribbon.
+Subject: a course that lives in a Git repository and is read like a book. Audience: students and self-learners, any subject, often on a phone, sometimes for an hour at a time. Job: make long text and course structure easy to read and to find your place in. The visual vocabulary comes from reading: a page, a margin, a bookmark ribbon. The palette follows a bound book: mulberry cloth, warm paper, and a gilt ribbon.
 
 ## Colour
 
-`DcColorTheme.fromPalettes(name: 'Lectale', base: <paper scale>, accent: <accent scale>)`. Each is an 11-step OKLCH scale from the seed; the theme picks shades by measured contrast (4.5:1 text, 3:1 borders and focus ring). The dark scheme is judged on its own, not by inversion. Contrast below is WCAG 2 ratio, computed from the seeds on 2026-11-21; the built theme must be re-measured.
+Three hues don't fit `DcColorTheme.fromPalettes`, which takes one base and one accent palette and has no link role. The app builds its four `DcColorScheme`s (light, dark and both high-contrast variants) directly from the seeds below, and adds the two roles litse-ui lacks (`link`, `brand`) in a small app-level theme extension. Contrast is the WCAG 2 ratio, computed from the seeds on 2026-11-21 (Codex's study, re-measured); the built theme must be re-measured in tests.
 
-### A. Warm paper, graphite, mulberry (proposed default)
-
-| Name | Light seed | Dark seed | Role in `DcColorScheme` | Used for |
+| Name | Light seed | Dark seed | Role | Used for |
 |---|---|---|---|---|
 | Paper | `#F4F1ED` (OKLCH L 0.96, C 0.006, h 75: a warm grey) | `#191B1A` | `canvas`, `background` | Page and reading surface |
 | Sand | `#E8E3DC` | `#262927` | `muted`, `secondary`, `accent` (hover, pressed), `card` | Code blocks, cards, selected rows |
 | Graphite | `#242725` (h 157) | `#E9E5DE` | `foreground`, `cardForeground`; `mutedForeground` at about `#5A5F5B` / `#A9ADA7` | Text |
-| Mulberry | `#783D57` (L 0.44, C 0.088, h 353) | `#E3A7B9` | `primary`, `ring`, links | Four jobs: primary button, links, the ribbon, focus ring |
+| Mulberry | `#783D57` (L 0.44, C 0.088, h 353) | `#E3A7B9` | `brand`, `link` (app extension) | The logo mark, underlined links, page titles (course and lesson h1) |
+| Ochre | `#905E0C` | `#F3DDA4` | `primary`, `ring` | Three jobs: the one primary button per screen (Open course, Start course), the ribbon, the focus ring |
+| Ochre, high contrast | `#6E4708` | `#F3DDA4` | `primary`, `ring` in the high-contrast schemes | As above, when the platform asks for more contrast |
 | Signal red | `#A3292E` (h 24) | `#F2958E` | `destructive` | Errors only, always with an icon and a title |
 
 | Pair | Light | Dark |
@@ -27,33 +27,36 @@ Subject: a course that lives in a Git repository and is read like a book. Audien
 | Graphite on Paper | 13.40:1 | 13.79:1 |
 | Graphite on Sand | 11.82:1 | 11.71:1 |
 | Muted text on Paper / on Sand | 5.79 / 5.11:1 | 7.60:1 on Paper |
-| Mulberry on Paper (links, ribbon) | 7.16:1 | 8.65:1 |
+| Mulberry on Paper (links, titles) | 7.16:1 | 8.65:1 |
 | Mulberry on Sand | 6.32:1 | 7.34:1 |
-| Button text on Mulberry | white 8.07:1 | must be dark Paper `#191B1A`, 8.65:1 (white is 2.00:1: check `fromPalettes` picks the dark foreground) |
+| Button label on Ochre | white 5.54:1 (8.18:1 on high-contrast `#6E4708`) | light Graphite `#242725` 11.27:1 |
+| Ochre on Paper (focus ring) | 4.92:1 | 12.93:1 |
+| Ochre on Sand (ribbon on a selected row) | 4.34:1 | 10.98:1 |
+| Ochre next to Mulberry | 1.46:1, ΔE 0.149; under simulated deuteranopia and protanopia at least 1.44:1, ΔE 0.137 | 1.50:1 |
 | Signal red on Paper / on Sand | 6.40 / 5.65:1 | 7.80:1 on Paper |
 | Sand on Paper (selected fill) | 1.13:1: never the only cue (S7) | |
 
-Tell check: warm paper with a serif sits next to the "cream, serif, terracotta" default (`ai-tells.md`, Colour). It stays clear of it because the paper has a quarter of the chroma of a cream (C 0.006 against about 0.014 at h 85), the accent is a cool mulberry (h 353, far from terracotta `#D97757` at h 39, C 0.131), and the serif is for reading, not display chrome. Signal red is darker and redder than terracotta (h 24, L 0.48 against L 0.67) and appears only in errors.
+Why ochre (Codex's study, `brand/accent-study.md`): of the three candidates (deep teal, golden ochre, ink blue) it is the only one that reads as a colour rather than a dark neutral in light mode, so it catches the eye where it is used. It also keeps the clearest separation from mulberry under both colour-vision simulations. Teal and navy were within 0.1 of mulberry in protanopia; navy in dark mode read as a documentation theme.
 
-### B. Birch, ink, cobalt (alternative)
+Why links stay mulberry: ochre is 4.34:1 on Sand, under the 4.5:1 that text needs, and if every link were ochre the accent would stop meaning "look here". Mulberry passes on both surfaces, keeps the brand colour present on every page, and leaves ochre to three jobs.
 
-| Name | Light seed | Dark seed | Role | Contrast (design review) |
-|---|---|---|---|---|
-| Birch | `#F1F4F1` (h 146, a barely green grey) | about `#141A1A` | `canvas`, `background` | |
-| Mist | `#E3E9E5` | derived | `muted`, `card`, selected rows | Mist on Birch 1.11:1, so never the only cue |
-| Ink | `#1B2330` | soft off-white | `foreground` | 14.25:1 on Birch |
-| Cobalt | `#2B4BA0` | about `#8FA8EE` | `primary`, `ring`, links | 7.24:1 on Birch; white on Cobalt 8.03:1; dark: 7.55:1, button text must be dark (white 2.33:1) |
-| Signal red | `#A3292E` / `#F2958E` (replaces stock `DcPalettes.red`, C1) | | `destructive` | re-measure on Birch |
+Tell check: warm paper with a serif sits next to the "cream, serif, terracotta" default (`ai-tells.md`, Colour). It stays clear of it because the paper has a quarter of the chroma of a cream (C 0.006 against about 0.014 at h 85), the brand colour is a cool mulberry (h 353, far from terracotta `#D97757` at h 39, C 0.131), the accent is a deep ochre used on three elements only, and the serif is for reading, not display chrome. Signal red is darker and redder than terracotta (h 24, L 0.48 against L 0.67) and appears only in errors.
 
-### Rules (both)
+### Rules
 
-One accent with four named jobs (C2). Prose links are underlined, so the accent is never the only cue; large accent fills are for the primary button only. No gradients, glows or overlays on images. No shadows (`DcShadows.none`); separation is a Sand (or Mist) fill or whitespace, one method at a time. Meaning is never colour alone: errors carry an icon and a title, the ribbon carries ", current" or ", last opened" for assistive tech, selected rows carry semibold plus `selected`. The manifest's `themeAccent` is ignored (A11Y-002). Chart roles are unused.
+- **Ochre has three jobs and no others:** the primary button (at most one per screen), the ribbon, the focus ring. It is never text and never a background behind text other than the button label.
+- **Mulberry has three jobs:** the logo mark, underlined links, the course and lesson titles. Prose links are underlined, so colour is never the only cue.
+- Large fills are for the primary button only. No gradients, glows or overlays on images. No shadows (`DcShadows.none`); separation is a Sand fill or whitespace, one method at a time.
+- The focus ring sits outside a 2 dp Paper gap, so it reads on Sand, on the ochre button and next to mulberry text.
+- Gold can read as a warning. Lectale has no warning colour: a caution message uses graphite text with an icon and a title, never ochre.
+- Meaning is never colour alone: errors carry an icon and a title, the ribbon carries ", current" or ", last opened" for assistive tech, selected rows carry semibold plus `selected`.
+- The manifest's `themeAccent` is ignored (A11Y-002). Chart roles are unused.
 
 ## Type
 
-Bundled in litse-ui: IBM Plex Sans (variable, has Greek) and IBM Plex Mono. UI stays Plex Sans; code, paths and data files stay Plex Mono. The reading face is the only choice between A and B.
+Bundled in litse-ui: IBM Plex Sans (variable, has Greek) and IBM Plex Mono. UI stays Plex Sans; code, paths and data files stay Plex Mono. The reading face is still open: Literata was proposed, IBM Plex Serif is the fallback, and the researcher is comparing faces with Bulgarian letterforms.
 
-| | A: Literata | B: IBM Plex Serif |
+| | Literata (proposed) | IBM Plex Serif (fallback) |
 |---|---|---|
 | Licence | SIL OFL (Literata README) | SIL OFL |
 | Files | two variable files, roman and italic (README); weight axis, so the dark-mode offset works and semibold italic exists | static regular, italic, semibold, plus semibold italic for Markdown bold italic (S10); the dark offset does not apply to the serif slot |
@@ -67,7 +70,7 @@ Bundled in litse-ui: IBM Plex Sans (variable, has Greek) and IBM Plex Mono. UI s
 **Literata check, 2026-11-21** (fetched with curl; README converted with pandoc; treated as data):
 
 - https://raw.githubusercontent.com/googlefonts/literata/main/README.md: "This wide-ranging family of two variable fonts supports Greek, Cyrillic, PinYin, and Vietnamese", OFL, roman and italic variable files.
-- https://fonts.googleapis.com/css2?family=Literata:wght@400 serves `cyrillic-ext`, `cyrillic`, `greek-ext`, `greek`, `vietnamese` and Latin subsets.
+- <https://fonts.googleapis.com/css2?family=Literata:wght@400> serves `cyrillic-ext`, `cyrillic`, `greek-ext`, `greek`, `vietnamese` and Latin subsets.
 - The static instance it links (`fonts.gstatic.com/s/literata/v40/...ttf`): `fc-query` lists the `cyrl` and `grek` scripts and the ranges U+0384–03CE and U+0401–045F; every Bulgarian letter а–я and ѝ/Ѝ and all seven Greek test letters are present. Its GSUB has `locl` for Latin languages only.
 - Blocked: fonts.google.com/specimen/Literata and the TypeTogether PDF specimen (proxy 403).
 
@@ -75,7 +78,7 @@ Bundled in litse-ui: IBM Plex Sans (variable, has Greek) and IBM Plex Mono. UI s
 
 | Role | `DcTypography` slot | Size (line height) | Weight, face |
 |---|---|---|---|
-| Rendered h1: course title, lesson title | `display` | 30 (36) | semibold, reading face in A, Sans in B |
+| Rendered h1: course title, lesson title | `display` | 30 (36) | semibold, reading face, Mulberry |
 | Rendered h2 | override (litse-ui's `heading` slot is 21.5) | 24 (32) | semibold, as h1 |
 | Rendered h3 | `heading` | 21.5 (30) | semibold, as h1 |
 | Rendered h4 | override | 19.5 (28) | semibold, as h1 |
@@ -96,7 +99,7 @@ Text rules:
 
 - **Measure:** the reading column is capped at 32 em (576 dp at 18 dp; about 69 characters in Literata, 68 in Plex Serif), so it holds when text scales. Left aligned, ragged right, no justification, sentence case, no all-caps, no eyebrows. Breakpoints follow from it (`inventory.md`).
 - **Text files** (S10): prose `.txt` and `.md` use Reading, wrapped. CSV, TSV, JSON, YAML, logs and code use `code`, unwrapped, with horizontal scroll.
-- Body weight 400; weight only marks hierarchy. Dark mode applies the style's -50 weight offset where the face is variable (Plex Sans; Literata in A).
+- Body weight 400; weight only marks hierarchy. Dark mode applies the style's -50 weight offset where the face is variable (Plex Sans, and Literata if chosen).
 - Text scales with the platform setting; layouts reflow at 200 and 400 percent.
 
 ## Spacing, radii, motion
@@ -109,12 +112,12 @@ Text rules:
 
 Name: `DcStyle.reading` (owner decides if it lives in litse-ui or `apps/flutter_client`).
 
-```
+```text
 comfortable base: radius 10, spacing 4.5, controls 36/44/52, scale 14/13,
 onDarkWeightOffset -50, shadows none, depth flat, standard motion
-reading slot: Literata (A) or Plex Serif (B), 18/30, scale does not apply
+reading slot: the chosen reading face, 18/30, scale does not apply
 heading overrides: the map above
-fontFamilyFallback: A none needed for Greek and Cyrillic; B Plex Sans for Greek
+fontFamilyFallback: none for Literata; Plex Sans for Greek with Plex Serif
 ```
 
 `DcTypography` has one `fontFamily` and fixed slot sizes, so the reading face and heading overrides need either a litse-ui change (per-slot family and size) or app-level `TextStyle`s built from `typography.reading.copyWith(...)` inside `resource_renderers`. The second needs no litse-ui change; it is the interim.
@@ -127,14 +130,14 @@ A bookmark ribbon in the accent colour: 8 dp wide, one row tall, with the logo's
 
 | Tell | How Lectale avoids it |
 |---|---|
-| Cream, serif display, terracotta | A: warm grey paper at low chroma, mulberry accent, serif only in the reading area (see Tell check). B: cool Birch and cobalt. |
+| Cream, serif display, terracotta | Warm grey paper at low chroma, mulberry brand colour, ochre on three elements only, serif only in the reading area (see Tell check). |
 | Near-black with an acid accent | Light default; dark schemes are deep greys with a soft accent. |
 | Broadsheet hairlines, zero radius, dense columns | Radius by role, one reading column, no rules. |
 | SaaS card kit, one radius, same shadow | Cards only for file and link cards and alerts; no shadows. Contents, lessons and files are rows. |
 | Eyebrows, middle-dot or pipe meta strings, trailing arrows | None. Facts are labelled pairs; files are rows; no arrows except the real Close and chevron controls. |
 | Gradient, glow, gradient text | Flat colour only. |
 | Inter or Plus Jakarta display; stock scale | Plex Sans UI, Literata or Plex Serif reading; headings from one map. |
-| Documentation-theme look (C1) | The reason A exists: cool grey, cobalt and a thin bar read as a docs theme. A plus the swallowtail ribbon is Lectale's own. |
+| Documentation-theme look (C1) | Why the cobalt direction was dropped: cool grey, cobalt and a thin bar read as a docs theme. Mulberry, ochre and the swallowtail ribbon are Lectale's own. |
 | Centred hero, feature cards | Home is a form on the start line; no hero or illustration. |
 | Dashboard filler, fake stats | None; no counts in Contents. |
 | Icon tile above headings, decorative icons | No icons in lists or rows (S13). Icons only in alerts and on controls, with text; the three image zoom buttons are icon-only with a tooltip and label (S15). |
@@ -143,7 +146,7 @@ A bookmark ribbon in the accent colour: 8 dp wide, one row tall, with the logo's
 | Placeholder names, filler verbs | Plain verbs; wireframe names are illustrative and replaced by real fixtures in tests. |
 | Dense header chrome | The top bar holds the brand and nothing else. |
 
-Pre-ship checks (`ai-tells.md`): (1) decoration removed: the kind icons in file lists and the tag badges (S4, S13); (2) the Lectale element is the swallowtail ribbon; (3) every colour, font and effect names a token and a reason, and the owner picks A or B; (4) states and reduce-motion are in each screen spec; (5) copy has no filler verbs, no invented numbers.
+Pre-ship checks (`ai-tells.md`): (1) decoration removed: the kind icons in file lists and the tag badges (S4, S13); (2) the Lectale element is the swallowtail ribbon; (3) every colour, font and effect names a token and a reason, and the owner chose the palette and accent, and picks the reading face; (4) states and reduce-motion are in each screen spec; (5) copy has no filler verbs, no invented numbers.
 
 ## Logo brief (for Codex image concepts)
 
