@@ -21,6 +21,6 @@ Spec defects that need a decision are tracked in
 | [0005](0005-flutter-3-50-and-pinned-toolchain.md) | Flutter 3.50 and a pinned toolchain | accepted |
 | [0006](0006-six-platform-targets-and-fallbacks.md) | Six platform targets and their fallbacks | accepted |
 | [0007](0007-offline-assessment-records.md) | Offline assessment records for manual grading | accepted |
-| [0008](0008-scoped-resource-addresses-and-public-preview-route.md) | Scoped resource addresses and a public preview route | proposed |
+| [0008](0008-scoped-resource-addresses-and-public-preview-route.md) | Scoped resource addresses and a public preview route | accepted |
 | [0009](0009-agent-team-and-model-routing.md) | Agent team and model routing | accepted |
 | [0010](0010-feature-intake-gate-and-build-vs-buy.md) | Feature intake gate and build-versus-buy rule | accepted |

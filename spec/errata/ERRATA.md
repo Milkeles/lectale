@@ -17,17 +17,17 @@ says which part was not. No entry failed outright.
 
 | ID | Defect | Status | Evidence | ADR |
 | --- | --- | --- | --- | --- |
-| E1 | OpenAPI unusable for codegen | proposed | held | none |
-| E2 | Resource ID scope collides | proposed | held | [0008](../../docs/adr/0008-scoped-resource-addresses-and-public-preview-route.md) |
-| E3 | Anonymous preview has no content route | proposed | held, plan wording corrected | [0008](../../docs/adr/0008-scoped-resource-addresses-and-public-preview-route.md) |
-| E4 | `schemaVersion` is 2 in prose, 3 in schema | proposed | held | none |
+| E1 | OpenAPI unusable for codegen | accepted | held | none |
+| E2 | Resource ID scope collides | accepted | held | [0008](../../docs/adr/0008-scoped-resource-addresses-and-public-preview-route.md) |
+| E3 | Anonymous preview has no content route | accepted | held, plan wording corrected | [0008](../../docs/adr/0008-scoped-resource-addresses-and-public-preview-route.md) |
+| E4 | `schemaVersion` is 2 in prose, 3 in schema | accepted | held | none |
 | E5 | Manual grading needs an LFS upload | accepted | held | [0007](../../docs/adr/0007-offline-assessment-records.md) |
-| E6 | Auto-grading approval loses release policy and repo | proposed | held | none |
-| E7 | Error envelope, idempotency, status codes disagree | proposed | partly | none |
-| E8 | Grade integrity | proposed | held | none |
-| E9 | Catalog TTL and upload-state vocabularies | proposed | held | none |
+| E6 | Auto-grading approval loses release policy and repo | accepted | held | none |
+| E7 | Error envelope, idempotency, status codes disagree | accepted | partly | none |
+| E8 | Grade integrity | accepted | held | none |
+| E9 | Catalog TTL and upload-state vocabularies | accepted | held | none |
 | E10 | Pages lacks Cron, Workers Logs, Rate Limiting | accepted | held, external fact | [0002](../../docs/adr/0002-one-worker-with-static-assets.md) |
-| E11 | Free D1 limits vs session writes | proposed | partly | none |
+| E11 | Free D1 limits vs session writes | accepted | partly | none |
 | X1 | v2 to v3 migration demanded, v2 undefined | proposed | held | none |
 | X2 | Archived baseline contradicts same-origin `/api` | proposed | held | none |
 | X3 | Missing routes | proposed | held | none |
@@ -40,7 +40,7 @@ while building `spec/INDEX.md`.
 
 ## E1 OpenAPI is unusable for codegen
 
-- **Status:** proposed
+- **Status:** accepted (owner, 2026-11-21)
 - **Affected:** `api/openapi.yaml` lines 27-29 (global `security`), 71, 100,
   235, 242, 343 (the only five `security: []`), 154-162 (`/courses/import`),
   187 (stray key), 376 (`/legal/{documentType}`), 488-500 (the only
@@ -63,7 +63,7 @@ while building `spec/INDEX.md`.
 
 ## E2 Resource ID scope collides
 
-- **Status:** proposed
+- **Status:** accepted (owner, 2026-11-21)
 - **Affected:** `docs/YAML_V3_REFERENCE.md` line 55; `FULL_SPECIFICATION.md`
   line 286; `docs/SEMANTIC_VALIDATION.md` line 5; `api/openapi.yaml` line 188;
   `docs/API_SEMANTICS.md` line 19; `FULL_SPECIFICATION.md` line 584.
@@ -78,7 +78,7 @@ while building `spec/INDEX.md`.
 
 ## E3 The anonymous preview has no content route or identity
 
-- **Status:** proposed
+- **Status:** accepted (owner, 2026-11-21)
 - **Affected:** `docs/API_SEMANTICS.md` lines 14 and 19; `api/openapi.yaml` lines
   154 and 188; `db/0001_init.sql` line 22 (`courses.id`);
   `docs/CACHING_PERFORMANCE_COST.md` lines 11-13 (classes B and D).
@@ -96,7 +96,7 @@ while building `spec/INDEX.md`.
 
 ## E4 `schemaVersion` is 2 in prose, `const: 3` in the schema
 
-- **Status:** proposed
+- **Status:** accepted (owner, 2026-11-21)
 - **Affected:** `FULL_SPECIFICATION.md` line 247; `docs/YAML_V3_REFERENCE.md`
   line 16; `schemas/course-v3.schema.json` line 8.
 - **Defect:** both prose tables say `schemaVersion` is "integer constant `2`".
@@ -122,7 +122,7 @@ while building `spec/INDEX.md`.
 
 ## E6 Auto-grading approval cannot store the release policy or grading repo
 
-- **Status:** proposed (optional feature, deferred to M8)
+- **Status:** accepted (owner, 2026-11-21) (optional feature, deferred to M8)
 - **Affected:** `docs/AUTOMATIC_GRADING.md` lines 7 and 17;
   `db/0002_commerce_autograding.sql` lines 76-86.
 - **Defect:** the document says the D1 approval includes "the workflow path,
@@ -136,7 +136,7 @@ while building `spec/INDEX.md`.
 
 ## E7 Error envelope, idempotency and status codes are defined two or three ways
 
-- **Status:** proposed
+- **Status:** accepted (owner, 2026-11-21)
 - **Evidence:** partly. The envelope and idempotency conflicts hold. The status
   code conflict holds for errors. For success codes, the prose states none
   except 204 for `auth/session`; only `api/openapi.yaml` varies (`200`, `201` at
@@ -163,7 +163,7 @@ while building `spec/INDEX.md`.
 
 ## E8 Grade integrity
 
-- **Status:** proposed
+- **Status:** accepted (owner, 2026-11-21)
 - **Affected:** `db/0001_init.sql` lines 69-80 and 101-124.
 - **Defect:** `grades.submission_id` references `submission_attempts(id)` alone.
   Nothing ties that submission to the grade's own `course_id`, `assignment_id`
@@ -175,7 +175,7 @@ while building `spec/INDEX.md`.
 
 ## E9 Catalog TTL conflict and three upload-state vocabularies
 
-- **Status:** proposed
+- **Status:** accepted (owner, 2026-11-21)
 - **Affected:** `docs/CACHING_PERFORMANCE_COST.md` lines 12 and 52;
   `api/openapi.yaml` line 481; `docs/CORE_EXPERIENCE_AND_CATALOG.md` lines 50
   and 53; `FULL_SPECIFICATION.md` lines 621 and 995;
@@ -214,7 +214,7 @@ while building `spec/INDEX.md`.
 
 ## E11 Free D1 limits against per-request session writes
 
-- **Status:** proposed
+- **Status:** accepted (owner, 2026-11-21)
 - **Evidence:** partly. The D1 limits (100k writes a day, 50 queries per
   invocation, 500 MB per database) come from D1 pricing and limits pages
   fetched 2026-11-21, not from the bundle. The bundle never says "write
@@ -306,5 +306,15 @@ All `proposed`; the owner decides each before the milestone named.
 | N2 | PRIV-001 lists email as personal data, but `users` in `db/0001_init.sql` has no email column. Decide whether D1 stores email at all; Firebase already holds it. | `spec/v4.0/docs/SECURITY_TESTS.md` PRIV-001; `spec/v4.0/db/0001_init.sql` `users` | M3 |
 | N3 | No retention period is given for any D1 table; only session lifetimes (12 h absolute, 30 min idle) are stated. | `spec/v4.0/docs/EU_PRIVACY_COOKIES.md`, `SESSION_SECURITY.md`, `db/0003_compliance.sql` | M7 |
 | N4 | `SESSION_SECURITY.md` names an "auth state version" that `web_sessions` has no column for. | `spec/v4.0/docs/SESSION_SECURITY.md`; `spec/v4.0/db/0001_init.sql` `web_sessions` | M3 |
-| N5 | No rule covers a course README that loads images from author-hosted servers, which exposes readers' IP addresses to third parties without consent. Options: proxy images through the pinned repo only, or click-to-load like video. | `spec/v4.0/docs/EU_PRIVACY_COOKIES.md` §15.2 covers video only | M2 |
+| N5 | **Accepted 2026-11-21:** images stored in the course repository load normally; images from other hosts show a placeholder the reader taps to load, like the video consent gate. Originally: no rule covers a course README that loads images from author-hosted servers, which exposes readers' IP addresses to third parties without consent. Options: proxy images through the pinned repo only, or click-to-load like video. | `spec/v4.0/docs/EU_PRIVACY_COOKIES.md` §15.2 covers video only | M2 |
 | N6 | No decision on revoking Lectale sessions when a Firebase account is disabled or deleted. | `spec/v4.0/docs/SESSION_SECURITY.md` | M3 |
+
+## Validator interpretations (accepted by the owner, 2026-11-21)
+
+Where the spec is ambiguous, the course.yaml validator (`apps/edge_api/src/contract/`) applies these rules. Details are in `docs/research/2026-11-21-m1-validator-codex-notes.md`.
+
+| ID | Rule | Why |
+|---|---|---|
+| V1 | Outline IDs are unique across the whole course, not only within their list. | Unique IDs make resource addresses unambiguous (E2) and catch copy-paste mistakes. |
+| V2 | `releaseAt` takes part in the date-ordering check. | A resource released after its own deadline is an authoring error. |
+| V3 | An assignment that no lesson references is an error. | Unreachable assignments would never be shown to students. |
