@@ -48,3 +48,7 @@ apps/edge_api/src/worker-configuration.d.ts
 # Python bytecode
 __pycache__/
 *.pyc
+
+# Screenshots of other sites gathered during research. The repository is
+# public, so they stay local reference only and are never published.
+docs/research/landing-refs/
