@@ -1,0 +1,53 @@
+# Git hooks, run by prek (or pre-commit). `just setup` installs them.
+default_install_hook_types: [pre-commit, commit-msg]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # The specification PDF is about 1.2 MB and is the only large file.
+      - id: check-added-large-files
+        args: [--maxkb=600]
+        exclude: ^spec/v4\.0/
+      - id: check-merge-conflict
+      - id: check-yaml
+        exclude: ^spec/v4\.0/
+      - id: end-of-file-fixer
+        exclude: ^spec/v4\.0/
+      - id: trailing-whitespace
+        exclude: ^spec/v4\.0/
+
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.51.1
+    hooks:
+      - id: typos
+
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.23.3
+    hooks:
+      - id: markdownlint-cli2
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks-system
+        args: [git, --staged, --redact, --no-banner]
+        pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: dart-format
+        name: dart format
+        entry: dart format --output=none --set-exit-if-changed
+        language: system
+        types: [dart]
+      - id: project-rules
+        name: project rules
+        entry: python3 tool/check_rules.py
+        language: system
+        types_or: [dart, ts, json, yaml, toml]
+      - id: commit-message
+        name: commit message
+        entry: tool/check_commit_message.sh
+        language: script
+        stages: [commit-msg]
