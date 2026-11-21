@@ -1,0 +1,10 @@
+digraph G {graph [rankdir=LR, bgcolor="white", pad="0.24", nodesep="0.30", ranksep="0.42"];node [shape=box,style="rounded,filled",fillcolor="#F1F6F2",color="#6E9982",fontname="DejaVu Sans",fontsize=12,margin="0.10,0.08"];edge [color="#658A7B",arrowsize=0.65];
+sub [label="Verified student
+submission"];worker [label="Worker checks
+D1 permissions + quotas"];actions [label="Owner GitHub Actions
+no secrets in test job"];out [label="Untrusted result
+JSON artifact"];verify [label="Worker verifies run,
+schema and bounded score"];grade [label="D1 proposed score
+manual review or auto release"];
+sub->worker->actions->out->verify->grade;
+}

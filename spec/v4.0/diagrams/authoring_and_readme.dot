@@ -1,0 +1,5 @@
+digraph G {graph [rankdir=LR,bgcolor="white",pad="0.2",nodesep="0.30",ranksep="0.45"];node[shape=box,style="rounded,filled",fillcolor="#E9F3EE",color="#679B81",fontname="DejaVu Sans",fontsize=12,margin="0.12,0.1"];edge[color="#64967F",arrowsize=0.6]; Owner[label="Instructor pastes repo URL
+Verified GitHub administrator"];Init[label="GitHub App setup
+course.yaml + root README.md"];Index[label="Validated pinned SHA
+D1 course index"];Web[label="Flutter course page
+README description + lessons + viewers"]; Owner->Init->Index->Web; }

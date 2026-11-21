@@ -1,0 +1,9 @@
+schemaVersion: 3
+course:
+  id: new-course
+  title: Untitled course
+  summary: Describe the scope of this course.
+  language: en
+  version: 0.1.0
+outline: []
+assignments: []
