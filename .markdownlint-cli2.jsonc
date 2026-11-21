@@ -1,0 +1,12 @@
+{
+  "config": {
+    "default": true,
+    // Long lines are fine in tables and links.
+    "MD013": false,
+    // Repeated headings are fine in different sections.
+    "MD024": { "siblings_only": true },
+    "MD033": false
+  },
+  // The specification is imported verbatim and never edited.
+  "ignores": ["**/CHANGELOG.md", "**/build/**", "**/.dart_tool/**", "**/node_modules/**", "spec/v4.0/**", ".claude/skills/**"]
+}

@@ -1,0 +1,17 @@
+schemaVersion: 3
+submissionId: sub_abcdefghijklmnop
+courseId: new-course
+assignmentId: assignment-one
+studentKey: stu_abcdefghijklmnop
+attempt: 1
+status: submitted
+submittedAt: '2026-11-21T12:00:00Z'
+courseCommit: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+files:
+- id: file-one
+  name: answer.pdf
+  mediaType: application/pdf
+  sizeBytes: 10000
+  sha256: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  storage: github-lfs
+  pointerPath: submissions/stu_abcdefghijklmnop/assignment-one/attempt-0001/files/answer.pdf

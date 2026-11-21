@@ -1,0 +1,23 @@
+# Lets `flutter pub get` clone the private litse-ui repository with the
+# read-only deploy key (ADR-0004, docs/runbooks/litse-ui-deploy-key.md).
+name: litse-ui access
+description: Configure SSH access to Milkeles/litse-ui-private for pub.
+inputs:
+  deploy-key:
+    description: Private half of the read-only deploy key.
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        DEPLOY_KEY: ${{ inputs.deploy-key }}
+      run: |
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/litse_ui
+        chmod 600 ~/.ssh/litse_ui
+        # GitHub's published host key, so the first connection is not trusted blindly.
+        echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" >> ~/.ssh/known_hosts
+        printf 'Host github.com\n  IdentityFile ~/.ssh/litse_ui\n  IdentitiesOnly yes\n' >> ~/.ssh/config
+        git config --global url."git@github.com:Milkeles/litse-ui-private.git".insteadOf "https://github.com/Milkeles/litse-ui-private.git"

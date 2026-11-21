@@ -1,0 +1,23 @@
+digraph System {
+ graph [rankdir=TB,bgcolor=white,nodesep=0.30,ranksep=0.44,pad=.15];
+ node [shape=box,style="rounded,filled",fillcolor="#F2F6FF",color="#36516D",fontname="DejaVu Sans",fontsize=17,margin="0.18,0.13"];
+ edge [color="#60758C",fontname="DejaVu Sans",fontsize=12,arrowsize=.75];
+ App[label="Flutter Web / native Flutter\nUnified course interface",fillcolor="#DCEAFF"];
+ Pages[label="Cloudflare Pages\nStatic app assets"];
+ Auth[label="Firebase Auth\nUser identity"];
+ API[label="Cloudflare Workers / Pages Functions\nAuthorization + GitHub API",fillcolor="#DDF5E7"];
+ Media[label="Direct video / Git LFS\nLarge file bytes",fillcolor="#FFF1D5"];
+ DB[label="Cloudflare D1\nMetadata, enrollments, grades"];
+ GH[label="GitHub App + repositories\nCourses and submissions"];
+ {rank=same;Pages;Auth;}
+ {rank=same;API;Media;}
+ {rank=same;DB;GH;}
+ App->Pages [label="loads",weight=3];
+ App->Auth [label="signs in",weight=3];
+ Pages->API [style=invis,weight=10];
+ Auth->Media [style=invis,weight=10];
+ App->API [label="requests",minlen=2];
+ App->Media [label="uploads / views",style=dashed,minlen=2];
+ API->DB [label="queries"];
+ API->GH [label="scoped app credentials"];
+}

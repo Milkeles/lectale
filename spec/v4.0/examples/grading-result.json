@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "course-grading-result/v1",
+  "jobId": "job_0123456789ab",
+  "submissionId": "sub_example_123",
+  "status": "completed",
+  "maxPoints": 100,
+  "score": 70,
+  "summary": "Validation passed; one optional test failed",
+  "tests": [
+    {
+      "id": "required-output",
+      "status": "pass",
+      "points": 70,
+      "maxPoints": 70
+    },
+    {
+      "id": "optional-check",
+      "status": "fail",
+      "points": 0,
+      "maxPoints": 30,
+      "message": "Output differs from expected"
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+# Dart and Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+**/doc/api/
+*.iml
+app.*.symbols
+app.*.map.json
+**/test/**/failures/
+coverage/
+
+# Platform build output and local settings
+/apps/flutter_client/android/.gradle/
+/apps/flutter_client/android/.kotlin/
+/apps/flutter_client/android/local.properties
+/apps/flutter_client/android/key.properties
+/apps/flutter_client/android/app/debug/
+/apps/flutter_client/android/app/profile/
+/apps/flutter_client/android/app/release/
+/apps/flutter_client/android/captures/
+*.jks
+*.keystore
+**/ephemeral/
+**/Pods/
+**/xcuserdata/
+**/.symlinks/
+/apps/flutter_client/web/.last_build_id
+
+# Node and Wrangler
+node_modules/
+.wrangler/
+# Local secrets for `wrangler dev`. Never commit them.
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+apps/edge_api/src/worker-configuration.d.ts

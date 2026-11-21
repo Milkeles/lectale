@@ -1,0 +1,11 @@
+digraph Viewer {graph [rankdir=TB,bgcolor=white, nodesep=0.28, ranksep=0.45, fontname="DejaVu Sans", pad=0.25];
+ node [shape=box, style="rounded,filled", fillcolor="#F4F7FC", color="#36516D", fontname="DejaVu Sans", fontsize=12, margin="0.14,0.11"];
+ edge [color="#60758C", fontname="DejaVu Sans", fontsize=10, arrowsize=.7];
+ In[label="Manifest resource or folder entry"];
+ Auth[label="Check visibility / allowed source"];
+ Choice[label="Detect safe supported format",shape=diamond,fillcolor="#FFF4D4"];
+ Native[label="In-app viewer\nPDF, video, notebook, markdown, image,\naudio, code, plain text, CSV"];
+ Fallback[label="In-app file card with metadata\nDownload; explain why preview unavailable"];
+ Threat[label="No embedded script execution\nNo unsafe arbitrary iframe or URLs",fillcolor="#FFE6D8"];
+ In->Auth->Choice;Choice->Native[label="supported"];Choice->Fallback[label="unknown / blocked"];Native->Threat;Fallback->Threat;
+}

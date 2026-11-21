@@ -1,0 +1,21 @@
+{
+  "name": "@lectale/edge-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "types": "wrangler types src/worker-configuration.d.ts",
+    "typecheck": "wrangler types src/worker-configuration.d.ts > /dev/null && tsc --noEmit -p . && tsc --noEmit -p test",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "hono": "^4.13.19"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.9.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.1",
+    "wrangler": "^4.166.0"
+  }
+}

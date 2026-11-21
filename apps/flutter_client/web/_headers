@@ -1,0 +1,7 @@
+# Headers for the static web app, applied by Cloudflare's asset server.
+# The Content-Security-Policy for Flutter Web itself is decided by spike S3.
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()

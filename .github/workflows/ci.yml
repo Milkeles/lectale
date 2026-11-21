@@ -1,0 +1,148 @@
+# Tests the spec contract, the Worker and the Flutter app, and builds the app
+# for every platform, on each pull request and on main.
+name: CI
+
+on:
+  pull_request:
+  push:
+    # Agent branches get CI before a pull request exists.
+    branches: [main, "claude/**"]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  contract:
+    name: Spec contract and project rules
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 -m pip install --user pyyaml jsonschema
+      - name: Bundled specification tests
+        run: cd spec/v4.0 && for t in tools/test_*.py; do python3 "$t"; done
+      - name: Rule check and guard tests
+        run: |
+          python3 -m unittest discover -s tool -p 'test_*.py'
+          python3 tool/check_rules.py
+
+  edge:
+    name: Worker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
+        with:
+          install_args: node
+      - working-directory: apps/edge_api
+        run: |
+          npm ci
+          npm run typecheck
+          mkdir -p ../flutter_client/build/web
+          npm test
+
+  # Jobs that need devchat_ui run only when the deploy key exists. Pull
+  # requests from forks never receive it, so they stop here with a notice.
+  litse-ui:
+    name: litse-ui access
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    permissions: {}
+    outputs:
+      available: ${{ steps.check.outputs.available }}
+    steps:
+      - id: check
+        env:
+          HAS_KEY: ${{ secrets.LITSE_UI_DEPLOY_KEY != '' }}
+        run: |
+          echo "available=$HAS_KEY" >> "$GITHUB_OUTPUT"
+          if [ "$HAS_KEY" != "true" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            echo "::error::LITSE_UI_DEPLOY_KEY is missing on main, so the Flutter checks cannot run."
+            exit 1
+          fi
+          if [ "$HAS_KEY" != "true" ]; then
+            echo "::notice::LITSE_UI_DEPLOY_KEY is not set, so the Flutter jobs are skipped. See docs/runbooks/litse-ui-deploy-key.md."
+          fi
+
+  flutter:
+    name: Flutter analyze and test
+    needs: litse-ui
+    if: needs.litse-ui.outputs.available == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/litse-ui-access
+        with:
+          deploy-key: ${{ secrets.LITSE_UI_DEPLOY_KEY }}
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
+        with:
+          install_args: flutter
+      - run: flutter pub get --enforce-lockfile
+      # devchat_ui is in the pub cache now; nothing later needs the key.
+      - run: rm -f ~/.ssh/litse_ui
+        shell: bash
+      - run: dart format --output=none --set-exit-if-changed apps
+      - run: dart analyze --fatal-infos
+      - run: cd apps/flutter_client && flutter test
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: litse-ui
+    if: needs.litse-ui.outputs.available == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: web, os: ubuntu-24.04, command: flutter build web --release }
+          - { target: linux, os: ubuntu-24.04, command: flutter build linux --release }
+          - { target: android, os: ubuntu-24.04, command: flutter build apk --debug }
+          - { target: windows, os: windows-latest, command: flutter build windows --release }
+          - { target: macos, os: macos-latest, command: flutter build macos --release }
+          - { target: ios, os: macos-latest, command: flutter build ios --release --no-codesign }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/litse-ui-access
+        with:
+          deploy-key: ${{ secrets.LITSE_UI_DEPLOY_KEY }}
+      - if: matrix.target == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
+      - if: matrix.target == 'android'
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
+        with:
+          install_args: flutter
+      - run: flutter pub get --enforce-lockfile
+      # devchat_ui is in the pub cache now; nothing later needs the key.
+      - run: rm -f ~/.ssh/litse_ui
+        shell: bash
+      - working-directory: apps/flutter_client
+        shell: bash
+        run: ${{ matrix.command }}

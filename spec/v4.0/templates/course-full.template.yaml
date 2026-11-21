@@ -1,0 +1,95 @@
+# TEMPLATE: substitute or remove placeholder paths/URLs before publishing.
+# This shows fields and nested document shapes; it is not a real course.
+schemaVersion: 3
+course:
+  id: course-identifier
+  title: Title
+  summary: Short description
+  description: Longer optional description
+  language: en
+  version: 1.0.0
+  license: CC-BY-4.0
+  level: mixed
+  tags: [subject-tag]
+  authors:
+    - name: Example instructor
+      url: https://example.org
+  homepage: https://example.org
+  cover: assets/cover.png
+  estimatedMinutes: 600
+  publishedAt: null
+outline:
+  - kind: module
+    id: module-id
+    title: Module
+    description: Optional module description
+    children:
+      - kind: lesson
+        id: lesson-id
+        title: Lesson
+        description: Optional lesson description
+        recordedAt: null
+        resources:
+          - id: lecture-pdf
+            title: Lecture notes
+            type: pdf
+            path: content/lecture.pdf
+            mediaType: application/pdf
+            display: inline
+            preview: true
+            download: true
+          - id: video-recording
+            title: Lecture video
+            type: video
+            url: https://www.youtube.com/watch?v=AAAAAAAAAAA
+            provider: youtube
+          - id: notebook-file
+            title: Notebook (view-only)
+            type: notebook
+            path: content/example.ipynb
+          - id: source-folder
+            title: Supplementary files
+            type: folder
+            path: content/extras
+            recursive: false
+            maxEntries: 100
+          - id: arbitrary-resource
+            title: Other source material
+            type: auto
+            path: content/resource.dat
+      - kind: assignment
+        id: lesson-assignment-ref
+        assignmentId: assignment-id
+assignments:
+  - id: assignment-id
+    title: Assignment
+    description: Plain-language instructions
+    materials:
+      - id: instructions
+        title: Assignment PDF
+        type: pdf
+        path: assignments/assignment-id/instructions.pdf
+    submission:
+      allowedExtensions: [.pdf, .ipynb, .txt, .zip]
+      maxFileBytes: 52428800
+      maxAttemptBytes: 104857600
+      maxFiles: 5
+      maxAttempts: 3
+      maxTotalBytesPerStudent: 314572800
+      openAt: null
+      dueAt: null
+      closeAt: null
+      allowLate: true
+    grading:
+      mode: manual
+      maxPoints: 100
+      allowRevisionAfterGrade: false
+    releaseAt: null
+display:
+  showEstimatedDuration: true
+  showFileDownloads: true
+  themeAccent: '#3B82F6'
+
+# OPTIONAL: for an assignment with automatic or hybrid grading, replace its
+# grading.mode and include grading.automatic according to YAML_V3_REFERENCE.md.
+# Do not declare purchase prices/permissions here: commerce lives in D1/Stripe.

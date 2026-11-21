@@ -1,0 +1,14 @@
+name: lectale_workspace
+description: The pub workspace of the Lectale apps and packages.
+publish_to: none
+
+environment:
+  sdk: ^3.14.0
+  # Keep equal to the version in .config/mise.toml.
+  flutter: 3.50.1
+
+workspace:
+  - apps/flutter_client
+
+dev_dependencies:
+  very_good_analysis: ^11.0.0
