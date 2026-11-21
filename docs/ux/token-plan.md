@@ -2,7 +2,7 @@
 
 Visual direction for Lectale: a calm reading app for learners of any discipline, who read for hours on six platforms. Structure follows known patterns (`inventory.md`); boldness is spent in one place, the ribbon. All values map to `devchat_ui` roles. No hex appears in widgets; hex values are seeds for the app's `DcColorScheme`s (see Colour).
 
-> **Owner decisions, 2026-11-21.** Warm paper with mulberry (formerly "direction A"), plus one golden ochre accent that catches the eye. Paper, graphite and mulberry make up about 80 percent of what the learner sees; ochre marks the few places that need attention. The cobalt direction is dropped. The reading face is still open (see Type).
+> **Owner decisions, 2026-11-21.** Warm paper with mulberry (formerly "direction A"), shifted a few degrees toward purple, plus one gold accent that catches the eye (the owner chose gold because it is an uncommon choice). Paper, graphite and mulberry make up about 80 percent of what the learner sees; gold marks the few places that need attention. The cobalt direction is dropped. The reading face is still open (see Type).
 
 ## Subject and job
 
@@ -17,9 +17,9 @@ Three hues don't fit `DcColorTheme.fromPalettes`, which takes one base and one a
 | Paper | `#F4F1ED` (OKLCH L 0.96, C 0.006, h 75: a warm grey) | `#191B1A` | `canvas`, `background` | Page and reading surface |
 | Sand | `#E8E3DC` | `#262927` | `muted`, `secondary`, `accent` (hover, pressed), `card` | Code blocks, cards, selected rows |
 | Graphite | `#242725` (h 157) | `#E9E5DE` | `foreground`, `cardForeground`; `mutedForeground` at about `#5A5F5B` / `#A9ADA7` | Text |
-| Mulberry | `#783D57` (L 0.44, C 0.088, h 353) | `#E3A7B9` | `brand`, `link` (app extension) | The logo mark, underlined links, page titles (course and lesson h1) |
-| Ochre | `#905E0C` | `#F3DDA4` | `primary`, `ring` | Three jobs: the one primary button per screen (Open course, Start course), the ribbon, the focus ring |
-| Ochre, high contrast | `#6E4708` | `#F3DDA4` | `primary`, `ring` in the high-contrast schemes | As above, when the platform asks for more contrast |
+| Mulberry | `#753E5E` (L 0.44, C 0.088, h 345) | `#E0A7C0` (L 0.79, C 0.074, h 351) | `brand`, `link` (app extension) | The logo mark, underlined links, page titles (course and lesson h1) |
+| Gold | `#905E0C` | `#F3DDA4` | `primary`, `ring` | Three jobs: the one primary button per screen (Open course, Start course), the ribbon, the focus ring |
+| Gold, high contrast | `#6E4708` | `#F3DDA4` | `primary`, `ring` in the high-contrast schemes | As above, when the platform asks for more contrast |
 | Signal red | `#A3292E` (h 24) | `#F2958E` | `destructive` | Errors only, always with an icon and a title |
 
 | Pair | Light | Dark |
@@ -27,28 +27,28 @@ Three hues don't fit `DcColorTheme.fromPalettes`, which takes one base and one a
 | Graphite on Paper | 13.40:1 | 13.79:1 |
 | Graphite on Sand | 11.82:1 | 11.71:1 |
 | Muted text on Paper / on Sand | 5.79 / 5.11:1 | 7.60:1 on Paper |
-| Mulberry on Paper (links, titles) | 7.16:1 | 8.65:1 |
-| Mulberry on Sand | 6.32:1 | 7.34:1 |
-| Button label on Ochre | white 5.54:1 (8.18:1 on high-contrast `#6E4708`) | light Graphite `#242725` 11.27:1 |
-| Ochre on Paper (focus ring) | 4.92:1 | 12.93:1 |
-| Ochre on Sand (ribbon on a selected row) | 4.34:1 | 10.98:1 |
-| Ochre next to Mulberry | 1.46:1, ΔE 0.149; under simulated deuteranopia and protanopia at least 1.44:1, ΔE 0.137 | 1.50:1 |
+| Mulberry on Paper (links, titles) | 7.15:1 | 8.62:1 |
+| Mulberry on Sand | 6.31:1 | 7.32:1 |
+| Button label on Gold | white 5.54:1 (8.18:1 on high-contrast `#6E4708`) | light Graphite `#242725` 11.27:1 |
+| Gold on Paper (focus ring) | 4.92:1 | 12.93:1 |
+| Gold on Sand (ribbon on a selected row) | 4.34:1 | 10.98:1 |
+| Gold next to Mulberry | 1.45:1, ΔE 0.157; under simulated deuteranopia and protanopia at least 1.42:1, ΔE 0.149 | 1.50:1, ΔE 0.161; at least 1.47:1, ΔE 0.144 |
 | Signal red on Paper / on Sand | 6.40 / 5.65:1 | 7.80:1 on Paper |
 | Sand on Paper (selected fill) | 1.13:1: never the only cue (S7) | |
 
-Why ochre (Codex's study, `brand/accent-study.md`): of the three candidates (deep teal, golden ochre, ink blue) it is the only one that reads as a colour rather than a dark neutral in light mode, so it catches the eye where it is used. It also keeps the clearest separation from mulberry under both colour-vision simulations. Teal and navy were within 0.1 of mulberry in protanopia; navy in dark mode read as a documentation theme.
+Why gold (Codex's study, where it is called golden ochre, `brand/accent-study.md`): of the three candidates (deep teal, golden ochre, ink blue) it is the only one that reads as a colour rather than a dark neutral in light mode, so it catches the eye where it is used. It also keeps the clearest separation from mulberry under both colour-vision simulations. Teal and navy came within about 0.1 of mulberry in protanopia; navy in dark mode read as a documentation theme.
 
-Why links stay mulberry: ochre is 4.34:1 on Sand, under the 4.5:1 that text needs, and if every link were ochre the accent would stop meaning "look here". Mulberry passes on both surfaces, keeps the brand colour present on every page, and leaves ochre to three jobs.
+Why links stay mulberry: gold is 4.34:1 on Sand, under the 4.5:1 that text needs, and if every link were gold the accent would stop meaning "look here". Mulberry passes on both surfaces, keeps the brand colour present on every page, and leaves gold to three jobs.
 
-Tell check: warm paper with a serif sits next to the "cream, serif, terracotta" default (`ai-tells.md`, Colour). It stays clear of it because the paper has a quarter of the chroma of a cream (C 0.006 against about 0.014 at h 85), the brand colour is a cool mulberry (h 353, far from terracotta `#D97757` at h 39, C 0.131), the accent is a deep ochre used on three elements only, and the serif is for reading, not display chrome. Signal red is darker and redder than terracotta (h 24, L 0.48 against L 0.67) and appears only in errors.
+Tell check: warm paper with a serif sits next to the "cream, serif, terracotta" default (`ai-tells.md`, Colour). It stays clear of it because the paper has a quarter of the chroma of a cream (C 0.006 against about 0.014 at h 85), the brand colour is a cool mulberry (h 345, far from terracotta `#D97757` at h 39, C 0.131), the accent is a deep gold used on three elements only, and the serif is for reading, not display chrome. Signal red is darker and redder than terracotta (h 24, L 0.48 against L 0.67) and appears only in errors.
 
 ### Rules
 
-- **Ochre has three jobs and no others:** the primary button (at most one per screen), the ribbon, the focus ring. It is never text and never a background behind text other than the button label.
+- **Gold has three jobs and no others:** the primary button (at most one per screen), the ribbon, the focus ring. It is never text and never a background behind text other than the button label.
 - **Mulberry has three jobs:** the logo mark, underlined links, the course and lesson titles. Prose links are underlined, so colour is never the only cue.
 - Large fills are for the primary button only. No gradients, glows or overlays on images. No shadows (`DcShadows.none`); separation is a Sand fill or whitespace, one method at a time.
-- The focus ring sits outside a 2 dp Paper gap, so it reads on Sand, on the ochre button and next to mulberry text.
-- Gold can read as a warning. Lectale has no warning colour: a caution message uses graphite text with an icon and a title, never ochre.
+- The focus ring sits outside a 2 dp Paper gap, so it reads on Sand, on the gold button and next to mulberry text.
+- Gold can read as a warning. Lectale has no warning colour: a caution message uses graphite text with an icon and a title, never gold.
 - Meaning is never colour alone: errors carry an icon and a title, the ribbon carries ", current" or ", last opened" for assistive tech, selected rows carry semibold plus `selected`.
 - The manifest's `themeAccent` is ignored (A11Y-002). Chart roles are unused.
 
@@ -130,14 +130,14 @@ A bookmark ribbon in the accent colour: 8 dp wide, one row tall, with the logo's
 
 | Tell | How Lectale avoids it |
 |---|---|
-| Cream, serif display, terracotta | Warm grey paper at low chroma, mulberry brand colour, ochre on three elements only, serif only in the reading area (see Tell check). |
+| Cream, serif display, terracotta | Warm grey paper at low chroma, mulberry brand colour, gold on three elements only, serif only in the reading area (see Tell check). |
 | Near-black with an acid accent | Light default; dark schemes are deep greys with a soft accent. |
 | Broadsheet hairlines, zero radius, dense columns | Radius by role, one reading column, no rules. |
 | SaaS card kit, one radius, same shadow | Cards only for file and link cards and alerts; no shadows. Contents, lessons and files are rows. |
 | Eyebrows, middle-dot or pipe meta strings, trailing arrows | None. Facts are labelled pairs; files are rows; no arrows except the real Close and chevron controls. |
 | Gradient, glow, gradient text | Flat colour only. |
 | Inter or Plus Jakarta display; stock scale | Plex Sans UI, Literata or Plex Serif reading; headings from one map. |
-| Documentation-theme look (C1) | Why the cobalt direction was dropped: cool grey, cobalt and a thin bar read as a docs theme. Mulberry, ochre and the swallowtail ribbon are Lectale's own. |
+| Documentation-theme look (C1) | Why the cobalt direction was dropped: cool grey, cobalt and a thin bar read as a docs theme. Mulberry, gold and the swallowtail ribbon are Lectale's own. |
 | Centred hero, feature cards | Home is a form on the start line; no hero or illustration. |
 | Dashboard filler, fake stats | None; no counts in Contents. |
 | Icon tile above headings, decorative icons | No icons in lists or rows (S13). Icons only in alerts and on controls, with text; the three image zoom buttons are icon-only with a tooltip and label (S15). |

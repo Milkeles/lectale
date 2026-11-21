@@ -11,11 +11,11 @@ WHITE = "#FFFFFF"
 MODES = {
     "Light": {
         "paper": "#F4F1ED", "sand": "#E8E3DC", "ink": GRAPHITE,
-        "muted": "#5A5F5B", "mulberry": "#783D57", "label": WHITE,
+        "muted": "#5A5F5B", "mulberry": "#753E5E", "label": WHITE,
     },
     "Dark": {
         "paper": "#191B1A", "sand": "#262927", "ink": "#E9E5DE",
-        "muted": "#A9ADA7", "mulberry": "#E3A7B9", "label": GRAPHITE,
+        "muted": "#A9ADA7", "mulberry": "#E0A7C0", "label": GRAPHITE,
     },
 }
 CANDIDATES = {

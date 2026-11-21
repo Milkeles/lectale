@@ -22,7 +22,7 @@ Then review the plan against the anti-generic list in `frontend-design`: cream b
 
 ## Step 2: capture (design-reviewer)
 
-1. Build and serve the web app, then screenshot with Playwright at widths 360, 768 and 1440, light and dark, with `deviceScaleFactor: 1` for your own review (smaller files, and you see what a 1x screen sees). That is six images per screen, plus the focused state of the main control after pressing Tab.
+1. Build and serve the web app, then screenshot with Playwright at widths 360, 768 and 1440, light and dark, with `deviceScaleFactor: 1` for your own review (smaller files, and you see what a 1x screen sees). That is six images per screen, plus a Tab walk at 1440 light: press Tab from page load and capture each stop (up to 12), to check that focus follows the spec's keyboard order and the ring is visible and uncovered at every stop.
 2. Native-only layouts (Android, iOS, desktop) are covered by golden images: `flutter test --update-goldens --tags golden` on Linux, then look at the changed PNGs. Goldens are never accepted without being viewed.
 3. Do not review from code or from test results alone. A passing build says nothing about spacing or hierarchy.
 

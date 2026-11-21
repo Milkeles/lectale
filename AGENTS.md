@@ -48,6 +48,7 @@ Before any task, read in this order:
 ## Design and architecture rules
 
 - **Screens are specified before they are coded.** Follow `docs/ux/README.md`. The spec names one primary action, and every element names the user task it serves; anything without a task is removed.
+- **Everything works with a keyboard alone.** Each screen spec lists its Tab order, and each screen has a keyboard-only test that walks that order and completes the screen's main task (`docs/ux/inventory.md`, Keyboard).
 - **Images are decoded at the size they are shown.** Never decode a large image into a small box. Ship logos and icons as vectors, and raster images in the most efficient format each platform decodes. The `screen-spec` and `frontend-design` skills give the details.
 - **Patterns where they remove complexity, not by default:**
   - **Worker:** a Hono middleware chain; ports and adapters for outside services (GitHub, Firebase keys, Stripe), so tests use fakes; repositories for D1 access; one error envelope.

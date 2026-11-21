@@ -43,6 +43,25 @@ Defined once here; `course.md` and `reader.md` list the same rows and point here
 - **Contents panel** (single-column layout): the same list fills the window below the Contents bar. It is part of the route (`?contents`), so system Back closes it. It has the heading "Contents" (h2) and a "Close" button (name "Close contents"). Choosing a row navigates and closes the panel. Reopening restores its scroll position and focuses the selected row (Codex §2).
 - **Pane open or closed** is remembered in memory for the visit only.
 
+## Keyboard: every screen
+
+Everything a pointer can do, a keyboard can do, on all six platforms: web and desktop, and phones and tablets with a hardware keyboard (WCAG 2.1.1, 2.1.2, 2.1.4, 2.4.3, 2.4.7, 2.4.11).
+
+- Tab and Shift+Tab visit every control in reading order: the skip link first, then the order listed under "Keyboard order" in the screen spec.
+- Enter activates links and buttons; Space activates buttons. Escape closes the Contents panel, menus and tooltips, and focus goes back to the control that opened them.
+- A list that works as one control (Contents, In this lesson) is one tab stop with roving focus: Up and Down move, Home and End jump.
+- A scroll region without controls of its own (code, wide tables, a PDF page) takes focus so the arrow keys scroll it, and Tab leaves it. Nothing traps focus.
+- After moving to another screen, focus starts at the top of it, so the first Tab reaches the skip link. A screen spec may name an exception (Home focuses the address field at wide widths). Back returns focus to the control that left the screen.
+- The gold focus ring shows on every control focused by keyboard, outside a 2 dp Paper gap, and is never covered by the top bar: a focused control scrolls into view.
+- No single-key shortcuts. Platform shortcuts, such as browser Back and Ctrl or Cmd+F in the PDF viewer, keep working.
+- Actions use litse-ui controls, which carry focus, semantics and key handling; never a bare `GestureDetector`.
+
+Verified by:
+
+1. A keyboard-only widget test for each screen. It presses Tab through the screen and checks that focus follows the spec's keyboard order. Then it completes the screen's main task with keys alone: on Home, type an address and press Enter to open Course; on Course, press Enter on Start course; on Reader, move through Contents with the arrow keys and open a lesson.
+2. The visual review on the web build captures the focus ring at each Tab stop (`visual-review-loop`).
+3. A shared test helper (`expectTabOrder`) keeps these tests short and identical across screens.
+
 ## Breakpoints: set by the text
 
 Breakpoints come from the reading measure, not from device names (Codex §4; Flutter's guidance to branch on window size, not device type). `em` is the reading size: 18 dp at 100 percent text.
