@@ -29,7 +29,7 @@
 
 *Every visible element. If the "User task" cell is empty, delete the row and the element.*
 
-| Element | litse-ui component | User task it serves | Requirement | UX law applied |
+| Element | litse-ui component | User task it serves | Requirement | Pattern or UX law |
 |---|---|---|---|---|
 | | | | | |
 
