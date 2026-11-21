@@ -68,6 +68,10 @@ jobs:
           HAS_KEY: ${{ secrets.LITSE_UI_DEPLOY_KEY != '' }}
         run: |
           echo "available=$HAS_KEY" >> "$GITHUB_OUTPUT"
+          if [ "$HAS_KEY" != "true" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; then
+            echo "::error::LITSE_UI_DEPLOY_KEY is missing on main, so the Flutter checks cannot run."
+            exit 1
+          fi
           if [ "$HAS_KEY" != "true" ]; then
             echo "::notice::LITSE_UI_DEPLOY_KEY is not set, so the Flutter jobs are skipped. See docs/runbooks/litse-ui-deploy-key.md."
           fi
@@ -91,6 +95,9 @@ jobs:
         with:
           install_args: flutter
       - run: flutter pub get --enforce-lockfile
+      # devchat_ui is in the pub cache now; nothing later needs the key.
+      - run: rm -f ~/.ssh/litse_ui
+        shell: bash
       - run: dart format --output=none --set-exit-if-changed apps
       - run: dart analyze --fatal-infos
       - run: cd apps/flutter_client && flutter test
@@ -133,6 +140,9 @@ jobs:
         with:
           install_args: flutter
       - run: flutter pub get --enforce-lockfile
+      # devchat_ui is in the pub cache now; nothing later needs the key.
+      - run: rm -f ~/.ssh/litse_ui
+        shell: bash
       - working-directory: apps/flutter_client
         shell: bash
         run: ${{ matrix.command }}

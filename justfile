@@ -79,4 +79,4 @@ scan:
 
 # Audit the GitHub Actions workflows
 audit:
-    zizmor .github/workflows
+    zizmor .github/workflows .github/actions

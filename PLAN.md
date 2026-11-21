@@ -9,6 +9,8 @@ Every task gets a spec in `spec/tasks/` that opens with the intake gate (Why / S
 
 ## Waiting on the owner
 
+- [ ] Protect `main` in GitHub settings (require pull requests and CI), and move `LITSE_UI_DEPLOY_KEY` into an Actions environment that only `main` can use. Hooks can't stop a pushed workflow from reading a repository secret; only these server-side settings can.
+
 - [ ] litse-ui stays a dependency, and Lectale work is pushed only to `Milkeles/lectale`. When a screen needs a component litse-ui lacks, decide where it is built: in litse-ui by the owner, or by an agent with the owner's go-ahead.
 
 - [ ] Review `spec/errata/ERRATA.md` and mark each entry accepted or changed.
@@ -30,7 +32,8 @@ Every task gets a spec in `spec/tasks/` that opens with the intake gate (Why / S
 - [x] Worker: `apps/edge_api` (Hono, static assets, health route, Vitest in workerd).
 - [ ] CI: spec tests, Worker tests, Flutter analyze/test, builds; actions pinned by SHA.
 - [x] Threat model and ROPA stubs.
-- [ ] Codex review of M0; fix findings.
+- [x] Codex review of M0; high findings fixed (guard bypasses, rule-check gaps, key lifetime in CI) plus headers, release network permissions, reviewer tools.
+- [ ] Follow-ups from the Codex review: route and test bare `/api` and asset routing through Wrangler; per-operation limits (catalog max 50, session 204) in the contract-first-api skill; correct ERRATA E1 (catalog PUT has a body) and INDEX precedence and traceability paths; build matrix only for platform changes.
 
 ## M1 Contract
 

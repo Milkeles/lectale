@@ -34,14 +34,19 @@ class CheckRulesTest(unittest.TestCase):
 
     def test_browser_storage_is_flagged_unless_marked(self):
         self.assertTrue(violations("apps/flutter_client/lib/a.dart", "window.localStorage['t'] = token;"))
-        self.assertFalse(violations("apps/flutter_client/lib/a.dart", "localStorage['tab'] = '1'; // rule-ok: UI tab only"))
+        self.assertFalse(violations("apps/flutter_client/lib/a.dart", "localStorage['tab'] = '1'; // rule-ok: no-browser-credential-storage UI tab only"))
+        self.assertTrue(violations("apps/flutter_client/lib/a.dart", "localStorage['t'] = token; // rule-ok:"))
 
     def test_eval_in_worker_is_flagged(self):
         self.assertTrue(violations("apps/edge_api/src/x.ts", "const f = new Function(body);"))
 
     def test_worker_fetch_to_unknown_host_is_flagged(self):
         self.assertTrue(violations("apps/edge_api/src/x.ts", 'await fetch("https://evil.example/a")'))
-        self.assertFalse(violations("apps/edge_api/src/x.ts", 'await fetch("https://api.github.com/repos")'))
+        self.assertTrue(violations("apps/edge_api/src/x.ts", "await fetch(repoUrl)"))
+        self.assertFalse(violations("apps/edge_api/src/net/fetch.ts", "return fetch(url, init)"))
+
+    def test_lfs_flag_split_across_lines_is_flagged(self):
+        self.assertTrue(violations("apps/edge_api/wrangler.jsonc", '"LFS_DIRECT_UPLOAD_ENABLED":\n    "true"'))
 
     def test_html_widget_package_is_flagged(self):
         self.assertTrue(violations("apps/flutter_client/lib/a.dart", "import 'package:flutter_html/flutter_html.dart';"))
@@ -66,6 +71,8 @@ class GuardTest(unittest.TestCase):
             "cat .dev.vars",
             "sed -i s/a/b/ spec/v4.0/README.md",
             "rm -rf .git",
+            "git -C . push origin main",
+            "git push origin HEAD:main",
         ]:
             with self.subTest(command=command):
                 self.assertEqual(self.bash(command), 2)
@@ -77,12 +84,15 @@ class GuardTest(unittest.TestCase):
             "wrangler d1 migrations apply lectale --local",
             "cat spec/v4.0/README.md",
             "rm -rf build",
+            "cat .env.example",
+            "rg 'git push origin main' docs",
         ]:
             with self.subTest(command=command):
                 self.assertEqual(self.bash(command), 0)
 
     def test_blocks_edits_to_the_normative_spec(self):
         self.assertEqual(self.run_guard({"tool_name": "Edit", "tool_input": {"file_path": "/r/spec/v4.0/x.md"}}), 2)
+        self.assertEqual(self.run_guard({"tool_name": "Edit", "tool_input": {"file_path": "spec/v4.0/README.md"}}), 2)
 
 
 if __name__ == "__main__":

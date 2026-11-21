@@ -1,4 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Lectale loads every course over the network. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="lectale"
         android:name="${applicationName}"

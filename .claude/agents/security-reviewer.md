@@ -1,7 +1,7 @@
 ---
 name: security-reviewer
 description: Reviews Lectale diffs and designs for security - authentication, sessions and CSRF, access control, GitHub tokens and webhooks, untrusted course content rendering, caching of private data, uploads and payments. Required for any change touching a trust boundary; pairs with a Codex review.
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob
 model: opus
 effort: high
 skills:

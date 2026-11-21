@@ -1,11 +1,20 @@
 import { Hono } from "hono";
 import { requestId } from "hono/request-id";
+import { secureHeaders } from "hono/secure-headers";
 
 import { errorResponse } from "./errors";
 
 const app = new Hono<{ Bindings: Env }>().basePath("/api");
 
 app.use(requestId());
+// Defaults include nosniff and frame denial; the API never serves HTML, so
+// its own CSP can forbid everything.
+app.use(
+  secureHeaders({
+    contentSecurityPolicy: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] },
+    referrerPolicy: "no-referrer",
+  }),
+);
 
 // Deploys and uptime checks call this. It reads no binding, so a probe costs
 // one request and almost no CPU.

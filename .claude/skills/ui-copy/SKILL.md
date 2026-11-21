@@ -1,6 +1,6 @@
 ---
 name: ui-copy
-description: Write or review interface copy for Lectale: button labels, headings, empty states, error messages, form hints, onboarding text, consent and notice wording, and the not-found message for private or missing repositories. Use whenever a screen adds or changes visible text, or when the copywriter agent is dispatched. Covers plain language for learners of any discipline.
+description: "Write or review interface copy for Lectale: button labels, headings, empty states, error messages, form hints, onboarding text, consent and notice wording, and the not-found message for private or missing repositories. Use whenever a screen adds or changes visible text, or when the copywriter agent is dispatched. Covers plain language for learners of any discipline."
 ---
 
 # Interface copy

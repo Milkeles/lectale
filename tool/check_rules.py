@@ -68,7 +68,7 @@ RULES = [
     ),
     Rule(
         "lfs-upload-stays-off",
-        re.compile(r"LFS_DIRECT_UPLOAD_ENABLED\W{0,6}(=|:)\s*['\"]?(true|1|yes)", re.IGNORECASE),
+        re.compile(r"LFS_DIRECT_UPLOAD_ENABLED[\"']?\s*[:=]\s*[\"']?(true|1|yes)\b", re.IGNORECASE),
         _source,
         "Direct LFS upload stays disabled until the S1 security proof passes (AGENTS.md, V4-SEC-05).",
     ),
@@ -93,16 +93,30 @@ RULES = [
 ]
 
 FETCH_URL = re.compile(r"""fetch\(\s*[`'"]https?://([^/`'"\s:]+)""")
+ANY_FETCH = re.compile(r"(?<![\w.])fetch\s*\(")
+# The one module allowed to call fetch; it checks every URL against the
+# allowlist at runtime, which a static scan of literals cannot do.
+FETCH_MODULE = "apps/edge_api/src/net/fetch.ts"
+SUPPRESS = re.compile(r"rule-ok:\s*([a-z-]+)\s+\S")
 
 
 def check_text(path: str, text: str) -> list[str]:
     problems: list[str] = []
+    # Settings can span lines in JSONC/TOML, so the LFS flag is checked on the whole file.
+    flat = re.sub(r"\s+", " ", text)
+    if _source(path) and RULES[1].pattern.search(flat):
+        problems.append(f"{path}: [{RULES[1].name}] {RULES[1].why}")
     for number, line in enumerate(text.splitlines(), start=1):
-        if "rule-ok:" in line:
-            continue
+        suppressed = {m.group(1) for m in SUPPRESS.finditer(line)}
         for rule in RULES:
-            if rule.applies(path) and rule.pattern.search(line):
+            if rule is RULES[1]:
+                continue
+            if rule.name not in suppressed and rule.applies(path) and rule.pattern.search(line):
                 problems.append(f"{path}:{number}: [{rule.name}] {rule.why}")
+        if _worker_ts(path) and path != FETCH_MODULE and "worker-fetch-allowlist" not in suppressed:
+            if ANY_FETCH.search(line):
+                problems.append(f"{path}:{number}: [worker-fetch-allowlist] Call outbound HTTP through {FETCH_MODULE}, which enforces the host allowlist.")
+                continue
         if _worker_ts(path):
             for host in FETCH_URL.findall(line):
                 if host not in WORKER_FETCH_HOSTS:
