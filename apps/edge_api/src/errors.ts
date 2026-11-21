@@ -1,20 +1,11 @@
-/**
- * The error body every `/api` route returns. Clients branch on [code] and
- * [retryable]; [message] is for people and never contains internal detail
- * (errata E7, `spec/v4.0/docs/ERROR_FAILURE_SEMANTICS.md`).
- */
-export interface ApiError {
-  code: string;
-  message: string;
-  requestId: string;
-  retryable: boolean;
-  retryAfterSeconds?: number;
-}
+import type { components } from "./generated/api";
+
+/** The API's generated, privacy-safe error envelope (E7, V4-SEC-09). */
+export type ApiError = components["schemas"]["ApiError"];
 
 /** Builds the JSON response for [error] with caching disabled. */
-export function errorResponse(status: number, error: ApiError): Response {
-  return Response.json(error, {
-    status,
-    headers: { "Cache-Control": "no-store" },
-  });
+export function errorResponse(status: number, error: ApiError, headers?: HeadersInit): Response {
+  const responseHeaders = new Headers(headers);
+  responseHeaders.set("Cache-Control", "no-store");
+  return Response.json(error, { status, headers: responseHeaders });
 }

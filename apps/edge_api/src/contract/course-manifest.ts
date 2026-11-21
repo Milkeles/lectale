@@ -6,7 +6,8 @@ import type { CourseManifest, ValidationError, ValidationResult } from "./course
 
 export type { CourseManifest, ValidationError, ValidationResult } from "./course-manifest-types";
 
-const MAX_MANIFEST_BYTES = 1024 * 1024;
+/** Shared UTF-8 byte limit for validation and streaming input (FULL §4 item 10). */
+export const MAX_MANIFEST_BYTES = 1024 * 1024;
 const MAX_YAML_DEPTH = 32;
 const MAX_YAML_NODES = 250_000;
 const yamlDepthLimit = Symbol("manifest YAML depth limit");
