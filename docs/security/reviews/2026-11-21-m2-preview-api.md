@@ -115,3 +115,41 @@ Fix: use `sandbox; default-src 'none'; frame-ancestors 'none'`. Before M3 sessio
 - CPU timings.
 - How browsers' PDF viewers behave under CSP `sandbox`.
 - Whether the Cache API really does nothing on `workers.dev`.
+
+## Fix verification (d766458)
+
+Reviewer: security-reviewer agent, 2026-11-21. Method: read-only (`git show`, Read, Grep). Tests were not run. Paths are relative to `apps/edge_api/`.
+
+### Verdicts on earlier findings
+
+| Finding | Verdict | Evidence or what remains |
+|---|---|---|
+| Claude H1, fork or force-pushed SHA | **closed** (live GitHub unverified) | The import pin or a compare against a fresh default tip is checked before any read (`src/preview/routes.ts:115-125`, `src/preview/source.ts:111-124`). Only `behind` and `identical` are accepted (`src/github/rest-reader.ts:129-139`). The fake now shares objects across a fork network (`test/preview/fake-github-reader.ts:85-90`). Tests: `test/preview/routes.test.ts:436-450` (fork SHA, all five routes, nothing cached), `:452-474` (force push, verdict expiry, fresh tip), `test/preview/rest-reader.test.ts:57-67` (compare direction). Residual: a pin or a positive verdict outlives a force push by up to 300 s, which is accepted. The fake's `isReachable` ignores `defaultHead`. |
+| Codex High, rename race | **closed** | `namedRead` checks every name-scoped head, compare, listing and raw read against the cached by-ID record, then re-resolves the name and discards a mismatch (`src/preview/source.ts:45-83`). `repo_changed` is never negatively cached (`src/preview/cache.ts:126`). Tests: `test/preview/routes.test.ts:279-311` and `:476-488`. Gap: no swap test during compare or listing, which use the same helper. |
+| Claude M1 and Codex Medium, GitHub rate budget | **partly closed** | Visibility is cached for 60 s and lookups are coalesced. There is a shared cooldown and limiters of 20/min for import and 180/min for preview (`wrangler.jsonc`). Remains: `confirmName` makes an **uncached** REST call after every raw read and directory listing (`src/preview/source.ts:47,77`). A raw miss costs one more call per path every 30 s. Ranges on files over 4 MiB cost one call each. One IP at 180/min therefore spends the anonymous 60/h budget in under a minute, or a 5,000/h token in about 30 minutes. The cooldown (`:34-39`) then answers 429 to every user. The preview limiter has no test. Cache API on `workers.dev` is still unverified. |
+| Claude M2, unbounded reads | **closed** (CPU part below) | REST bodies are capped at 128 KiB and listings at 2 MiB. Head uses `vnd.github.sha`, there is no recursive tree, failures are negatively cached for 30 s, and the resource index is sharded. Tests: `test/preview/rest-reader.test.ts:80-92`, `test/preview/routes.test.ts:179-219` and `:511-522`. |
+| Codex Medium, cold-preview CPU | **partly closed** | Bounds and caching are added, but validation still takes 131 ms at 2,000 resources and 598 ms at 10,000, against a 10 ms Free budget. An attacker can walk the commits of their own repository and pay one validation per SHA. This waits on the owner's N7 decision. |
+| Claude M3, missing attack tests | **closed** | There are now tests for traversal, encoded and hidden paths (`test/preview/routes.test.ts:502-509`, `test/preview/rest-reader.test.ts:69-78`), multipart and malformed ranges (`test/preview/routes.test.ts:573-597`), hostile MIME (`:551-567`), identical 404 headers (`:330-350`), raw redirects (`test/preview/fetch.test.ts:56-64`) and `ghs_`/`Bearer` (`test/preview/rest-reader.test.ts:113`). |
+| Codex Medium, warm import visibility | **closed** (bounded) | Import is cached for 60 s and returns `no-store`. Files carry `max-age=60, must-revalidate` (`src/preview/cache.ts:34`). Tests: `test/preview/routes.test.ts:270-289` and `:330-350`. A real browser cache is unverified. |
+| Codex Medium, Range | **closed** | The interval and total are checked against the size from the pinned listing, and ranges are served from the cache (`src/preview/file.ts:119-202`, `src/preview/range.ts`). Tests: `test/preview/routes.test.ts:570-656`. |
+
+### `/files/{path}` confinement
+
+The route takes the raw suffix of the URL, refuses `%2f` and `%5c`, decodes once, and checks `isSafeRepoPath` (`src/preview/routes.ts:62-75`). That check allows only `[A-Za-z0-9_.-]` segments, with no empty, dot-terminated or hidden segment other than `.well-known` (`src/contract/repo-path.ts:1-7`). The adapter checks again (`src/github/rest-reader.ts:165`), raw redirects are refused (`src/net/fetch.ts:38-40`), and the file must appear as `type: file` in the pinned parent listing (`src/preview/file.ts:157-172`). I found no way to reach anything outside the repository at that SHA.
+
+### New issues
+
+**[MEDIUM] N1. `/files/*` serves any blob of any public repository, with or without a valid course**   spec ID: V4-SEC-03 (task gate: "allow only validated regular files")
+- Where: `src/preview/routes.ts:143-147`. `authorize` never loads the outline, and `test/preview/routes.test.ts:492` asserts "serves files outside the manifest".
+- Exploit: take any public repository ID and a default-branch SHA, then link `/api/preview/{id}/{sha}/files/payload.exe`. The Lectale origin becomes a free proxy for arbitrary GitHub content. Malware served from it can get the app domain listed by Safe Browsing, and the route amplifies the M1 budget drain.
+- Fix: call the cached `coursePreview(source, repository, sha)` before serving, or limit the route to README-referenced and cover paths.
+- Test: a repository with no `course.yaml` returns 404 and never calls `openFile`.
+
+**[LOW] N2. The optional REST token can see private repositories**
+- Where: `src/preview/routes.ts:94`.
+- Reads are discarded after the post-read check, but timing can reveal whether a private repository exists. This is unverified.
+- Fix: use a fine-grained token limited to public repositories, and record that in the runbook.
+
+L3 (no separate content origin) is still open and must be fixed before M3 sessions ship.
+
+**Merge:** nothing at high or critical is open. Merging is acceptable; fix N1 and the per-read `confirmName` cost before any public deployment.
