@@ -9,7 +9,7 @@ updates:
     groups:
       actions: { patterns: ["*"] }
   - package-ecosystem: npm
-    directory: /apps/edge_api
+    directories: [/apps/edge_api, /tool/codegen]
     schedule: { interval: weekly }
     groups:
       npm: { patterns: ["*"] }

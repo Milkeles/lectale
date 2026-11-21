@@ -48,6 +48,15 @@ jobs:
       - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
         with:
           install_args: node
+      # The Worker's types come from the contract; regenerating must change
+      # nothing, or the committed types have drifted from spec/errata/openapi.yaml.
+      - name: Generated types match the contract
+        working-directory: tool/codegen
+        run: |
+          npm ci
+          npm run generate
+          git diff --exit-code -- ../../apps/edge_api/src/generated
+          test -z "$(git status --porcelain -- ../../apps/edge_api/src/generated)"
       - working-directory: apps/edge_api
         run: |
           npm ci
@@ -90,7 +99,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/litse-ui-access
+      - uses: $/.github/actions/litse-ui-access
         with:
           deploy-key: ${{ secrets.LITSE_UI_DEPLOY_KEY }}
       - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
@@ -139,7 +148,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: ./.github/actions/litse-ui-access
+      - uses: $/.github/actions/litse-ui-access
         with:
           deploy-key: ${{ secrets.LITSE_UI_DEPLOY_KEY }}
       - if: matrix.target == 'linux'

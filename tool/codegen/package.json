@@ -1,0 +1,13 @@
+{
+  "name": "@lectale/codegen",
+  "private": true,
+  "description": "Generates TypeScript types for the Worker from spec/errata/openapi.yaml. Kept apart because openapi-typescript needs TypeScript 5 and the Worker uses 7.",
+  "type": "module",
+  "scripts": {
+    "generate": "openapi-typescript ../../spec/errata/openapi.yaml -o ../../apps/edge_api/src/generated/api.d.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "7.13.0",
+    "typescript": "5.9.3"
+  }
+}

@@ -45,6 +45,7 @@ check-rules:
 generate:
     dart run swagger_parser -f contracts/swagger_parser.yaml
     dart format packages/api_client
+    cd tool/codegen && npm ci && npm run generate
 
 # Build the web app and serve it with the Worker on localhost:8787
 run-web:

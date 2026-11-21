@@ -1,15 +1,26 @@
 import type { CourseManifest } from "../contract/course-manifest.ts";
 import type { OutlineNode, Resource } from "../contract/course-manifest-types.ts";
+import type { components } from "../generated/api";
 
-interface CourseOutlineNode {
-  id: string;
-  kind: OutlineNode["kind"];
-  title: string;
-  description?: string | undefined;
-  recordedAt?: string | undefined;
-  assignmentId?: string;
-  children: CourseOutlineNode[];
-  resources: ReturnType<typeof toResource>[];
+/** The reader-facing outline, exactly as the API contract defines it (ADR-0011). */
+export type CourseOutline = components["schemas"]["CourseOutline"];
+
+type CourseOutlineNode = CourseOutline["nodes"][number];
+
+/** Optional keys whose value may be undefined in the input. */
+type UndefinedKeys<T> = { [K in keyof T]-?: undefined extends T[K] ? K : never }[keyof T];
+
+/**
+ * Drops keys whose value is undefined. The JSON body is the same either way,
+ * but the contract types use `exactOptionalPropertyTypes`, where an optional
+ * field must be absent rather than present with `undefined`.
+ */
+function present<T extends object>(
+  value: T,
+): Omit<T, UndefinedKeys<T>> & { [K in UndefinedKeys<T>]?: Exclude<T[K], undefined> } {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined),
+  ) as Omit<T, UndefinedKeys<T>> & { [K in UndefinedKeys<T>]?: Exclude<T[K], undefined> };
 }
 
 function readerUrl(value: string | undefined): URL | undefined {
@@ -24,7 +35,7 @@ function toResource(resource: Resource, contentPrefix: string) {
   const link = canEmbed ? undefined : readerUrl(resource.url);
   const filename = (path ?? link?.pathname)?.split("/").at(-1);
   const dot = filename?.lastIndexOf(".") ?? -1;
-  return {
+  return present({
     id,
     kind: type,
     title,
@@ -43,7 +54,7 @@ function toResource(resource: Resource, contentPrefix: string) {
     download: resource.download,
     recursive: resource.recursive,
     maxEntries: resource.maxEntries,
-  };
+  });
 }
 
 /**
@@ -52,7 +63,11 @@ function toResource(resource: Resource, contentPrefix: string) {
  * V4-CORE-01). The caller verifies repository visibility before publishing it.
  * File sizes require repository metadata and are absent from this projection.
  */
-export function toCourseOutline(validatedManifest: CourseManifest, repoId: number, sha: string) {
+export function toCourseOutline(
+  validatedManifest: CourseManifest,
+  repoId: number,
+  sha: string,
+): CourseOutline {
   const { course, outline, assignments, display } = validatedManifest;
   const contentPrefix = `/api/preview/${repoId}/${sha}/content`;
   const assignmentTitles = new Map(assignments.map(({ id, title }) => [id, title]));
@@ -64,20 +79,20 @@ export function toCourseOutline(validatedManifest: CourseManifest, repoId: numbe
       if (title === undefined) throw new Error("Validated outline references an unknown assignment.");
       return { id, kind, title, assignmentId: node.assignmentId, children: [], resources: [] };
     }
-    const common = { id, kind, title: node.title, description: node.description };
+    const common = present({ id, kind, title: node.title, description: node.description });
     if (kind === "module") {
       return { ...common, children: node.children.map(toNode), resources: [] };
     }
     return {
       ...common,
-      recordedAt: node.recordedAt ?? undefined,
+      ...present({ recordedAt: node.recordedAt ?? undefined }),
       children: [],
       resources: node.resources.map((resource) => toResource(resource, `${contentPrefix}/${id}`)),
     };
   }
 
   return {
-    course: {
+    course: present({
       id: course.id,
       title: course.title,
       summary: course.summary,
@@ -86,15 +101,15 @@ export function toCourseOutline(validatedManifest: CourseManifest, repoId: numbe
       version: course.version,
       license: course.license,
       tags: course.tags?.slice(),
-      authors: course.authors?.map(({ name, url }) => ({ name, url: readerUrl(url)?.href })),
+      authors: course.authors?.map(({ name, url }) => present({ name, url: readerUrl(url)?.href })),
       homepage: readerUrl(course.homepage)?.href,
       estimatedMinutes: course.estimatedMinutes,
       level: course.level,
       cover: course.cover,
       publishedAt: course.publishedAt ?? undefined,
-    },
+    }),
     nodes: outline.map(toNode),
-    assignments: assignments.map((assignment) => ({
+    assignments: assignments.map((assignment) => present({
       id: assignment.id,
       title: assignment.title,
       description: assignment.description,
@@ -105,10 +120,12 @@ export function toCourseOutline(validatedManifest: CourseManifest, repoId: numbe
       resources: assignment.materials.map((resource) =>
         toResource(resource, `${contentPrefix}/assignment~${assignment.id}`)),
     })),
-    display: display && {
-      showEstimatedDuration: display.showEstimatedDuration,
-      showFileDownloads: display.showFileDownloads,
-      themeAccent: display.themeAccent,
-    },
+    ...present({
+      display: display && present({
+        showEstimatedDuration: display.showEstimatedDuration,
+        showFileDownloads: display.showFileDownloads,
+        themeAccent: display.themeAccent,
+      }),
+    }),
   };
 }
