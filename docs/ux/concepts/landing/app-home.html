@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home – Lectale</title>
+<meta name="description" content="Your Lectale home.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f4f1ed" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#191b1a" media="(prefers-color-scheme: dark)">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="robots" content="noindex">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/SourceSerif4Variable-Roman.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/IBMPlexSans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="appbar">
+  <div class="wrap site__row">
+    <a class="brand" href="index.html" aria-label="Lectale, home"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path d="M8 4H20V36L28 28L36 36V4C47 4 56 13 56 24V60H8Z"/></svg><span aria-hidden="true">Lectale</span></a>
+    <div class="account">
+      <a href="catalog.html">Catalog</a>
+      <details class="menu">
+        <summary><span class="avatar" aria-hidden="true">M</span><span>Maria</span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg><span class="vh"> account menu</span></summary>
+        <div class="menu__panel">
+          <p class="menu__who">Signed in as maria@example.com</p>
+          <button class="menu__item" type="button">Log out</button>
+          <button class="menu__item" type="button">Log out of all devices</button>
+        </div>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" class="home">
+  <div class="wrap grid">
+    <div class="home__main">
+      <h1 class="t-h2">Hello, Maria.</h1>
+
+      <section aria-labelledby="cont-h">
+        <h2 class="t-h4" id="cont-h">Continue reading</h2>
+        <div class="cont">
+          <img class="cover" src="covers/introduction-to-statistics.svg" width="480" height="720" alt="" decoding="async">
+          <div>
+            <p class="cont__title">Introduction to statistics</p>
+            <div class="cont__place">
+              <span class="ribbon" aria-hidden="true"></span>
+              <p>Averages and spread<br><span class="t-small t-muted">Describing data. Last opened lesson.</span></p>
+            </div>
+            <a class="btn btn--primary btn--lg" href="/app/">Continue: Averages and spread</a>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="mine-h">
+        <h2 class="t-h4" id="mine-h">Your courses</h2>
+        <ul class="mine">
+          <li>
+            <img class="cover" src="covers/introduction-to-statistics.svg" width="480" height="720" alt="" loading="lazy" decoding="async">
+            <div><a href="/app/">Introduction to statistics</a><p class="t-small">You teach this course. Listed in the catalog.</p></div>
+          </li>
+          <li>
+            <img class="cover" src="covers/python-for-lab-data.svg" width="480" height="720" alt="" loading="lazy" decoding="async">
+            <div><a href="/app/">Python for lab data</a><p class="t-small">You teach this course. Unlisted.</p></div>
+          </li>
+        </ul>
+        <p class="t-card teach">Teaching a course? Connect its repository to manage it.</p>
+        <p><a class="more" href="/app/">Connect a repository</a></p>
+      </section>
+    </div>
+
+    <aside class="home__side" aria-labelledby="open-h">
+      <div class="sidebox">
+        <h2 class="t-h3" id="open-h">Open a course from GitHub</h2>
+        <p class="t-card">Any public GitHub repository with a course.yaml file. No account needed; Lectale only reads it.</p>
+        <form class="stack" method="get" action="/app/">
+          <div class="field">
+            <label class="label" for="repo">GitHub repository address</label>
+            <input class="input" id="repo" name="repo" type="url" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="repo-hint">
+            <p class="hint" id="repo-hint">For example, https://github.com/owner/repository</p>
+          </div>
+          <div class="actions"><button class="btn btn--outline" type="submit">Open course</button></div>
+        </form>
+      </div>
+    </aside>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catalog – Lectale</title>
+<meta name="description" content="Browse courses that instructors have listed in the Lectale catalog.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f4f1ed" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#191b1a" media="(prefers-color-scheme: dark)">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/SourceSerif4Variable-Roman.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/IBMPlexSans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="site.css">
+<script src="catalog.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="site">
+  <div class="wrap site__row">
+    <a class="brand" href="index.html" aria-label="Lectale, home"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path d="M8 4H20V36L28 28L36 36V4C47 4 56 13 56 24V60H8Z"/></svg><span aria-hidden="true">Lectale</span></a>
+    <nav class="site__nav" aria-label="Main">
+      <ul class="nav">
+        <li><a href="catalog.html" aria-current="page">Catalog</a></li>
+        <li><a href="index.html#download">Download</a></li>
+        <li><a href="index.html#instructors">For instructors</a></li>
+      </ul>
+    </nav>
+    <div class="account">
+      <a href="/app/#/login">Log in</a>
+      <a class="btn btn--outline btn--sm" href="/app/#/create-account">Create account</a>
+    </div>
+  </div>
+</header>
+<main id="main" class="catalog">
+  <div class="wrap">
+    <div class="pagehead">
+      <h1 class="t-display t-display--page">Catalog</h1>
+      <p class="t-read">Instructors choose to list a course. Everything else can still be opened by its link.</p>
+    </div>
+
+    <form class="filters" role="search" aria-label="Search the catalog" data-filter-form action="catalog.html" method="get">
+      <div class="field">
+        <label class="label" for="q">Search courses</label>
+        <input class="input" id="q" name="q" type="search" autocomplete="off">
+      </div>
+      <div class="field">
+        <label class="label" for="lang">Language</label>
+        <select class="select" id="lang" name="lang">
+          <option value="">All languages</option>
+          <option>Bulgarian</option><option>English</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="label" for="subject">Subject</label>
+        <select class="select" id="subject" name="subject">
+          <option value="">All subjects</option>
+          <option>Biology</option><option>Computing</option><option>History</option><option>Philosophy</option><option>Statistics</option>
+        </select>
+      </div>
+    </form>
+
+    <p class="results" role="status" data-count>6 example courses. These are examples. They are not real courses.</p>
+
+    <ul class="cards" data-cards>
+      <li class="card" data-course data-lang="English" data-subject="Statistics" data-text="introduction to statistics describe data, read charts and test simple ideas.">
+  <img class="cover" src="covers/introduction-to-statistics.svg" width="480" height="720" alt="" loading="lazy" decoding="async">
+  <h2 class="card__title"><a href="/app/" aria-label="Introduction to statistics, example course">Introduction to statistics</a></h2>
+  <p class="card__by">Example instructor</p>
+  <p class="t-card">Describe data, read charts and test simple ideas.</p>
+  <p class="card__meta"><span>English</span><span class="badge">Example course</span></p>
+</li>
+      <li class="card" data-course data-lang="English" data-subject="History" data-text="reading medieval manuscripts learn to date and transcribe handwriting from scanned pages.">
+  <img class="cover" src="covers/reading-medieval-manuscripts.svg" width="480" height="720" alt="" loading="lazy" decoding="async">
+  <h2 class="card__title"><a href="/app/" aria-label="Reading medieval manuscripts, example course">Reading medieval manuscripts</a></h2>
+  <p class="card__by">Example instructor</p>
+  <p class="t-card">Learn to date and transcribe handwriting from scanned pages.</p>
+  <p class="card__meta"><span>English</span><span class="badge">Example course</span></p>
+</li>
+      <li class="card" data-course data-lang="English" data-subject="Computing" data-text="python for lab data clean, plot and share measurements in notebooks.">
+  <img class="cover" src="covers/python-for-lab-data.svg" width="480" height="720" alt="" loading="lazy" decoding="async">
+  <h2 class="card__title"><a href="/app/" aria-label="Python for lab data, example course">Python for lab data</a></h2>
+  <p class="card__by">Example instructor</p>
+  <p class="t-card">Clean, plot and share measurements in notebooks.</p>
+  <p class="card__meta"><span>English</span><span class="badge">Example course</span></p>
+</li>
+      <li class="card" data-course data-lang="Bulgarian" data-subject="Philosophy" data-text="основи на логиката научете се да разпознавате валидни и невалидни аргументи.">
+  <img class="cover" src="covers/osnovi-na-logikata.svg" width="480" height="720" alt="" loading="lazy" decoding="async">
+  <h2 class="card__title"><a href="/app/" aria-label="Основи на логиката, example course" lang="bg">Основи на логиката</a></h2>
+  <p class="card__by">Example instructor</p>
+  <p class="t-card" lang="bg">Научете се да разпознавате валидни и невалидни аргументи.</p>
+  <p class="card__meta"><span>Bulgarian</span><span class="badge">Example course</span></p>
+</li>
+      <li class="card" data-course data-lang="English" data-subject="Biology" data-text="cell biology lab guide prepare slides, use a microscope and record what you see.">
+  <img class="cover" src="covers/cell-biology-lab-guide.svg" width="480" height="720" alt="" loading="lazy" decoding="async">
+  <h2 class="card__title"><a href="/app/" aria-label="Cell biology lab guide, example course">Cell biology lab guide</a></h2>
+  <p class="card__by">Example instructor</p>
+  <p class="t-card">Prepare slides, use a microscope and record what you see.</p>
+  <p class="card__meta"><span>English</span><span class="badge">Example course</span></p>
+</li>
+      <li class="card" data-course data-lang="English" data-subject="Biology" data-text="field methods in ecology plan a survey, collect samples and write up the results.">
+  <div class="cover cover--none" aria-hidden="true"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path d="M8 4H20V36L28 28L36 36V4C47 4 56 13 56 24V60H8Z"/></svg></div>
+  <h2 class="card__title"><a href="/app/" aria-label="Field methods in ecology, example course">Field methods in ecology</a></h2>
+  <p class="card__by">Example instructor</p>
+  <p class="t-card">Plan a survey, collect samples and write up the results.</p>
+  <p class="card__meta"><span>English</span><span class="badge">Example course</span></p>
+</li>
+    </ul>
+
+    <div class="empty" data-empty hidden>
+      <h2 class="t-h3" data-empty-title>No courses match</h2>
+      <p class="t-card">Check the spelling or search with fewer words.</p>
+      <button class="btn btn--outline" type="button" data-clear>Clear search</button>
+    </div>
+  </div>
+  <div class="catalog__body"></div>
+</main>
+<footer class="foot">
+  <div class="wrap">
+    <div class="grid foot__grid">
+      <div class="foot__brand">
+        <a class="brand" href="#top" aria-label="Lectale, home"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path d="M8 4H20V36L28 28L36 36V4C47 4 56 13 56 24V60H8Z"/></svg><span aria-hidden="true">Lectale</span></a>
+        <p class="t-muted">Open and read courses from GitHub repositories.</p>
+      </div>
+      <nav class="foot__nav" aria-label="Footer">
+        <ul>
+          <li><a href="catalog.html">Catalog</a></li>
+          <li><a href="index.html#download">Download</a></li>
+          <li><a href="index.html#instructors">For instructors</a></li>
+          <li><a href="/privacy/">Privacy notice</a></li>
+          <li><a href="/terms/">Terms</a></li>
+          <li><a href="/accessibility/">Accessibility</a></li>
+        </ul>
+      </nav>
+    </div>
+    <div class="foot__legal t-small">
+      <p>Lectale is an independent project and is not affiliated with GitHub.</p>
+      <p>© 2026 {operator name}</p>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

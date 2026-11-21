@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home – Lectale</title>
+<meta name="description" content="Your Lectale home.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f4f1ed" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#191b1a" media="(prefers-color-scheme: dark)">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="robots" content="noindex">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/SourceSerif4Variable-Roman.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/IBMPlexSans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="appbar">
+  <div class="wrap site__row">
+    <a class="brand" href="index.html" aria-label="Lectale, home"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path d="M8 4H20V36L28 28L36 36V4C47 4 56 13 56 24V60H8Z"/></svg><span aria-hidden="true">Lectale</span></a>
+    <div class="account">
+      <a href="catalog.html">Catalog</a>
+      <details class="menu">
+        <summary><span class="avatar" aria-hidden="true">M</span><span>Maria</span><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6"/></svg><span class="vh"> account menu</span></summary>
+        <div class="menu__panel">
+          <p class="menu__who">Signed in as maria@example.com</p>
+          <button class="menu__item" type="button">Log out</button>
+          <button class="menu__item" type="button">Log out of all devices</button>
+        </div>
+      </details>
+    </div>
+  </div>
+</header>
+<main id="main" class="home">
+  <div class="wrap">
+    <h1 class="t-h2">Hello.</h1>
+    <section class="empty-home" aria-labelledby="empty-h">
+      <h2 class="t-h4" id="empty-h">You have no courses yet</h2>
+      <p class="t-read">Open a course with its link, or browse the catalog.</p>
+      <p class="t-card t-muted">Any public GitHub repository with a course.yaml file. No account needed; Lectale only reads it.</p>
+      <form class="stack" method="get" action="/app/">
+          <div class="field">
+            <label class="label" for="repo">GitHub repository address</label>
+            <input class="input" id="repo" name="repo" type="url" inputmode="url" autocomplete="off" spellcheck="false" aria-describedby="repo-hint">
+            <p class="hint" id="repo-hint">For example, https://github.com/owner/repository</p>
+          </div>
+          <div class="actions"><button class="btn btn--primary btn--lg" type="submit">Open course</button><a class="btn btn--outline btn--lg" href="catalog.html">Browse the catalog</a></div>
+        </form>
+    </section>
+  </div>
+</main>
+</body>
+</html>

@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log in – Lectale</title>
+<meta name="description" content="Log in to Lectale.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f4f1ed" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#191b1a" media="(prefers-color-scheme: dark)">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="robots" content="noindex">
+<link rel="icon" href="logo.svg" type="image/svg+xml">
+<link rel="preload" href="fonts/SourceSerif4Variable-Roman.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/IBMPlexSans.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<header class="appbar"><div class="wrap site__row"><a class="brand" href="index.html" aria-label="Lectale, home"><svg viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path d="M8 4H20V36L28 28L36 36V4C47 4 56 13 56 24V60H8Z"/></svg><span aria-hidden="true">Lectale</span></a></div></header>
+<main id="main" class="authpage">
+  <div class="wrap">
+    <div class="auth">
+      
+      <h1 class="t-h2">Log in</h1>
+      
+      <form method="post" action="/app/">
+      <div class="field">
+        <label class="label" for="email">Email</label>
+        <input class="input" id="email" name="email" type="email" autocomplete="email" inputmode="email" spellcheck="false">
+      </div>
+      <div class="field">
+        <label class="label" for="pw">Password</label>
+        <div class="control">
+          <input class="input input--pw" id="pw" name="password" type="password" autocomplete="current-password">
+          <button class="reveal" type="button" aria-controls="pw">Show password</button>
+        </div>
+        
+      </div>
+      <div class="field"><button class="btn btn--primary btn--lg btn--block" type="submit">Log in</button></div>
+      </form>
+      <div class="auth__links">
+        <p><a href="/app/#/reset-password">Forgot your password?</a></p>
+        <p class="alt">No account yet? <a href="create-account.html">Create account</a></p>
+      </div>
+    </div>
+  </div>
+</main>
+</body>
+</html>

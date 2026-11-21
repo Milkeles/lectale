@@ -1,5 +1,21 @@
 # Screen inventory, M2
 
+## Site map: website pages and app screens
+
+Two products share one origin (ADR-0014). The website is static HTML and CSS served at `/`; the Flutter app lives under `/app/` with hash URLs. The native apps open straight into the app and never show the website. Concept pages for the website are in `concepts/landing/`; spec in `screens/landing.md`.
+
+| Where | Page or screen | Built as | Purpose | Spec |
+|---|---|---|---|---|
+| Website `/` | Landing | Static HTML | Say what Lectale is; open a course, install, sign in | `screens/landing.md` |
+| Website `/catalog` | Catalog | Static HTML now; an app catalog screen later | Find a listed course | `screens/landing.md` section 14 |
+| Website `/privacy`, `/terms`, `/accessibility` | Legal pages | Static HTML, not yet designed | Footer and consent links | to write |
+| App `/app/#/login`, `/app/#/create-account`, `/app/#/reset-password` | Log in, Create account, Reset password | Flutter (M3) | Sign in and account creation, no enumeration | `screens/landing.md` section 14 (reset: copy 5.5, to spec) |
+| App `/app/` | Home (signed out: open by link; signed in: Continue reading, Your courses, open by link) | Flutter | Turn an address or a resume point into an open course | Signed out: `screens/home.md`; signed in: section 14 |
+| App `/app/#/preview/{repoId}/{sha}` | Course, Reader | Flutter | Understand a course, read it | `screens/course.md`, `screens/reader.md` |
+
+Rules: the website links into the app for Log in, Create account, Open a course and every card; the app links back to the website only from the logo on signed-out screens. Reading never needs an account, so the website never asks for one before a course opens. Firebase code loads only under `/app/`.
+
+
 Three screens cover J1 to J5. Each has one purpose. Specs are in `screens/`. Revised 2026-11-21 after the design review (`reviews/m2-design-review.md`) and Codex's opinion (`reviews/m2-codex-design-opinion.md`); how each finding was handled is at the end.
 
 | Screen | Spec | Single purpose | Primary action | Journeys |
