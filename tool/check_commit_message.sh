@@ -22,8 +22,9 @@ if (( ${#subject} > 72 )); then
   echo "The subject is longer than 72 characters." >&2
   exit 1
 fi
-# The owner allows exactly one co-author: Claude, whose noreply address is
-# linked to GitHub's `claude` account (decision of 2026-11-21).
+# Co-author lines are added only when the owner asks for one on a specific
+# change, and then only Claude's, whose address is linked to GitHub's
+# `claude` account (decision of 2026-11-21).
 if grep -Ei '^co-authored-by:' "$message_file" | grep -Eivq '^co-authored-by: claude[^<]*<noreply@anthropic\.com>$'; then
   echo "The only allowed co-author is: Co-authored-by: Claude <noreply@anthropic.com>." >&2
   exit 1

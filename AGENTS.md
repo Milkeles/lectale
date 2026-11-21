@@ -50,7 +50,8 @@ Before any task, read in this order:
 | | |
 |---|---|
 | **Branches** | `feat/<topic>`, `fix/<topic>`; agent sessions use `claude/<topic>` |
-| **Commits** | Conventional Commits, subject at most 72 characters, explain why in the body. The owner is the only author: never commit as an agent. The one allowed trailer is `Co-authored-by: Claude <noreply@anthropic.com>` on commits Claude helped write |
+| **Commits** | Conventional Commits, subject at most 72 characters, explain why in the body. The owner is the only author: never commit as an agent, and add no `Co-authored-by` lines unless the owner asks for one on a specific change |
+| **Versions** | Semantic Versioning, computed by release-please from Conventional Commits: `fix` bumps the patch, `feat` the minor, `!` or `BREAKING CHANGE` the major. Versions stay 0.x until Release 1. Never edit versions or changelogs by hand |
 | **Pull requests** | Squash merge; CI green; for security-sensitive changes, a security review and a Codex review attached |
 
 ## 5. Boundaries
