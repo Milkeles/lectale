@@ -49,6 +49,25 @@ function badUpstream(response: Response): never {
   throw new GitHubReadError("upstream");
 }
 
+function checkTransfer(response: Response, length: number): void {
+  const encoding = response.headers.get("Content-Encoding");
+  const received = contentLength(response);
+  if ((encoding && encoding !== "identity") || (received !== undefined && received !== length)) badUpstream(response);
+}
+
+async function rasterPrefix(
+  source: PreviewSource, repository: GitHubRepository, sha: string, path: string, size: number, length: number,
+): Promise<Uint8Array> {
+  const end = length - 1;
+  const response = await source.openFile(repository, sha, path, `bytes=0-${end}`);
+  const actual = readContentRange(response.headers.get("Content-Range"));
+  if (response.status !== 206 || actual?.start !== 0 || actual.end !== end || actual.size !== size) badUpstream(response);
+  checkTransfer(response, length);
+  const prefix = await readBoundedBody(response.body, length).catch(() => undefined);
+  if (prefix?.length !== length) throw new GitHubReadError("upstream");
+  return prefix;
+}
+
 function fittedBody(body: ReadableStream<Uint8Array> | null, length: number): ReadableStream<Uint8Array> | null {
   if (!body) {
     if (length === 0) return null;
@@ -86,7 +105,7 @@ export async function servePinnedFile(
   requestId: string,
 ): Promise<Response> {
   const header = request.headers.get("Range");
-  const cacheName = `public-course:v1:${repository.id}:${sha}:${path}:2`;
+  const cacheName = `public-course:v1:${repository.id}:${sha}:${path}:3`;
   const key = source.store.key(cacheName);
 
   if (header === null) {
@@ -176,10 +195,6 @@ async function loadFile(
   }
   const { size } = file;
   const rawRange = upstream.headers.get("Content-Range");
-  const rawLength = contentLength(upstream);
-  const encoding = upstream.headers.get("Content-Encoding");
-  if (encoding && encoding !== "identity") badUpstream(upstream);
-
   let start = 0;
   let expectedBytes = size;
   const headers = safeFileHeaders();
@@ -199,29 +214,36 @@ async function loadFile(
   } else if (upstream.status !== 200 || rawRange !== null) {
     badUpstream(upstream);
   }
-  if (rawLength !== undefined && rawLength !== expectedBytes) badUpstream(upstream);
+  checkTransfer(upstream, expectedBytes);
 
-  let body: BodyInit | null;
-  let prefix: Uint8Array = new Uint8Array(0);
   const cacheable = !range && size <= MAX_CACHED_FILE_BYTES;
+  const bytes = cacheable ? await readBoundedBody(upstream.body, size).catch(() => undefined) : undefined;
+  if (cacheable && bytes?.length !== size) throw new GitHubReadError("upstream");
+  let stream = upstream.body;
   let type = fileMediaType(filename);
-  if (cacheable) {
-    const bytes = await readBoundedBody(upstream.body, size).catch(() => undefined);
-    if (!bytes || bytes.length !== size) throw new GitHubReadError("upstream");
-    body = bytes;
-    prefix = bytes.subarray(0, SIGNATURE_BYTES);
-  } else {
-    let stream = upstream.body;
-    if (start === 0 && stream && type.startsWith("image/")) {
-      const peeked = await peekBody(stream, Math.min(SIGNATURE_BYTES, expectedBytes)).catch(() => {
-        throw new GitHubReadError("upstream");
+  if (type.startsWith("image/")) {
+    const hint = type;
+    const length = Math.min(SIGNATURE_BYTES, size);
+    try {
+      type = await source.store.cached(`raster-type:v1:${repository.id}:${sha}:${path}`, PINNED_TTL, async () => {
+        let prefix = bytes?.subarray(0, length);
+        if (length === 0) return DOWNLOAD;
+        if (!prefix && start === 0 && expectedBytes >= length && stream) {
+          const peeked = await peekBody(stream, length).catch(() => { throw new GitHubReadError("upstream"); });
+          stream = peeked.stream;
+          prefix = peeked.prefix;
+        }
+        // The requested range may omit part of the signature (SEC-014).
+        prefix ??= await rasterPrefix(source, repository, sha, path, size, length);
+        if (prefix.length !== length) throw new GitHubReadError("upstream");
+        return matchesRaster(hint, prefix) ? hint : DOWNLOAD;
       });
-      prefix = peeked.prefix;
-      stream = peeked.stream;
+    } catch (error) {
+      void stream?.cancel().catch(() => undefined);
+      throw error;
     }
-    body = fittedBody(stream, expectedBytes);
   }
-  if (type.startsWith("image/") && !matchesRaster(type, prefix)) type = DOWNLOAD;
+  const body = bytes ?? fittedBody(stream, expectedBytes);
   headers.set("Content-Type", type);
   headers.set("Content-Length", String(expectedBytes));
   headers.set("Accept-Ranges", "bytes");

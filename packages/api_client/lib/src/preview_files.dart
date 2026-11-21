@@ -15,6 +15,8 @@ extension PreviewFileRequests on Dio {
   ///
   /// [path] is a canonical repository-relative path. Literal slashes delimit
   /// its segments. Set [range] to request one byte interval (SEC-027).
+  /// Use this helper for file fetching because the generated method encodes
+  /// the entire path parameter and does not handle the `206` streaming response.
   Future<Response<ResponseBody>> openPreviewFile({
     required GitHubRepoId repoId,
     required CommitSha sha,

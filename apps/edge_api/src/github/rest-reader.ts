@@ -11,6 +11,12 @@ const RAW = "https://raw.githubusercontent.com";
 const METADATA_BYTES = 128 * 1024;
 const DIRECTORY_BYTES = 2 * 1024 * 1024;
 
+class AddressUnavailable extends GitHubReadError {
+  constructor() {
+    super("not_found");
+  }
+}
+
 function repositoryPath(owner: string, name: string): string {
   if (/^[A-Za-z0-9-]{1,39}$/u.exec(owner)?.[0] !== owner || /^[A-Za-z0-9_.-]{1,100}$/u.exec(name)?.[0] !== name
       || name === "." || name === "..") {
@@ -61,10 +67,11 @@ async function readFailure(response: Response): Promise<never> {
     if (status === 403 && bytes && /secondary rate limit/iu.test(new TextDecoder().decode(bytes))) {
       throw new GitHubReadError("rate_limited", 60);
     }
+    throw new AddressUnavailable();
   } else {
     void response.body?.cancel().catch(() => undefined);
   }
-  const unavailable = status === 403 || status === 404 || status === 409 || status === 451;
+  const unavailable = status === 409 || status === 451;
   throw new GitHubReadError(unavailable ? "not_found" : "upstream");
 }
 
@@ -116,34 +123,72 @@ export class GitHubRestReader implements GitHubReader {
     if (!isRepoId(id)) throw new GitHubReadError("not_found");
     const repository = parseRepository(parseJson(await this.metadata(`/repositories/${id}`)));
     if (repository.id !== id) throw new GitHubReadError("not_found");
+    console.info("GitHub preview metadata", { operation: "repository", address: "id" });
     return repository;
   }
 
-  async headCommit({ owner, name }: GitHubRepository): Promise<string> {
-    const sha = (await this.metadata(`/repos/${repositoryPath(owner, name)}/commits/HEAD`,
+  private async confirmName({ id, owner, name }: GitHubRepository): Promise<void> {
+    try {
+      const current = await this.resolveRepository(owner, name);
+      if (current.id === id && current.owner.toLowerCase() === owner.toLowerCase()
+          && current.name.toLowerCase() === name.toLowerCase()) return;
+    } catch (error) {
+      if (error instanceof GitHubReadError && error.kind === "rate_limited") throw error;
+    }
+    throw new GitHubReadError("repo_changed");
+  }
+
+  private async repositoryMetadata(
+    repository: GitHubRepository, operation: string, suffix: string, cap?: number, accept?: string,
+  ): Promise<string> {
+    if (!isRepoId(repository.id)) throw new GitHubReadError("not_found");
+    try {
+      const body = await this.metadata(`/repositories/${repository.id}/${suffix}`, cap, accept);
+      console.info("GitHub preview metadata", { operation, address: "id" });
+      return body;
+    } catch (error) {
+      if (!(error instanceof AddressUnavailable)) throw error;
+    }
+
+    await this.confirmName(repository);
+    const { owner, name } = repository;
+    let body: string;
+    try {
+      body = await this.metadata(`/repos/${repositoryPath(owner, name)}/${suffix}`, cap, accept);
+    } catch (error) {
+      if (error instanceof GitHubReadError && error.kind !== "rate_limited") await this.confirmName(repository);
+      throw error;
+    }
+    await this.confirmName(repository);
+    console.info("GitHub preview metadata", { operation, address: "name-fallback" });
+    return body;
+  }
+
+  async headCommit(repository: GitHubRepository): Promise<string> {
+    const sha = (await this.repositoryMetadata(repository, "head", "commits/HEAD",
       128, "application/vnd.github.sha")).trim();
     if (!commitShaPattern.test(sha)) throw new GitHubReadError("upstream");
     return sha;
   }
 
-  async isReachable({ owner, name }: GitHubRepository, sha: string, defaultHead: string): Promise<boolean> {
+  async isReachable(repository: GitHubRepository, sha: string, defaultHead: string): Promise<boolean> {
     if (!commitShaPattern.test(sha) || !commitShaPattern.test(defaultHead)) throw new GitHubReadError("not_found");
     // Comparing against the resolved default-branch tip avoids ref-name
     // ambiguity. GitHub returns file diffs only on the first page.
     const compare = `${defaultHead}...${sha}?per_page=1&page=2`;
-    const payload = parseJson(await this.metadata(`/repos/${repositoryPath(owner, name)}/compare/${compare}`));
+    const payload = parseJson(await this.repositoryMetadata(repository, "compare", `compare/${compare}`));
     const status = (payload as { status?: unknown } | null)?.status;
     if (status === "behind" || status === "identical") return true;
     if (status === "ahead" || status === "diverged") return false;
     throw new GitHubReadError("upstream");
   }
 
-  async listDirectory({ owner, name }: GitHubRepository, sha: string, path: string): Promise<GitHubDirectoryEntry[]> {
+  async listDirectory(repository: GitHubRepository, sha: string, path: string): Promise<GitHubDirectoryEntry[]> {
     if (!commitShaPattern.test(sha) || (path !== "" && !isSafeRepoPath(path))) {
       throw new GitHubReadError("not_found");
     }
-    const payload = parseJson(await this.metadata(
-      `/repos/${repositoryPath(owner, name)}/contents/${path}?ref=${sha}`, DIRECTORY_BYTES));
+    const payload = parseJson(await this.repositoryMetadata(
+      repository, "contents", `contents/${path}?ref=${sha}`, DIRECTORY_BYTES));
     if (!Array.isArray(payload)) throw new GitHubReadError("not_found");
     if (payload.length > 1_000) throw new GitHubReadError("upstream");
     const entries: GitHubDirectoryEntry[] = [];

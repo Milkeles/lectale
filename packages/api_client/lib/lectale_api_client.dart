@@ -1,5 +1,5 @@
-/// Dio client and response models generated from Lectale's OpenAPI contract.
+/// Lectale's Dio client, generated models, and pinned file streaming helper.
 library;
 
 export 'src/generated/lectale_api.dart';
-export 'src/preview_files.dart';
+export 'src/preview_files.dart' show PreviewFileRequests;

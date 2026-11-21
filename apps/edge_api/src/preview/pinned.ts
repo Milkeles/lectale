@@ -12,7 +12,7 @@ export type CoursePreview = components["schemas"]["CoursePreview"];
 export const README_PATH = "README.md";
 const MANIFEST_PATH = "course.yaml";
 
-type ResourceTarget = { path: string; maxEntries?: number };
+type ResourceTarget = { path: string; maxEntries?: number; recursive?: boolean };
 type ResourceIndex = Record<string, ResourceTarget>;
 
 interface PinnedPreview {
@@ -38,8 +38,10 @@ function indexResources(manifest: CourseManifest, readmePresent: boolean): Resou
   if (readmePresent) add(README_PATH, { path: README_PATH });
 
   function addResources(scope: string, resources: Resource[]): void {
-    for (const { id, path, type, maxEntries } of resources) {
-      if (path !== undefined) add(`${scope}/${id}`, type === "folder" ? { path, maxEntries: maxEntries ?? 100 } : { path });
+    for (const { id, path, type, maxEntries, recursive } of resources) {
+      if (path !== undefined) {
+        add(`${scope}/${id}`, type === "folder" ? { path, maxEntries: maxEntries ?? 100, recursive: recursive ?? false } : { path });
+      }
     }
   }
 
@@ -114,7 +116,7 @@ async function loadPinnedPreview(source: PreviewSource, repository: GitHubReposi
 
 /** Loads and validates an authorized public course once per commit (N7, CACHE-005). */
 function pinned(source: PreviewSource, repository: GitHubRepository, sha: string): Promise<PinnedPreview> {
-  return source.store.cached(`public-course-outline:v2:${repository.id}:${sha}`, PINNED_TTL,
+  return source.store.cached(`public-course-outline:v3:${repository.id}:${sha}`, PINNED_TTL,
     () => loadPinnedPreview(source, repository, sha));
 }
 
@@ -128,7 +130,7 @@ export async function resourceTarget(
   source: PreviewSource, repository: GitHubRepository, sha: string, address: string,
 ): Promise<ResourceTarget> {
   const shard = resourceShard(address);
-  const key = `public-course-index:v2:${repository.id}:${sha}:${shard}`;
+  const key = `public-course-index:v3:${repository.id}:${sha}:${shard}`;
   try {
     const addresses = await source.store.cached(key, PINNED_TTL,
       async () => (await pinned(source, repository, sha)).resources[shard] ?? {});

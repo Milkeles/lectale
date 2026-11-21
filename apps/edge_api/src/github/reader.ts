@@ -23,9 +23,9 @@ export interface GitHubReader {
   resolveRepository(owner: string, name: string): Promise<GitHubRepository>;
   /** Resolves a stable repository ID for a current visibility check. */
   resolveRepositoryById(id: RepoId): Promise<GitHubRepository>;
-  /** Resolves the default branch to a full commit SHA. */
+  /** Resolves the repository's current default tip to a full SHA. */
   headCommit(repository: GitHubRepository): Promise<Sha>;
-  /** Checks whether the SHA is the default branch tip or one of its ancestors. */
+  /** Checks whether the SHA equals the supplied default tip or is its ancestor. */
   isReachable(repository: GitHubRepository, sha: Sha, defaultHead: Sha): Promise<boolean>;
   /** Returns public regular files and directories directly under the pinned path. */
   listDirectory(repository: GitHubRepository, sha: Sha, path: string): Promise<GitHubDirectoryEntry[]>;

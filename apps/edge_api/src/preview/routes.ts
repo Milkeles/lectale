@@ -1,7 +1,7 @@
 import type { Context, Hono } from "hono";
 import { isSafeRepoPath } from "../contract/repo-path";
 import type { components } from "../generated/api";
-import { commitShaPattern, GitHubReadError, isRepoId, type GitHubReader } from "../github/reader";
+import { commitShaPattern, GitHubReadError, isRepoId, type GitHubReader, type GitHubRepository } from "../github/reader";
 import { GitHubRestReader } from "../github/rest-reader";
 import { readBoundedBody } from "../net/bounded-body";
 import { FILE_CACHE_CONTROL, PreviewMemo, PreviewStore, type PreviewCache } from "./cache";
@@ -80,6 +80,29 @@ async function admit(c: Context<WorkerEnv>, limiter: Limiter | undefined): Promi
   if (!success) throw new GitHubReadError("rate_limited", 60);
 }
 
+async function listFolder(
+  source: PreviewSource, repository: GitHubRepository, sha: string, path: string, maxEntries: number, recursive: boolean,
+): Promise<PreviewFolder> {
+  const entries: PreviewFolder["entries"] = [];
+  const prefix = `/api/preview/${repository.id}/${sha}/files/`;
+  async function visit(relative: string): Promise<void> {
+    const items = await source.directory(repository, sha, relative ? `${path}/${relative}` : path);
+    const sorted = [...items].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+    for (const entry of sorted) {
+      if (entries.length === maxEntries) break;
+      const name = relative ? `${relative}/${entry.name}` : entry.name;
+      if (entry.type === "file") {
+        entries.push({ ...entry, name, href: `${prefix}${path}/${name}` });
+      } else {
+        entries.push({ ...entry, name });
+        if (recursive && entries.length < maxEntries) await visit(name);
+      }
+    }
+  }
+  await visit("");
+  return { entries };
+}
+
 /** Registers public-only, read-only preview routes (V4-CORE-01, ADR-0008). */
 export function registerPreviewRoutes(
   app: Hono<WorkerEnv>,
@@ -99,7 +122,6 @@ export function registerPreviewRoutes(
     await admit(c, importLimiter ?? c.env?.IMPORT_RATE_LIMIT);
     const { owner, name } = await importCoordinates(c.req.raw);
     const source = sourceFor(c);
-    await source.assertAvailable();
     const repository = await source.repositoryByName(owner, name);
     const sha = await source.head(repository);
     const preview = await coursePreview(source, repository, sha);
@@ -118,10 +140,21 @@ export function registerPreviewRoutes(
     const repoId = Number(id);
     if (!/^[1-9][0-9]*$/u.test(id) || !isRepoId(repoId) || !commitShaPattern.test(sha)) throw courseNotFound();
     const source = sourceFor(c);
-    await source.assertAvailable();
     const repository = await source.repositoryById(repoId);
     await source.requirePin(repository, sha);
     return { source, repository, sha };
+  }
+
+  async function authorizeCourse(c: Context<WorkerEnv>) {
+    const authorized = await authorize(c);
+    const { source, repository, sha } = authorized;
+    try {
+      await coursePreview(source, repository, sha);
+    } catch (error) {
+      if (error instanceof PreviewError && (error.status === 413 || error.status === 422)) throw courseNotFound();
+      throw error;
+    }
+    return authorized;
   }
 
   app.get("/preview/:repoId/:sha", async (c) => {
@@ -142,20 +175,16 @@ export function registerPreviewRoutes(
 
   app.get("/preview/:repoId/:sha/files/*", async (c) => {
     const path = filePath(c.req.url);
-    const { source, repository, sha } = await authorize(c);
+    const { source, repository, sha } = await authorizeCourse(c);
     return servePinnedFile(source, repository, sha, path, c.req.raw, c.get("requestId"));
   });
 
   app.get("/preview/:repoId/:sha/folders/:lessonId/:resourceId", async (c) => {
     const address = resourceAddress(c.req.param());
-    const { source, repository, sha } = await authorize(c);
-    const { path, maxEntries } = await resourceTarget(source, repository, sha, address);
+    const { source, repository, sha } = await authorizeCourse(c);
+    const { path, maxEntries, recursive } = await resourceTarget(source, repository, sha, address);
     if (maxEntries === undefined) throw courseNotFound();
-    const prefix = `/api/preview/${repository.id}/${sha}/files/${path}/`;
-    const items = await source.directory(repository, sha, path);
-    const listing: PreviewFolder = {
-      entries: items.slice(0, maxEntries).map((entry) => ({ ...entry, href: prefix + entry.name })),
-    };
+    const listing = await listFolder(source, repository, sha, path, maxEntries, recursive ?? false);
     return c.json(listing, 200, { "Cache-Control": FILE_CACHE_CONTROL });
   });
 }

@@ -921,7 +921,7 @@ export interface paths {
         };
         /**
          * Fetch a file by repository-relative path
-         * @description Serve a regular file from the bound public commit. Relative README assets, links and the course cover can use this route.
+         * @description Serve a regular file from the bound public commit after validating its course manifest. Relative README assets, links and the course cover can use this route.
          */
         get: operations["getPreviewFile"];
         put?: never;
@@ -947,7 +947,7 @@ export interface paths {
         };
         /**
          * List a pinned public folder resource
-         * @description Resolve the folder resource through the validated manifest at the bound public commit. Return direct entries up to the resource's maxEntries (default 100).
+         * @description Resolve the folder resource through the validated manifest at the bound public commit. Return direct entries by default. If the resource enables recursive listing, visit entries in depth-first filename order. The resource's maxEntries (default 100) caps the total across all levels, counting directories as entries.
          */
         get: operations["getPreviewFolder"];
         put?: never;
@@ -1003,6 +1003,7 @@ export interface components {
             entries: components["schemas"]["PreviewFolderEntry"][];
         };
         PreviewFolderEntry: {
+            /** @description Path relative to the manifest folder root. */
             name: string;
             /** @enum {string} */
             type: "file" | "directory";
@@ -1011,8 +1012,8 @@ export interface components {
              * @description Size in bytes. Zero for directories.
              */
             size: number;
-            /** @description Files-route address for this repository path. */
-            href: string;
+            /** @description Files-route address for a file. Omitted for directories. */
+            href?: string;
         };
         CoursePreview: {
             repoId: components["schemas"]["GitHubRepoId"];
@@ -3130,7 +3131,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Direct folder entries with canonical repository paths in their hrefs */
+            /** @description Folder entries with folder-relative names and file download addresses */
             200: {
                 headers: {
                     "Cache-Control": components["headers"]["PublicPreviewCache"];

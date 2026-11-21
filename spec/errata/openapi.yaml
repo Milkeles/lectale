@@ -1477,8 +1477,8 @@ paths:
       operationId: getPreviewFile
       summary: Fetch a file by repository-relative path
       description: >
-        Serve a regular file from the bound public commit. Relative README assets, links and
-        the course cover can use this route.
+        Serve a regular file from the bound public commit after validating its course manifest.
+        Relative README assets, links and the course cover can use this route.
       security: []
       responses:
         '200': {$ref: '#/components/responses/PreviewFile'}
@@ -1499,11 +1499,13 @@ paths:
       summary: List a pinned public folder resource
       description: >
         Resolve the folder resource through the validated manifest at the bound public commit.
-        Return direct entries up to the resource's maxEntries (default 100).
+        Return direct entries by default. If the resource enables recursive listing, visit
+        entries in depth-first filename order. The resource's maxEntries (default 100)
+        caps the total across all levels, counting directories as entries.
       security: []
       responses:
         '200':
-          description: Direct folder entries with canonical repository paths in their hrefs
+          description: Folder entries with folder-relative names and file download addresses
           headers:
             Cache-Control: {$ref: '#/components/headers/PublicPreviewCache'}
           content:
@@ -1827,14 +1829,14 @@ components:
     PreviewFolderEntry:
       type: object
       additionalProperties: false
-      required: [name, type, size, href]
+      required: [name, type, size]
       properties:
-        name: {type: string, maxLength: 500}
+        name: {type: string, maxLength: 500, description: Path relative to the manifest folder root.}
         type: {type: string, enum: [file, directory]}
         size: {type: integer, format: int64, minimum: 0, description: Size in bytes. Zero for directories.}
         href:
           type: string
-          description: Files-route address for this repository path.
+          description: Files-route address for a file. Omitted for directories.
           pattern: '^/api/preview/[1-9][0-9]*/[0-9a-f]{40}/files/.+$'
     CoursePreview:
       type: object
