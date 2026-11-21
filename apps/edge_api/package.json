@@ -10,7 +10,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "hono": "^4.13.19"
+    "@cfworker/json-schema": "^4.1.6",
+    "hono": "^4.13.19",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.9.0",

@@ -20,7 +20,7 @@ case passes, fill the test column with the test file and add the commit SHA.
 | V4-CORE-01 | Public repo URL preview shows course.yaml and README, no login, no GitHub writes | M2 | - | not started |
 | V4-CORE-02 | Preview needs no catalog registration or GitHub org | M2 | - | not started |
 | V4-CORE-03 | Verified author registers, scaffolds, repins and updates via selected-repo App | M4 | - | not started |
-| V4-CORE-04 | Invalid or missing YAML gives exact error; old course stays pinned | M4 | - | not started |
+| V4-CORE-04 | Invalid or missing YAML gives exact error; old course stays pinned | M4 | [M1 manifest diagnostics](../apps/edge_api/test/contract/course-manifest.test.ts) | in progress |
 | V4-CORE-05 | Web and native show PDF, video, Markdown/LaTeX, notebook, audio, images, code, folders; binary falls back to download | M2b | - | not started |
 | V4-CORE-06 | Certificate snapshots and verification link; edits cannot change issued certificates | M7 | - | not started |
 | V4-CORE-07 | Paid or private content denied without enrollment or entitlement, media and ranges included | M4 | - | not started |
