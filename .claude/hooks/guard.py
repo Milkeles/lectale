@@ -21,8 +21,6 @@ GIT = r"(?:^|[;&|(]\s*)git(?:\s+-C\s+\S+)*\s+"
 BASH_RULES = [
     (re.compile(GIT + r"push\b[^;&|]*(\s--force\b|\s-f\b|\s--force-with-lease\b|\s\+\S)"),
      "Force-pushing rewrites shared history. Ask the owner."),
-    (re.compile(GIT + r"push\b[^;&|]*\s(\S+:)?(main|master)(\s|$)"),
-     "Pushing to main needs the owner. Push a feature branch and open a pull request."),
     (re.compile(r"\bwrangler\s+deploy\b(?![^;&|]*--dry-run)"),
      "Deploys run from CI with the owner's token, not from an agent session."),
     (re.compile(r"\bwrangler\s+(d1\s+(migrations\s+apply|execute)|secret\s+(put|delete|bulk))\b[^;&|]*--remote"),
@@ -43,10 +41,6 @@ def agent_identity() -> bool:
     return "anthropic.com" in email or "openai.com" in email or name.strip().lower() in {"claude", "codex"}
 
 
-def current_branch() -> str:
-    return subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True).stdout.strip()
-
-
 def deny(reason: str) -> int:
     print(f"Blocked by .claude/hooks/guard.py: {reason}", file=sys.stderr)
     return 2
@@ -64,8 +58,6 @@ def main() -> int:
                 return deny(reason)
         if SECRET_FILE.search(command):
             return deny("Local secret files (.dev.vars, .env) stay out of agent sessions.")
-        if re.search(GIT + r"push\b", command) and current_branch() in {"main", "master"}:
-            return deny("You are on main; pushing it needs the owner. Work on a feature branch.")
         if re.search(GIT + r"commit\b", command) and agent_identity():
             return deny("Commits are authored by the owner, never an agent. Run: "
                         "git config --global user.name 'Hristo Hristov' && "

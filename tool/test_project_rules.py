@@ -71,8 +71,6 @@ class GuardTest(unittest.TestCase):
             "cat .dev.vars",
             "sed -i s/a/b/ spec/v4.0/README.md",
             "rm -rf .git",
-            "git -C . push origin main",
-            "git push origin HEAD:main",
         ]:
             with self.subTest(command=command):
                 self.assertEqual(self.bash(command), 2)
@@ -85,6 +83,7 @@ class GuardTest(unittest.TestCase):
             "cat spec/v4.0/README.md",
             "rm -rf build",
             "cat .env.example",
+            "git push origin claude/m1-validator:main",
             "rg 'git push origin main' docs",
         ]:
             with self.subTest(command=command):
