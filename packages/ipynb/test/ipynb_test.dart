@@ -15,6 +15,7 @@ const _jpeg =
     'MjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAj/xAAU'
     'EAEAAAAAAAAAAAAAAAAAAAAA/8QAFAEBAAAAAAAAAAAAAAAAAAAAAP/EABQRAQAAAAAA'
     'AAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/AJ/AB//Z';
+const _jpegSof = 158;
 
 Uint8List _fixture(String name) =>
     File('test/fixtures/$name').readAsBytesSync();
@@ -100,6 +101,153 @@ void main() {
     );
   });
 
+  test('rejects malformed cell, output, and metadata shapes', () {
+    final malformedCells = <String, Map<String, Object?>>{
+      'source': {..._codeCell([]), 'source': 5},
+      'outputs': {..._codeCell([]), 'outputs': <String, Object?>{}},
+      'data': _codeCell([
+        {..._display({}), 'data': <Object?>[]},
+      ]),
+      'traceback': _codeCell([
+        {
+          'output_type': 'error',
+          'ename': 'Error',
+          'evalue': '',
+          'traceback': 'x',
+        },
+      ]),
+      'execution_count': {..._codeCell([]), 'execution_count': '1'},
+      'cell_type': {'cell_type': 'unknown', 'source': ''},
+      'attachments': {
+        'cell_type': 'markdown',
+        'source': '',
+        'attachments': <Object?>[],
+      },
+    };
+    final error = throwsA(isA<NotebookFormatException>());
+    for (final entry in malformedCells.entries) {
+      expect(
+        () => parseNotebook(_notebookBytes([entry.value])),
+        error,
+        reason: entry.key,
+      );
+    }
+    expect(
+      () =>
+          parseNotebook(utf8.encode('{"nbformat":4,"cells":[],"metadata":[]}')),
+      error,
+      reason: 'metadata',
+    );
+  });
+
+  test('rejects 100,000 levels of nesting before JSON decoding', () {
+    final nested =
+        '${'[' * 50000}${'{"x":' * 50000}0'
+        '${'}' * 50000}${']' * 50000}';
+    final bytes = utf8.encode('{"nbformat":4,"cells":[],"extra":$nested}');
+    expect(
+      () => parseNotebook(bytes),
+      throwsA(
+        isA<NotebookFormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('nesting'),
+        ),
+      ),
+    );
+  });
+
+  test('counts JSON containers outside quoted and escaped text', () {
+    final source = '${r'\"\\\"{' * 65}${']' * 65}\\';
+    final notebook = parseNotebook(
+      _notebookBytes([
+        {'cell_type': 'raw', 'source': source},
+      ]),
+    );
+    expect(notebook.cells.single.source, source);
+
+    Uint8List nested(int arrays) => utf8.encode(
+      '{"nbformat":4,"cells":[],"extra":'
+      '${'[' * arrays}"\\u0022 \\" \\\\ [ ] { }"${']' * arrays}}',
+    );
+    expect(parseNotebook(nested(63)).cells, isEmpty);
+    expect(
+      () => parseNotebook(nested(64)),
+      throwsA(isA<NotebookFormatException>()),
+    );
+  });
+
+  test('truncates oversized source at the default UTF-8 byte budget', () {
+    final prefix = 'é' * (512 * 1024 - 1);
+    final notebook = parseNotebook(
+      _notebookBytes([
+        {
+          'cell_type': 'markdown',
+          'source': [prefix, '😀suffix'],
+        },
+        {'cell_type': 'code', 'source': '$prefix-é'},
+        {'cell_type': 'raw', 'source': '$prefix--'},
+      ]),
+    );
+    expect(notebook.cells.map((cell) => cell.source), [
+      prefix,
+      '$prefix-',
+      '$prefix--',
+    ]);
+    expect(notebook.truncated, isTrue);
+  });
+
+  test('applies the source budget across split UTF-16 surrogate pairs', () {
+    final bytes = _notebookBytes([
+      {
+        'cell_type': 'raw',
+        'source': ['\ud83d', '\ude00'],
+      },
+    ]);
+    final exact = parseNotebook(
+      bytes,
+      limits: const NotebookLimits(maxSourceBytesPerCell: 4),
+    );
+    expect(exact.cells.single.source, '😀');
+    expect(exact.truncated, isFalse);
+    final over = parseNotebook(
+      bytes,
+      limits: const NotebookLimits(maxSourceBytesPerCell: 3),
+    );
+    expect(over.cells.single.source, isEmpty);
+    expect(over.truncated, isTrue);
+  });
+
+  test('drops oversized language and attachment names', () {
+    final allowedName = '${'é' * 127}a';
+    final largeName = 'é' * 128;
+    final notebook = parseNotebook(
+      utf8.encode(
+        jsonEncode({
+          'nbformat': 4,
+          'metadata': {
+            'language_info': {'name': 'é' * 65},
+          },
+          'cells': [
+            {
+              'cell_type': 'markdown',
+              'source': '',
+              'attachments': {
+                allowedName: {'image/png': _png},
+                largeName: {'image/png': _png},
+              },
+            },
+          ],
+        }),
+      ),
+    );
+    expect(notebook.language, isNull);
+    expect((notebook.cells.single as MarkdownCell).attachments.keys, [
+      allowedName,
+    ]);
+    expect(notebook.truncated, isTrue);
+  });
+
   test('replaces HTML, JavaScript, SVG and widgets with MIME markers', () {
     final notebook = parseNotebook(_fixture('untrusted.ipynb'));
     final outputs = (notebook.cells[1] as CodeCell).outputs;
@@ -139,6 +287,58 @@ void main() {
     expect(error.evalue, 'failed');
     expect(error.traceback, ['line 1', 'line 2', '']);
     expect(error.traceback.clear, throwsUnsupportedError);
+  });
+
+  test('strips controls and bidi formatting from plain output', () {
+    const text =
+        'a\x00\x1b[31mb\x7f\x85\u202ec'
+        '\u202a\u202c\u2066\u2067\u2068\u2069\tй\r\n';
+    final notebook = parseNotebook(
+      _notebookBytes([
+        _codeCell([
+          _display({'text/plain': text}),
+          {'output_type': 'stream', 'name': 'stdout', 'text': text},
+          {
+            'output_type': 'error',
+            'ename': 'E\u202e',
+            'evalue': '\u2066msg',
+            'traceback': [text],
+          },
+        ]),
+      ]),
+    );
+    final outputs = _outputs(notebook);
+    expect((outputs[0] as TextOutput).text, 'abc\tй\r\n');
+    expect((outputs[1] as StreamOutput).text, 'abc\tй\r\n');
+    final error = outputs[2] as ErrorOutput;
+    expect(error.ename, 'E');
+    expect(error.evalue, 'msg');
+    expect(error.traceback, ['abc\tй\r\n']);
+    expect(notebook.truncated, isFalse);
+  });
+
+  test('preserves text after an unterminated OSC on the same line', () {
+    final notebook = parseNotebook(
+      _notebookBytes([
+        _codeCell([
+          {
+            'output_type': 'stream',
+            'name': 'stdout',
+            'text': [
+              'before\x1b',
+              '] keep this\n\x9dkeep this too\r\n',
+              '\x1b]0;window title\x07bell ',
+              '\x1b]0;another title\x1b',
+              '\\escape \x9d0;last title\x9cend',
+            ],
+          },
+        ]),
+      ]),
+    );
+    expect(
+      (_outputs(notebook).single as StreamOutput).text,
+      'before keep this\nkeep this too\r\nbell escape end',
+    );
   });
 
   test('chooses Markdown, LaTeX, PNG, JPEG and plain text in order', () {
@@ -191,6 +391,160 @@ void main() {
       _outputs(notebook).cast<UnsupportedOutput>().map((output) => output.mime),
       ['image/png', 'application/octet-stream'],
     );
+  });
+
+  test('rejects PNG and JPEG headers above the default pixel budget', () {
+    // Complete IHDR declaring 30000 × 30000 pixels, with a matching CRC.
+    const widePng = 'iVBORw0KGgoAAAANSUhEUgAAdTAAAHUwCAIAAADpRW/t';
+    final jpeg = base64Decode(_jpeg);
+    ByteData.sublistView(jpeg)
+      ..setUint16(_jpegSof + 5, 30000)
+      ..setUint16(_jpegSof + 7, 30000);
+    final notebook = parseNotebook(
+      _notebookBytes([
+        _codeCell([
+          _display({'image/png': widePng}),
+          _display({'image/jpeg': base64Encode(jpeg)}),
+        ]),
+        {
+          'cell_type': 'markdown',
+          'source': '',
+          'attachments': {
+            'wide.png': {'image/png': widePng},
+          },
+        },
+      ]),
+    );
+    expect((notebook.cells.first as CodeCell).outputs, [
+      isA<UnsupportedOutput>().having(
+        (output) => output.mime,
+        'mime',
+        'image/png',
+      ),
+      isA<UnsupportedOutput>().having(
+        (output) => output.mime,
+        'mime',
+        'image/jpeg',
+      ),
+    ]);
+    expect((notebook.cells.last as MarkdownCell).attachments, isEmpty);
+    expect(notebook.truncated, isTrue);
+  });
+
+  test('reports dimensions and accepts the exact pixel budget', () {
+    final jpeg = base64Decode(_jpeg)..[_jpegSof + 1] = 0xc2;
+    ByteData.sublistView(jpeg)
+      ..setUint16(_jpegSof + 5, 2)
+      ..setUint16(_jpegSof + 7, 3);
+    // The APP segment contains marker-like bytes. Only its length is used.
+    final progressive = base64Encode([
+      ...jpeg.take(2),
+      0xff,
+      0xff,
+      0xe2,
+      0,
+      6,
+      0xff,
+      0xc0,
+      0xff,
+      0xda,
+      ...jpeg.skip(2),
+    ]);
+    final bytes = _notebookBytes([
+      _codeCell([
+        _display({'image/png': _png}),
+        _display({
+          'image/jpeg': [
+            progressive.substring(0, 11),
+            ' \t',
+            progressive.substring(11),
+          ],
+        }),
+      ]),
+    ]);
+
+    final exact = parseNotebook(
+      bytes,
+      limits: const NotebookLimits(maxImagePixels: 6),
+    );
+    final images = _outputs(exact).cast<ImageOutput>();
+    expect(images.map((image) => (image.width, image.height)), [
+      (1, 1),
+      (3, 2),
+    ]);
+    expect(images.last.bytes, base64Decode(progressive));
+    expect(exact.truncated, isFalse);
+    final over = parseNotebook(
+      bytes,
+      limits: const NotebookLimits(maxImagePixels: 5),
+    );
+    expect(_outputs(over), [isA<ImageOutput>(), isA<UnsupportedOutput>()]);
+    expect(over.truncated, isTrue);
+  });
+
+  test('rejects malformed PNG IHDR and JPEG SOFn headers', () {
+    final png = base64Decode(_png);
+    final jpeg = base64Decode(_jpeg);
+    final wrongChunk = Uint8List.fromList(png)..[12] = 0x4a;
+    final wrongCrc = Uint8List.fromList(png)..[32] = 0;
+    final wrongLength = Uint8List.fromList(jpeg)..[_jpegSof + 3] = 16;
+    final zeroHeight = Uint8List.fromList(jpeg)..[_jpegSof + 6] = 0;
+    final malformed = {
+      'image/png': [
+        png.sublist(0, 8),
+        png.sublist(0, 32),
+        wrongChunk,
+        wrongCrc,
+      ],
+      'image/jpeg': [
+        jpeg.sublist(0, 3),
+        jpeg.sublist(0, _jpegSof + 4),
+        jpeg.sublist(0, _jpegSof + 17),
+        wrongLength,
+        zeroHeight,
+        [0xff, 0xd8, 0xff, 0xe0, 0, 1],
+        [0xff, 0xd8, 0xff, 0xda, ...jpeg.sublist(_jpegSof)],
+      ],
+    };
+    final notebook = parseNotebook(
+      _notebookBytes([
+        _codeCell([
+          for (final entry in malformed.entries)
+            for (final bytes in entry.value)
+              _display({entry.key: base64Encode(bytes)}),
+        ]),
+      ]),
+    );
+    expect(
+      _outputs(notebook).map((output) => (output as UnsupportedOutput).mime),
+      [
+        for (final entry in malformed.entries)
+          for (final _ in entry.value) entry.key,
+      ],
+    );
+    expect(notebook.truncated, isFalse);
+  });
+
+  test('checks the total base64 budget before processing fragments', () {
+    final notebook = parseNotebook(
+      _notebookBytes([
+        _codeCell([
+          _display({
+            'image/png': ['?', 'A \n' * 10000],
+          }),
+        ]),
+      ]),
+      limits: const NotebookLimits(maxImageBytes: 12),
+    );
+    expect(
+      _outputs(notebook).single,
+      isA<UnsupportedOutput>().having(
+        (output) => output.mime,
+        'mime',
+        'image/png',
+      ),
+    );
+    expect(notebook.truncated, isTrue);
   });
 
   test('uses a lower-priority fallback for invalid image encoding', () {

@@ -8,7 +8,7 @@ final class Notebook {
     required this.truncated,
   }) : cells = List.unmodifiable(cells);
 
-  /// The language from notebook metadata, or null if none was supplied.
+  /// The language from notebook metadata, or null if missing or over 128 bytes.
   final String? language;
 
   /// Cells in notebook order, within [NotebookLimits.maxCells].
@@ -18,11 +18,11 @@ final class Notebook {
   final bool truncated;
 }
 
-/// A static notebook cell with its original source text (V4-CORE-05).
+/// A static notebook cell with its bounded source text (V4-CORE-05).
 sealed class Cell {
   const Cell._(this.source);
 
-  /// Source as inert text, with nbformat string fragments joined verbatim.
+  /// Source as inert text, with fragments joined up to the UTF-8 byte limit.
   final String source;
 }
 
@@ -36,7 +36,7 @@ final class MarkdownCell extends Cell {
 
   /// Safe images keyed by the filename in a cell's `attachment:` reference.
   ///
-  /// A missing name has no usable local image. Lookup performs no I/O.
+  /// Names over 255 UTF-8 bytes are omitted. Lookup performs no I/O.
   final Map<String, ImageOutput> attachments;
 }
 
@@ -85,18 +85,24 @@ final class TextOutput extends Output {
   final String text;
 }
 
-/// A bounded, signature-checked PNG or JPEG (V4-SEC-03).
+/// A PNG or JPEG with a checked header and bounded pixel area (V4-SEC-03).
 final class ImageOutput extends Output {
-  ImageOutput._(this.mime, this._encoded) : super._();
+  ImageOutput._(this.mime, this.width, this.height, this._encoded) : super._();
 
   /// The verified raster MIME type, either `image/png` or `image/jpeg`.
   final String mime;
+
+  /// The width in pixels declared in the raster header.
+  final int width;
+
+  /// The height in pixels declared in the raster header.
+  final int height;
 
   final String _encoded;
 
   /// Read-only raster bytes, decoded and cached on first access.
   ///
-  /// The signature check does not establish that the full image is decodable.
+  /// The header check does not establish that the full image is decodable.
   late final Uint8List bytes = base64Decode(_encoded).asUnmodifiableView();
 }
 

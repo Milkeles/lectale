@@ -9,16 +9,23 @@ final class NotebookLimits {
     this.maxInputBytes = 20 * 1024 * 1024,
     this.maxCells = 2000,
     this.maxOutputsPerCell = 100,
+    this.maxSourceBytesPerCell = 1024 * 1024,
     this.maxTextBytesPerOutput = 200 * 1024,
     this.maxImageBytes = 10 * 1024 * 1024,
+    this.maxImagePixels = 16_777_216,
   }) : assert(maxInputBytes >= 0, 'maxInputBytes must be non-negative'),
        assert(maxCells >= 0, 'maxCells must be non-negative'),
        assert(maxOutputsPerCell >= 0, 'maxOutputsPerCell must be non-negative'),
        assert(
+         maxSourceBytesPerCell >= 0,
+         'maxSourceBytesPerCell must be non-negative',
+       ),
+       assert(
          maxTextBytesPerOutput >= 0,
          'maxTextBytesPerOutput must be non-negative',
        ),
-       assert(maxImageBytes >= 0, 'maxImageBytes must be non-negative');
+       assert(maxImageBytes >= 0, 'maxImageBytes must be non-negative'),
+       assert(maxImagePixels >= 0, 'maxImagePixels must be non-negative');
 
   /// Maximum UTF-8 input size, checked before decoding or parsing.
   final int maxInputBytes;
@@ -29,9 +36,15 @@ final class NotebookLimits {
   /// Maximum stored outputs per code cell, including unsupported MIME markers.
   final int maxOutputsPerCell;
 
+  /// Maximum UTF-8 bytes of source retained per cell, across all fragments.
+  final int maxSourceBytesPerCell;
+
   /// Maximum UTF-8 bytes retained across the textual fields of one output.
   final int maxTextBytesPerOutput;
 
   /// Maximum decoded bytes of an individual PNG or JPEG, including attachments.
   final int maxImageBytes;
+
+  /// Maximum pixel area of an individual PNG or JPEG, including attachments.
+  final int maxImagePixels;
 }

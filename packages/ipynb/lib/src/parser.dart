@@ -16,9 +16,12 @@ final class NotebookFormatException implements Exception {
 /// Parses UTF-8 nbformat 4 JSON into a static preview (V4-CORE-05, V4-SEC-03).
 ///
 /// Oversize input returns an empty, truncated notebook before UTF-8 decoding.
-/// Other exceeded limits mark the returned preview as truncated. Invalid UTF-8,
-/// malformed structure, and unsupported notebook versions throw a
-/// [NotebookFormatException].
+/// Other preview limits mark the returned notebook as truncated. Invalid UTF-8,
+/// malformed structure, JSON nested deeper than 64 containers, and unsupported
+/// notebook versions throw a [NotebookFormatException].
+///
+/// For large inputs on Dart Native, call this in `Isolate.run` to keep parsing
+/// off the UI isolate.
 Notebook parseNotebook(
   Uint8List bytes, {
   NotebookLimits limits = const NotebookLimits(),
@@ -27,6 +30,7 @@ Notebook parseNotebook(
     return Notebook._(language: null, cells: const [], truncated: true);
   }
 
+  _checkJsonDepth(bytes);
   final Object? document;
   try {
     document = jsonDecode(utf8.decode(bytes));
@@ -45,6 +49,43 @@ Notebook parseNotebook(
   return _NotebookParser(limits).parse(document);
 }
 
+void _checkJsonDepth(Uint8List bytes) {
+  var depth = 0;
+  var inString = false;
+  var escaped = false;
+  // The structural bytes are ASCII and cannot appear in a UTF-8 sequence.
+  for (final byte in bytes) {
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (byte == 0x5c) {
+        escaped = true;
+      } else if (byte == 0x22) {
+        inString = false;
+      }
+      continue;
+    }
+    switch (byte) {
+      case 0x22: // "
+        inString = true;
+      case 0x5b: // [
+      case 0x7b: // {
+        if (++depth > 64) {
+          throw const NotebookFormatException(
+            'JSON nesting exceeds 64 levels.',
+          );
+        }
+      case 0x5d: // ]
+      case 0x7d: // }
+        if (--depth < 0) {
+          throw const NotebookFormatException(
+            'Expected a UTF-8 JSON notebook.',
+          );
+        }
+    }
+  }
+}
+
 final class _NotebookParser {
   _NotebookParser(NotebookLimits limits) : _sanitiser = _Sanitiser(limits);
 
@@ -55,16 +96,21 @@ final class _NotebookParser {
     if (rawCells is! List<Object?>) {
       throw const NotebookFormatException('Expected a notebook cells list.');
     }
-    final metadata = _objectOrEmpty(notebook['metadata']);
-    final languageInfo = _objectOrEmpty(metadata['language_info']);
-    final kernelSpec = _objectOrEmpty(metadata['kernelspec']);
+    final metadata = _objectOrEmpty(notebook['metadata'], 'metadata');
+    final languageInfo = _objectOrEmpty(
+      metadata['language_info'],
+      'language info',
+    );
+    final kernelSpec = _objectOrEmpty(metadata['kernelspec'], 'kernel spec');
     final language = languageInfo['name'] ?? kernelSpec['language'];
     final cells = _sanitiser
         .takeEntries(rawCells, _sanitiser.limits.maxCells)
         .map(_cell)
         .toList();
     return Notebook._(
-      language: language is String ? language : null,
+      language: language is String && _sanitiser.keepName(language, 128)
+          ? language
+          : null,
       cells: cells,
       truncated: _sanitiser.truncated,
     );
@@ -74,7 +120,7 @@ final class _NotebookParser {
     if (value is! Map<String, Object?>) {
       throw const NotebookFormatException('Expected a cell object.');
     }
-    final source = _readText(value['source']);
+    final source = _sanitiser.source(_readTextParts(value['source']));
     switch (value['cell_type']) {
       case 'markdown':
         return MarkdownCell._(source, _attachments(value['attachments']));
@@ -93,8 +139,9 @@ final class _NotebookParser {
 
   Map<String, ImageOutput> _attachments(Object? value) {
     final attachments = <String, ImageOutput>{};
-    for (final entry in _objectOrEmpty(value).entries) {
-      final bundle = _objectOrEmpty(entry.value);
+    for (final entry in _objectOrEmpty(value, 'cell attachments').entries) {
+      if (!_sanitiser.keepName(entry.key, 255)) continue;
+      final bundle = _objectOrEmpty(entry.value, 'attachment MIME bundle');
       for (final mime in _rasterMimes) {
         final image = _sanitiser.image(mime, bundle[mime]);
         if (image != null) {
@@ -136,8 +183,8 @@ final class _NotebookParser {
     switch (value['output_type']) {
       case 'stream':
         yield _sanitiser.stream(
-          _readText(value['name']),
-          _readText(value['text']),
+          _readTextParts(value['name']),
+          _readTextParts(value['text']),
         );
       case 'error':
         final traceback = value['traceback'];
@@ -145,13 +192,15 @@ final class _NotebookParser {
           throw const NotebookFormatException('Expected an error traceback.');
         }
         yield _sanitiser.error(
-          _readText(value['ename']),
-          _readText(value['evalue']),
+          _readTextParts(value['ename']),
+          _readTextParts(value['evalue']),
           traceback,
         );
       case 'display_data':
       case 'execute_result':
-        yield* _richOutputs(_objectOrEmpty(value['data']));
+        yield* _richOutputs(
+          _objectOrEmpty(value['data'], 'output MIME bundle'),
+        );
       default:
         yield const UnsupportedOutput._(_unknownMime);
     }
@@ -182,10 +231,13 @@ final class _NotebookParser {
   }
 }
 
-Map<String, Object?> _objectOrEmpty(Object? value) =>
-    value is Map<String, Object?> ? value : const {};
+Map<String, Object?> _objectOrEmpty(Object? value, String field) {
+  if (value == null) return const {};
+  if (value is Map<String, Object?>) return value;
+  throw NotebookFormatException('Expected an object for $field.');
+}
 
-Iterable<String>? _textParts(Object? value) {
+List<String>? _textParts(Object? value) {
   if (value is String) return [value];
   if (value is List<Object?> && value.every((part) => part is String)) {
     return value.cast<String>();
@@ -193,6 +245,6 @@ Iterable<String>? _textParts(Object? value) {
   return null;
 }
 
-String _readText(Object? value) =>
-    _textParts(value)?.join() ??
+List<String> _readTextParts(Object? value) =>
+    _textParts(value) ??
     (throw const NotebookFormatException('Expected notebook text.'));
