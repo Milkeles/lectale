@@ -21,12 +21,12 @@ The main session is the orchestrator. It plans each milestone, writes the task s
 
 Do small, sequential or single-file work directly instead of delegating. Code-writing agents run in a git worktree; merge their branch only after its Verify command passes.
 
-**Second model: Codex takes the volume.** Claude usage runs out much faster than the owner's ChatGPT plan, and the owner asked (2026-11-22) for Codex to carry more of the work. So, by default:
+**Second model: Codex as a working partner.** The owner asked (2026-11-22) for Codex to be involved more, though not for it to take over: Claude's agents stay the main builders. Share the work like this:
 
-- **Codex implements** every well-specified task: a renderer, a screen from an approved spec, the static site, a workflow, a proof-of-concept script. It runs in its own git worktree (`codex-dispatch`, mode 2), from a task spec in `spec/tasks/` with the intake gate and exact Verify commands.
-- **Codex critiques**: screenshots, screen specs, copy, and every security-sensitive diff and milestone plan (mode 1). Design and copy critiques go to Codex first; the Opus `design-reviewer` is kept for a final pass before the owner sees a screen.
-- **Codex makes images**: logos, illustrations, covers and visual concepts.
-- **Claude orchestrates and judges**: plans, writes the task specs, reviews Codex's diff, runs the Verify commands itself, does security reviews of trust-boundary code, and merges. Claude agents take work that needs this conversation's context or a skill Codex lacks.
+- **Claude's agents** do most of the implementation (the app, the Worker, contracts and tests), and Claude orchestrates, reviews and merges.
+- **Codex makes images**: logos, illustrations, covers, visual concepts and art direction, using its image generation tool. It pairs with the design lead on visual work.
+- **Codex critiques**: a second opinion on screenshots, screen specs and copy, and a required review of every security-sensitive diff and milestone plan (mode 1).
+- **Codex implements some isolated, well-specified tasks** in its own worktree (mode 2): about one in three, picked where its strengths fit (the static site, scripts, a proof of concept) or when Claude usage runs low. Claude reviews its diff, runs the Verify commands itself, and merges.
 
 Use the `codex-dispatch` skill. Run `codex login status` first; if it is logged out, ask the owner to complete `codex login --device-auth`. Run long Codex jobs in the background and keep working.
 
