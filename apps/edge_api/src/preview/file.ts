@@ -55,7 +55,8 @@ function checkTransfer(response: Response, length: number): void {
   if ((encoding && encoding !== "identity") || (received !== undefined && received !== length)) badUpstream(response);
 }
 
-async function rasterPrefix(
+/** Reads a bounded prefix of a pinned regular file whose listed size is known (SEC-020, SEC-027). */
+export async function readPinnedPrefix(
   source: PreviewSource, repository: GitHubRepository, sha: string, path: string, size: number, length: number,
 ): Promise<Uint8Array> {
   const end = length - 1;
@@ -234,7 +235,7 @@ async function loadFile(
           prefix = peeked.prefix;
         }
         // The requested range may omit part of the signature (SEC-014).
-        prefix ??= await rasterPrefix(source, repository, sha, path, size, length);
+        prefix ??= await readPinnedPrefix(source, repository, sha, path, size, length);
         if (prefix.length !== length) throw new GitHubReadError("upstream");
         return matchesRaster(hint, prefix) ? hint : DOWNLOAD;
       });

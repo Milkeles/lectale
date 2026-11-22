@@ -1854,6 +1854,22 @@ components:
         readmePresent:
           type: boolean
           description: Whether root README.md exists at the same pinned commit.
+        warnings:
+          type: array
+          description: Non-blocking warnings for this preview (O2). Omitted when there are none.
+          items: {$ref: '#/components/schemas/CoursePreviewWarning'}
+    CoursePreviewWarning:
+      type: object
+      additionalProperties: false
+      required: [code, message, path]
+      properties:
+        code:
+          type: string
+          description: Stable warning code, such as cover_too_small, cover_format, or cover_too_large.
+        message: {type: string}
+        path:
+          type: string
+          description: Validated repository-relative path of the affected file.
     CourseOutline:
       type: object
       description: Read-only view of validated course content (ADR-0003, ADR-0011).
@@ -1894,7 +1910,7 @@ components:
           enum: [introductory, intermediate, advanced, mixed]
         cover:
           type: string
-          description: Repository-relative cover image hint. Resource retrieval uses a scoped href.
+          description: Repository-relative cover image hint. Omitted from previews that use the placeholder (O2).
         publishedAt: {type: string, format: date-time}
     OutlineAuthor:
       type: object
@@ -1944,6 +1960,9 @@ components:
           format: uri-reference
           pattern: '^/api/(?:preview/[1-9][0-9]*/[0-9a-f]{40}/(?:content|folders)|courses/[a-z][a-z0-9]*(?:-[a-z0-9]+)*/content)/(?:assignment~)?[a-z][a-z0-9]*(?:-[a-z0-9]+)*/[a-z][a-z0-9]*(?:-[a-z0-9]+)*$'
           description: Same-origin scoped content route (ADR-0008). Null for URL-only resources.
+        path:
+          type: string
+          description: Repository-relative path at the pinned commit; used to resolve relative links and images in Markdown.
         url:
           type: string
           format: uri

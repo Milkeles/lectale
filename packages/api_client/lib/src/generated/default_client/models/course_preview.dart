@@ -2,6 +2,7 @@
 
 import 'commit_sha.dart';
 import 'course_outline.dart';
+import 'course_preview_warning.dart';
 import 'git_hub_repo_id.dart';
 
 class CoursePreview {
@@ -17,6 +18,9 @@ class CoursePreview {
 
     /// Whether root README.md exists at the same pinned commit.
     required this.readmePresent,
+
+    /// Non-blocking warnings for this preview (O2). Omitted when there are none.
+    this.warnings,
   });
 
   factory CoursePreview.fromJson(Map<String, Object?> json) {
@@ -34,6 +38,15 @@ class CoursePreview {
       sha: CommitSha.fromJson(json["sha"]),
       outline: CourseOutline.fromJson(json["outline"] as Map<String, Object?>),
       readmePresent: json["readmePresent"] as bool,
+      warnings: json.containsKey("warnings")
+          ? (json["warnings"] as List<Object?>)
+                .map(
+                  (item) => CoursePreviewWarning.fromJson(
+                    item as Map<String, Object?>,
+                  ),
+                )
+                .toList()
+          : null,
     );
   }
 
@@ -49,11 +62,15 @@ class CoursePreview {
   /// Whether root README.md exists at the same pinned commit.
   final bool readmePresent;
 
+  /// Non-blocking warnings for this preview (O2). Omitted when there are none.
+  final List<CoursePreviewWarning>? warnings;
+
   static const _knownKeys = <String>{
     "repoId",
     "sha",
     "outline",
     "readmePresent",
+    "warnings",
   };
 
   Map<String, Object?> toJson() => {
@@ -61,5 +78,7 @@ class CoursePreview {
     "sha": this.sha.toJson(),
     "outline": this.outline.toJson(),
     "readmePresent": this.readmePresent,
+    if (this.warnings != null)
+      "warnings": this.warnings?.map((item) => item.toJson()).toList(),
   };
 }

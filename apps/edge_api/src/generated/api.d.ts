@@ -1021,6 +1021,15 @@ export interface components {
             outline: components["schemas"]["CourseOutline"];
             /** @description Whether root README.md exists at the same pinned commit. */
             readmePresent: boolean;
+            /** @description Non-blocking warnings for this preview (O2). Omitted when there are none. */
+            warnings?: components["schemas"]["CoursePreviewWarning"][];
+        };
+        CoursePreviewWarning: {
+            /** @description Stable warning code, such as cover_too_small, cover_format, or cover_too_large. */
+            code: string;
+            message: string;
+            /** @description Validated repository-relative path of the affected file. */
+            path: string;
         };
         /** @description Read-only view of validated course content (ADR-0003, ADR-0011). */
         CourseOutline: {
@@ -1045,7 +1054,7 @@ export interface components {
             estimatedMinutes?: number;
             /** @enum {string} */
             level?: "introductory" | "intermediate" | "advanced" | "mixed";
-            /** @description Repository-relative cover image hint. Resource retrieval uses a scoped href. */
+            /** @description Repository-relative cover image hint. Omitted from previews that use the placeholder (O2). */
             cover?: string;
             /** Format: date-time */
             publishedAt?: string;
@@ -1081,6 +1090,8 @@ export interface components {
              * @description Same-origin scoped content route (ADR-0008). Null for URL-only resources.
              */
             href: string | null;
+            /** @description Repository-relative path at the pinned commit; used to resolve relative links and images in Markdown. */
+            path?: string;
             /**
              * Format: uri
              * @description External HTTPS link without user credentials for a resource without a repository path or canonical embed.

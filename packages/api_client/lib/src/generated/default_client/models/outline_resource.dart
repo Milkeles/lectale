@@ -15,6 +15,9 @@ class OutlineResource {
     /// Same-origin scoped content route (ADR-0008). Null for URL-only resources.
     required this.href,
 
+    /// Repository-relative path at the pinned commit; used to resolve relative links and images in Markdown.
+    this.path,
+
     /// External HTTPS link without user credentials for a resource without a repository path or canonical embed.
     this.url,
 
@@ -58,6 +61,7 @@ class OutlineResource {
           ? json["description"] as String
           : null,
       href: json["href"] as String?,
+      path: json.containsKey("path") ? json["path"] as String : null,
       url: json.containsKey("url") ? json["url"] as String : null,
       provider: json.containsKey("provider")
           ? OutlineResourceProvider.fromJson(json["provider"])
@@ -102,6 +106,9 @@ class OutlineResource {
   /// Same-origin scoped content route (ADR-0008). Null for URL-only resources.
   final String? href;
 
+  /// Repository-relative path at the pinned commit; used to resolve relative links and images in Markdown.
+  final String? path;
+
   /// External HTTPS link without user credentials for a resource without a repository path or canonical embed.
   final String? url;
 
@@ -138,6 +145,7 @@ class OutlineResource {
     "title",
     "description",
     "href",
+    "path",
     "url",
     "provider",
     "embedUrl",
@@ -158,6 +166,7 @@ class OutlineResource {
     "title": this.title,
     if (this.description != null) "description": this.description,
     "href": this.href,
+    if (this.path != null) "path": this.path,
     if (this.url != null) "url": this.url,
     if (this.provider != null) "provider": this.provider?.toJson(),
     if (this.embedUrl != null) "embedUrl": this.embedUrl,

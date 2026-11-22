@@ -366,3 +366,15 @@ Rules that keep this safe:
 4. **The anonymous preview of a public repository ignores `access`.** Anyone can already read it on GitHub (V4-CORE-01). `access` governs managed courses only.
 
 **To do:** add `access` to `spec/errata/` schema and OpenAPI (contract-engineer), semantic rule and fixtures (validator), and the owner's confirm-changes flow (M4, M5).
+
+## O2 Course cover guidance (owner request, 2026-11-22)
+
+Set `course.cover` in `course.yaml` to the repository-relative path of the
+course thumbnail. Use a portrait 2:3 image at 1200 × 1800 px when possible.
+The minimum is 600 × 900 px. Use AVIF, WebP, PNG, or JPEG and keep the file at
+or below 2 MB (2,000,000 bytes). Lectale displays covers at 2:3 and center-crops
+images whose aspect ratio differs by more than 5 percent.
+
+Import reports `cover_too_small` for dimensions below the minimum, `cover_format`
+for an unsupported format or unreadable header, and `cover_too_large` for a
+file over 2 MB. The course still opens with the placeholder cover.

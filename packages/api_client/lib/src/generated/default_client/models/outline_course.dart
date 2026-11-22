@@ -19,7 +19,7 @@ class OutlineCourse {
     this.estimatedMinutes,
     this.level,
 
-    /// Repository-relative cover image hint. Resource retrieval uses a scoped href.
+    /// Repository-relative cover image hint. Omitted from previews that use the placeholder (O2).
     this.cover,
     this.publishedAt,
   });
@@ -94,7 +94,7 @@ class OutlineCourse {
 
   final OutlineCourseLevel? level;
 
-  /// Repository-relative cover image hint. Resource retrieval uses a scoped href.
+  /// Repository-relative cover image hint. Omitted from previews that use the placeholder (O2).
   final String? cover;
 
   final DateTime? publishedAt;

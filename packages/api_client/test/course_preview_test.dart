@@ -12,6 +12,10 @@ void main() {
         "repoId": 42,
         "sha": "$sha",
         "readmePresent": true,
+        "warnings": [{
+          "code": "cover_too_small", "message": "Use a larger cover.",
+          "path": "images/cover.png"
+        }],
         "outline": {
           "course": {
             "id": "course", "title": "Course", "summary": "Learn by reading.",
@@ -26,7 +30,8 @@ void main() {
               "resources": [
                 {
                   "id": "notes", "kind": "pdf", "title": "Notes",
-                  "href": "$href", "fileExtension": "pdf", "sizeBytes": 1200
+                  "href": "$href", "path": "lessons/notes.pdf",
+                  "fileExtension": "pdf", "sizeBytes": 1200
                 },
                 {
                   "id": "video", "kind": "video", "title": "Lecture",
@@ -51,15 +56,19 @@ void main() {
     expect(preview.repoId.value, 42);
     expect(preview.sha.value, sha);
     expect(preview.readmePresent, isTrue);
+    expect(preview.warnings?.single.code, 'cover_too_small');
+    expect(preview.warnings?.single.path, 'images/cover.png');
     expect(preview.outline.course.title, 'Course');
     final module = preview.outline.nodes.single;
     expect(module.kind, CourseOutlineNodeKind.module);
     final resources = module.children.first.resources;
     expect(module.children.last.assignmentId?.value, 'practice');
     expect(resources.first.href, href);
+    expect(resources.first.path, 'lessons/notes.pdf');
     expect(resources.first.fileExtension, 'pdf');
     expect(resources.first.sizeBytes, 1200);
     expect(resources.last.href, isNull);
+    expect(resources.last.path, isNull);
     expect(resources.last.provider, OutlineResourceProvider.vimeo);
     expect(resources.last.embedUrl, 'https://player.vimeo.com/video/123456');
     expect(

@@ -38,7 +38,10 @@ describe("toCourseOutline", () => {
         children: [
           {
             id: "lesson-one", kind: "lesson", title: "Lesson one", recordedAt,
-            resources: [{ ...slides, path: "first/LECTURE.PDF", download: false }],
+            resources: [
+              { ...slides, path: "first/LECTURE.PDF", download: false },
+              { id: "notes", type: "markdown", title: "Notes", path: "first/notes.md" },
+            ],
           },
           { id: "problem-link", kind: "assignment", assignmentId: "lesson-one" },
         ],
@@ -77,10 +80,13 @@ describe("toCourseOutline", () => {
         children: [
           {
             id: "lesson-one", kind: "lesson", recordedAt, children: [],
-            resources: [{
-              id: "slides", kind: "pdf", href: `${content}/lesson-one/slides`,
-              mediaType: "application/pdf", fileExtension: "pdf", download: false,
-            }],
+            resources: [
+              {
+                id: "slides", kind: "pdf", href: `${content}/lesson-one/slides`, path: "first/LECTURE.PDF",
+                mediaType: "application/pdf", fileExtension: "pdf", download: false,
+              },
+              { id: "notes", kind: "markdown", href: `${content}/lesson-one/notes`, path: "first/notes.md" },
+            ],
           },
           {
             id: "problem-link", kind: "assignment", title: "Problem set", assignmentId: "lesson-one",
@@ -99,7 +105,7 @@ describe("toCourseOutline", () => {
       closeAt: "2026-11-24T00:00:00Z",
       resources: [{
         id: "slides", kind: "pdf", title: "Slides", mediaType: "application/pdf", fileExtension: "pdf",
-        href: `${content}/assignment~lesson-one/slides`,
+        href: `${content}/assignment~lesson-one/slides`, path: "assignments/instructions.pdf",
       }],
     }]);
   });
@@ -121,7 +127,7 @@ describe("toCourseOutline", () => {
       { id: "yt", title: "YouTube", kind: "video", href: null, provider: "youtube", embedUrl: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ" },
       { id: "vimeo", title: "Vimeo", kind: "video", href: null, provider: "vimeo", embedUrl: "https://player.vimeo.com/video/123456" },
       { id: "other", title: "Link", kind: "video", href: null, provider: "external", url: "https://example.org/video" },
-      { id: "file", title: "Local movie", kind: "video", href: `${content}/lesson/file`, fileExtension: "mp4" },
+      { id: "file", title: "Local movie", kind: "video", href: `${content}/lesson/file`, path: "movies/lecture.mp4", fileExtension: "mp4" },
       { id: "link", title: "Link with credentials", kind: "external", href: null },
     ]);
   });

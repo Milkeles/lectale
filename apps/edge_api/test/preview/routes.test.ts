@@ -14,7 +14,7 @@ const files = `${preview}/files`;
 const folders = `${preview}/folders`;
 const csp = "default-src 'none'; sandbox; frame-ancestors 'none'";
 const replacement = { id: 77, owner: "Course-Author", name: "Example", defaultBranch: "main", private: false };
-const manifest = JSON.stringify({
+const manifestData = {
   schemaVersion: 3,
   course: { id: "example", title: "Example", summary: "A course", language: "en", version: "1.0.0" },
   outline: [
@@ -46,7 +46,8 @@ const manifest = JSON.stringify({
     },
     grading: { mode: "manual", maxPoints: 10 },
   }],
-});
+};
+const manifest = JSON.stringify(manifestData);
 
 let reader: FakeGitHubReader;
 let app: ReturnType<typeof createApp>;
@@ -142,7 +143,62 @@ describe("POST /api/courses/import", () => {
     expect(open).toHaveBeenCalledTimes(1);
     expect(stored.get(`${root}/_lectale-cache/repo-preview:v2:course-author:example`)?.response.headers.get("Cache-Control"))
       .toBe("public, max-age=60");
-    expect(stored.has(`${root}/_lectale-cache/public-course-outline:v3:42:${sha}`)).toBe(true);
+    expect(stored.has(`${root}/_lectale-cache/public-course-outline:v4:42:${sha}`)).toBe(true);
+  });
+
+  describe("course covers (O2)", () => {
+    const path = "assets/cover.png";
+    const png = [137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82,
+      0, 0, 2, 88, 0, 0, 3, 132, 8, 2, 0, 0, 0, 0, 0, 0, 0];
+    const smallPng = [...png];
+    smallPng[23] = 131;
+
+    beforeEach(() => {
+      reader.setFile("course.yaml", JSON.stringify({ ...manifestData, course: { ...manifestData.course, cover: path } }));
+    });
+
+    it("checks only the first 64 KiB at the pinned SHA and retains a cover at the limits", async () => {
+      const bytes = new Array<number>(2_000_000).fill(0);
+      bytes.splice(0, png.length, ...png);
+      reader.setFile(path, bytes);
+      const open = vi.spyOn(reader, "openFile");
+
+      const response = await importCourse();
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data).toMatchObject({ sha, outline: { course: { cover: path } } });
+      expect(data).not.toHaveProperty("warnings");
+      expect(open).toHaveBeenCalledTimes(2);
+      expect(open).toHaveBeenLastCalledWith("Course-Author", "Example", sha, path, "bytes=0-65535");
+      expect(await (await getFile(preview)).json()).toEqual(data);
+      expect(open).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([
+      ["cover_too_small", (): number[] => smallPng],
+      ["cover_format", (): string => "GIF89a"],
+      ["cover_too_large", (): string => "x".repeat(2_000_001)],
+    ] as const)("returns %s and the placeholder without blocking import", async (code, contents) => {
+      reader.setFile(path, contents());
+      const open = vi.spyOn(reader, "openFile");
+      const response = await importCourse();
+
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data).toMatchObject({ warnings: [{ code, path, message: expect.any(String) }] });
+      expect(data).not.toHaveProperty("outline.course.cover");
+      if (code === "cover_too_large") expect(open).toHaveBeenCalledOnce();
+    });
+
+    it("uses the placeholder when the cover path is a symlink", async () => {
+      reader.setFile(path, "README.md", "120000");
+      const open = vi.spyOn(reader, "openFile");
+      const response = await importCourse();
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ warnings: [{ code: "cover_format", path }] });
+      expect(open).toHaveBeenCalledOnce();
+    });
   });
 
   it("returns the same response for private and missing repositories", async () => {

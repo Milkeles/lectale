@@ -204,8 +204,10 @@ class OpenApiContractTest(unittest.TestCase):
         self.assertEqual(response_schema("get", "/courses/{courseId}/manifest"), outline_ref)
         self.assertEqual(schemas["CoursePreview"]["properties"]["outline"], outline_ref)
         self.assertEqual(set(schemas["CoursePreview"]["properties"]), {
-            "repoId", "sha", "outline", "readmePresent",
+            "repoId", "sha", "outline", "readmePresent", "warnings",
         })
+        self.assertNotIn("warnings", schemas["CoursePreview"]["required"])
+        self.assertNotIn("path", schemas["OutlineResource"]["required"])
 
         pending = ["CoursePreview"]
         visited = set()
@@ -239,8 +241,17 @@ class OpenApiContractTest(unittest.TestCase):
             },
         }
         validator.validate(preview)
+        resource["path"] = "materials/slides.pdf"
+        preview["warnings"] = [{
+            "code": "cover_too_small", "message": "Use a larger cover.", "path": "images/cover.png",
+        }]
+        validator.validate(preview)
+        del preview["warnings"][0]["path"]
+        self.assertFalse(validator.is_valid(preview))
+        del preview["warnings"]
         resource["href"] = "/api/courses/course/content/assignment~practice/slides"
         validator.validate(preview)
+        del resource["path"]
         resource["href"] = None
         validator.validate(preview)
         del resource["href"]

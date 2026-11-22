@@ -41,6 +41,7 @@ function toResource(resource: Resource, previewPrefix: string, scope: string) {
     title,
     description: resource.description,
     href: path === undefined ? null : `${previewPrefix}/${type === "folder" ? "folders" : "content"}/${scope}/${id}`,
+    path,
     url: link?.href,
     provider,
     embedUrl: canEmbed ? resource.url : undefined,
@@ -61,6 +62,7 @@ function toResource(resource: Resource, previewPrefix: string, scope: string) {
  * Projects a validated manifest into the CourseOutline reader response for
  * a public repository at the supplied full commit SHA (ADR-0003, ADR-0008,
  * V4-CORE-01). The caller verifies repository visibility before publishing it.
+ * Paths support relative links from Markdown lessons (V4-CORE-05, SEC-020).
  * File sizes require repository metadata and are absent from this projection.
  */
 export function toCourseOutline(

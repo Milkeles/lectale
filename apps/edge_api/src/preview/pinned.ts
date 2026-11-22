@@ -1,10 +1,12 @@
 import { MAX_MANIFEST_BYTES, validateCourseManifest, type CourseManifest } from "../contract/course-manifest";
 import type { OutlineNode, Resource } from "../contract/course-manifest-types";
 import type { components } from "../generated/api";
-import { GitHubReadError, type GitHubRepository } from "../github/reader";
+import { GitHubReadError, type GitHubDirectoryEntry, type GitHubRepository } from "../github/reader";
 import { readBoundedBody } from "../net/bounded-body";
 import { PINNED_TTL } from "./cache";
 import { courseNotFound, PreviewError } from "./errors";
+import { readPinnedPrefix } from "./file";
+import { IMAGE_HEADER_BYTES, imageSize } from "./image-size";
 import { toCourseOutline } from "./outline";
 import type { PreviewSource } from "./source";
 
@@ -14,6 +16,7 @@ const MANIFEST_PATH = "course.yaml";
 
 type ResourceTarget = { path: string; maxEntries?: number; recursive?: boolean };
 type ResourceIndex = Record<string, ResourceTarget>;
+type CoverWarning = components["schemas"]["CoursePreviewWarning"];
 
 interface PinnedPreview {
   preview: CoursePreview;
@@ -21,6 +24,7 @@ interface PinnedPreview {
 }
 
 const INDEX_SHARDS = 16;
+const MAX_COVER_BYTES = 2_000_000;
 
 function resourceShard(address: string): number {
   let hash = 0;
@@ -73,6 +77,31 @@ function manifestMissing(): PreviewError {
   });
 }
 
+async function checkCover(
+  source: PreviewSource, repository: GitHubRepository, sha: string, path: string, root: GitHubDirectoryEntry[],
+): Promise<CoverWarning | undefined> {
+  const slash = path.lastIndexOf("/");
+  const unreadable = { code: "cover_format", message: "The course cover could not be read at the pinned commit.", path };
+  try {
+    // The pinned listing supplies the byte length and excludes symlinks (SEC-020).
+    const entries = slash === -1 ? root : await source.directory(repository, sha, path.slice(0, slash));
+    const file = entries.find((entry) => entry.name === path.slice(slash + 1) && entry.type === "file");
+    if (!file || file.size === 0) return unreadable;
+    if (file.size > MAX_COVER_BYTES) {
+      return { code: "cover_too_large", message: "The course cover must be 2 MB or smaller.", path };
+    }
+    const prefix = await readPinnedPrefix(source, repository, sha, path, file.size, Math.min(IMAGE_HEADER_BYTES, file.size));
+    const dimensions = imageSize(prefix);
+    if (!dimensions) return { ...unreadable, message: "Use a readable AVIF, WebP, PNG, or JPEG cover." };
+    if (dimensions.width < 600 || dimensions.height < 900) {
+      return { code: "cover_too_small", message: "The course cover must be at least 600 × 900 pixels.", path };
+    }
+  } catch (error) {
+    if (!(error instanceof GitHubReadError)) throw error;
+    return unreadable;
+  }
+}
+
 async function loadPinnedPreview(source: PreviewSource, repository: GitHubRepository, sha: string): Promise<PinnedPreview> {
   // The single root listing checks both files and their types (README-001, SEC-020).
   const root = await source.directory(repository, sha, "");
@@ -108,15 +137,24 @@ async function loadPinnedPreview(source: PreviewSource, repository: GitHubReposi
   }
 
   const { id: repoId } = repository;
+  const outline = toCourseOutline(result.manifest, repoId, sha);
+  const preview: CoursePreview = { repoId, sha, outline, readmePresent };
+  if (outline.course.cover !== undefined) {
+    const warning = await checkCover(source, repository, sha, outline.course.cover, root);
+    if (warning) {
+      delete outline.course.cover;
+      preview.warnings = [warning];
+    }
+  }
   return {
-    preview: { repoId, sha, outline: toCourseOutline(result.manifest, repoId, sha), readmePresent },
+    preview,
     resources: indexResources(result.manifest, readmePresent),
   };
 }
 
 /** Loads and validates an authorized public course once per commit (N7, CACHE-005). */
 function pinned(source: PreviewSource, repository: GitHubRepository, sha: string): Promise<PinnedPreview> {
-  return source.store.cached(`public-course-outline:v3:${repository.id}:${sha}`, PINNED_TTL,
+  return source.store.cached(`public-course-outline:v4:${repository.id}:${sha}`, PINNED_TTL,
     () => loadPinnedPreview(source, repository, sha));
 }
 

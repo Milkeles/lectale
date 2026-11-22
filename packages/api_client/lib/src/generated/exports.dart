@@ -10,6 +10,7 @@ export 'default_client/models/course_outline.dart';
 export 'default_client/models/course_outline_node.dart';
 export 'default_client/models/course_outline_node_kind.dart';
 export 'default_client/models/course_preview.dart';
+export 'default_client/models/course_preview_warning.dart';
 export 'default_client/models/course_ref.dart';
 export 'default_client/models/deferred_json.dart';
 export 'default_client/models/get_legal_document_document_type.dart';
