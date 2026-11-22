@@ -10,6 +10,7 @@ environment:
 workspace:
   - apps/flutter_client
   - packages/api_client
+  - packages/ipynb
 
 dev_dependencies:
   swagger_parser: ^2.3.0
