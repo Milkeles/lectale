@@ -329,3 +329,39 @@ Options for the owner after the M2 measurement:
 1. Stay on Free and cap course size at what fits (likely a few hundred resources), with a clear error above it.
 2. Workers Paid ($5/month, per `docs/research/2026-11-21-platform-and-provider-facts.md`) for courses up to the spec's 10,000 resources.
 3. Try a faster YAML parser, keeping every safety rule (no aliases or tags, duplicate keys rejected).
+
+## O1 Course access settings declared in `course.yaml` (owner request, 2026-11-22)
+
+**What the owner asked for.** `course.yaml` carries the course's access settings, so an instructor declares them next to the content:
+
+- **Public:** anyone can join, and the course can be listed in the catalog.
+- **Hidden:** anyone with the link can join; the course is not in the catalog.
+- **Private:** joining is by the instructor's invitation, or by a request the instructor approves after a student opens the course link. The instructor can turn requests off.
+- **Price:** free or paid, independent of the above.
+
+**What the spec already has.** `db/0001_init.sql` stores `visibility` (`public`, `private`) and `enrollment_policy` (`open`, `approval`, `invite`). `db/0004_catalog_discovery.sql` adds `catalog_listing` (`unlisted` by default). Paid courses are milestone M9 (`docs/COMMERCE_AND_ACCESS.md`). `docs/CORE_EXPERIENCE_AND_CATALOG.md` says entitlements are created "by a verified payment event or properly authorized grant, not by YAML or catalog listing".
+
+**Correction (additive, optional, schema v3 stays valid):** add an `access` block to the top level of `course.yaml`:
+
+```yaml
+access:
+  visibility: public    # public | hidden | private
+  requests: true        # private only: allow requests to join by link (default true)
+  price: free           # free | paid
+```
+
+| `visibility` | `courses.visibility` | `enrollment_policy` | `catalog_listing` |
+|---|---|---|---|
+| `public` | `public` | `open` | `listed` |
+| `hidden` | `public` | `open` | `unlisted` |
+| `private`, `requests: true` | `private` | `approval` (invitations also allowed) | `unlisted` |
+| `private`, `requests: false` | `private` | `invite` | `unlisted` |
+
+Rules that keep this safe:
+
+1. **The YAML proposes; the platform enforces.** Lectale reads `access` when a verified owner registers or publishes the course, and pre-fills the settings. A later change in the YAML shows the owner "Settings changed in course.yaml: apply?" and takes effect only after the owner confirms in the app. A repository collaborator therefore can't silently widen access, and V4-CAT-01 (listing is an explicit opt-in) still holds.
+2. **`private` needs a private repository.** Files in a public GitHub repository are readable on GitHub whatever Lectale says. The validator reports `private` on a public repository as an error with that explanation.
+3. **`price: paid` only declares intent.** The amount, currency and payout account are set in the app by the verified owner (M9). Entitlements still come only from verified payments or grants. Until M9 ships, a `paid` course is refused at publish with a clear message.
+4. **The anonymous preview of a public repository ignores `access`.** Anyone can already read it on GitHub (V4-CORE-01). `access` governs managed courses only.
+
+**To do:** add `access` to `spec/errata/` schema and OpenAPI (contract-engineer), semantic rule and fixtures (validator), and the owner's confirm-changes flow (M4, M5).
