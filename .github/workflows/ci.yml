@@ -61,7 +61,26 @@ jobs:
         run: |
           npm ci
           npm run typecheck
-          mkdir -p ../flutter_client/build/web
+          mkdir -p build/assets
+          npm test
+
+  site:
+    name: Static site
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
+        with:
+          install_args: node
+      - working-directory: apps/site
+        run: |
+          npm ci
+          npm run build
           npm test
 
   # Jobs that need devchat_ui run only when the deploy key exists. Pull
@@ -137,7 +156,7 @@ jobs:
           # `download` is what the run keeps for people to try, relative to
           # apps/flutter_client; empty means nothing installable (web is
           # deployed instead, and an unsigned iOS build can't be installed).
-          - { target: web, os: ubuntu-24.04, command: flutter build web --release, download: "" }
+          - { target: web, os: ubuntu-24.04, command: flutter build web --release --base-href /app/, download: "" }
           - { target: linux, os: ubuntu-24.04, command: flutter build linux --release, download: lectale-linux-x64.tar.gz }
           - { target: android, os: ubuntu-24.04, command: flutter build apk --debug, download: build/app/outputs/flutter-apk/app-debug.apk }
           - { target: windows, os: windows-latest, command: flutter build windows --release, download: build/windows/x64/runner/Release }

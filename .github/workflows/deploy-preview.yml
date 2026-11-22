@@ -1,4 +1,4 @@
-# Builds the web app and deploys it with the Worker to Cloudflare's
+# Builds the site and web app and deploys them with the Worker to Cloudflare's
 # workers.dev preview. It runs only when started by hand (Actions tab, or an
 # agent with the owner's go-ahead), because every deploy needs the owner's OK.
 # The Cloudflare token lives only in the `preview` environment's secrets, so
@@ -37,8 +37,13 @@ jobs:
       - run: rm -f ~/.ssh/litse_ui
       - name: Build the web app
         working-directory: apps/flutter_client
-        run: flutter build web --release
-      - name: Deploy the Worker with the web build as its assets
+        run: flutter build web --release --base-href /app/
+      - name: Build the site and assemble the Worker assets
+        working-directory: apps/site
+        run: |
+          npm ci
+          npm run build -- --with-app
+      - name: Deploy the Worker with the site and web app
         working-directory: apps/edge_api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

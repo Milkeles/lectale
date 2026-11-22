@@ -1,5 +1,7 @@
 # Landing concept
 
+The [production site](../../../../apps/site/) lives in `apps/site/`. This directory preserves the design concept and the entry-screen mocks.
+
 Static HTML and CSS for the website and the entry screens. Spec: `../../screens/landing.md`. Screenshots (1440 and 390 px, light and dark, WebP; `index` also at 768 px): `screens/`.
 
 | Task | Command |

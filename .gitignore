@@ -30,6 +30,7 @@ coverage/
 
 # Node and Wrangler
 node_modules/
+/apps/site/dist/
 .wrangler/
 # Local secrets for `wrangler dev`. Never commit them.
 .dev.vars

@@ -1,0 +1,17 @@
+# R16–R18. Apply to static responses, including the site's fallback 404.
+/*
+  Content-Security-Policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; script-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+# Flutter's CSP is tracked in spike S3 (R19).
+/app
+  ! Content-Security-Policy
+/app/*
+  ! Content-Security-Policy
+
+# SVG covers are displayed as images (R20).
+/covers/*
+  ! Content-Security-Policy
+  Content-Security-Policy: sandbox

@@ -11,6 +11,7 @@ setup:
     sh tool/install-git-hooks.sh
     flutter pub get
     cd apps/edge_api && npm ci
+    cd apps/site && npm ci
     prek install
 
 # Run every test suite
@@ -48,14 +49,14 @@ generate:
     dart format packages/api_client
     cd tool/codegen && npm ci && npm run generate
 
-# Build the web app and serve it with the Worker on localhost:8787
-run-web:
-    cd apps/flutter_client && flutter build web
-    cd apps/edge_api && npx wrangler dev
+# Build the site and web app and serve them with the Worker on localhost:8787
+run-web: build-web
+    cd apps/edge_api && npm run dev
 
-# Build the web app into apps/flutter_client/build/web
+# Build and assemble the Worker assets into apps/edge_api/build/assets
 build-web:
-    cd apps/flutter_client && flutter build web --release
+    cd apps/flutter_client && flutter build web --release --base-href /app/
+    npm --prefix apps/site run build -- --with-app
 
 # Build the Linux app
 build-linux:

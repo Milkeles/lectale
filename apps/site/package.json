@@ -1,0 +1,12 @@
+{
+  "name": "@lectale/site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node test/site.test.mjs"
+  },
+  "dependencies": {
+    "qr": "0.7.2"
+  }
+}
