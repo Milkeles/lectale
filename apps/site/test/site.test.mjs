@@ -73,14 +73,16 @@ test('the static and aria-hidden copies contain the same quotations', () => {
   const quotations = (list) => [...list.matchAll(/<blockquote>([^<]+)<\/blockquote>/g)].map(([, text]) => text);
   assert.equal(quotations(accessible).length, 5);
   assert.deepEqual(quotations(visible), quotations(accessible));
-  assert.match(visible, /<blockquote>Come, Boy, learn to be wise\.<\/blockquote><span>Johann Amos Comenius, trans\. Charles Hoole<\/span>/);
+  assert.match(visible, /<blockquote>Come, Boy, learn to be wise\.<\/blockquote><span class="hero__credit"><span>Johann Amos Comenius,<\/span> <span>trans\. Charles Hoole<\/span><\/span>/);
+  assert.match(accessible, /translated by Charles Hoole/);
+  assert.doesNotMatch(accessible, /trans\./);
   assert.doesNotMatch(hero, /Samuel Johnson/);
   assert.equal([...accessible.matchAll(/<cite>[^<]+<\/cite>/g)].length, 5);
 });
 
 test('the decorative book has intrinsic dimensions and both local formats', async () => {
   assert.match(hero, /<picture class="hero__book">\s*<source type="image\/avif"/);
-  assert.match(hero, /<img\b[^>]*src="art\/open-book\.webp"[^>]*width="256" height="121" alt=""/);
+  assert.match(hero, /<img\b[^>]*src="art\/open-book\.webp"[^>]*width="256" height="136" alt=""/);
   for (const suffix of ['.avif', '.webp']) {
     for (const name of ['open-book', 'open-book-small']) {
       const file = new URL(`art/${name}${suffix}`, dist);

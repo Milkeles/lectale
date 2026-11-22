@@ -4,9 +4,12 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node test/site.test.mjs"
+    "test": "node --test"
   },
   "dependencies": {
     "qr": "0.7.2"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
   }
 }

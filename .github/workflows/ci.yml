@@ -77,9 +77,12 @@ jobs:
       - uses: jdx/mise-action@236a21c3b91f5db6d4e174b348674a0f0caac06d # v5.2.9
         with:
           install_args: node
+      # The orbit test drives Chromium through Playwright, pinned in
+      # apps/site/package.json, to check every moment of the hero's quote orbit.
       - working-directory: apps/site
         run: |
           npm ci
+          npx playwright install --with-deps chromium
           npm run build
           npm test
 

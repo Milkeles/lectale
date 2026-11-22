@@ -63,6 +63,7 @@
   --on-gold: #ffffff;
   --signal: #a3292e; /* errors only, with an icon and a title */
   --hair: #d3ccc2; /* boundary of the reader window; decorative */
+  --orbit-line: #cabac2; /* the two rings round the book; decorative */
   --sel: #e8e3dc; /* selected row in the reader's contents */
   --qr-paper: #f4f1ed; /* the QR tile never inverts */
   --wo: 0; /* serif weight offset: dark mode lightens by 50 */
@@ -121,6 +122,7 @@
     --on-gold: #242725;
     --signal: #f2958e;
     --hair: #454a46;
+    --orbit-line: #5b4a53;
     --sel: #353a36;
     --wo: -50;
   }
@@ -491,22 +493,41 @@ a:hover {
 .hero {
   --hero-book-width: 16rem;
   --hero-book-phone-width: 13rem;
-  --orbit-width: 40.25rem;
-  --orbit-height: 26rem;
+  /* The art column of the approved image runs from x 680 to 1340 at 1440 px.
+     The card path is the column less 14.5 rem, so the widest card (14 rem)
+     stays inside it. */
+  --orbit-width: 41.25rem;
+  --orbit-height: 27rem;
   --quote-width: 14rem;
   --orbit-lap: 72s;
 
-  padding-top: var(--s6);
+  padding-top: var(--s8);
+  /* A guard only: the orbit is sized to stay inside its column, and
+     test/orbit.test.mjs fails if a card ever leaves it. */
+  overflow-x: clip;
 }
 .hero__intro {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--orbit-width);
+  /* Text up to 32 rem (it ends near x 612 at 1440, as in the approved image),
+     art up to 41.25 rem at the right edge. Both shrink with the page, and the
+     art's rings and card path are percentages of its column. */
+  grid-template-columns: minmax(0, 32rem) minmax(0, var(--orbit-width));
+  justify-content: space-between;
   align-items: center;
   gap: var(--s6) var(--gap);
 }
+/* The text sits in a layer above the orbit, on Paper and no wider than its
+   content. If a card ever drifts into it, the card passes behind. */
+.hero__text {
+  position: relative;
+  z-index: 1;
+  justify-self: start;
+  width: fit-content;
+  max-width: 100%;
+  background: var(--paper);
+}
 .hero__title {
   max-width: 8em;
-  font-size: min(var(--display), max(var(--t48), 4.9vw));
 }
 .hero__lead {
   max-width: 31em;
@@ -514,6 +535,9 @@ a:hover {
 }
 .hero .actions {
   margin-top: var(--s6);
+}
+.hero .shot {
+  margin-top: var(--s8);
 }
 .actions {
   display: flex;
@@ -524,6 +548,9 @@ a:hover {
 
 .hero__art {
   position: relative;
+  z-index: 0;
+  /* Cards never take a click or tap meant for the text or the buttons. */
+  pointer-events: none;
   width: 100%;
   max-width: var(--orbit-width);
   justify-self: center;
@@ -555,9 +582,13 @@ a:hover {
 .hero__quote ~ .hero__quote {
   display: none;
 }
+
+/* Quote card role (landing.md section 12): quote 16/26 serif italic, credit
+   14/21 sans. */
 .hero__quote blockquote {
   margin: 0;
-  font: italic var(--t16) / 1.25 var(--serif);
+  font: italic var(--t16) / 1.625 var(--serif);
+  text-wrap: pretty;
 }
 .hero__quote blockquote::before {
   content: open-quote;
@@ -565,33 +596,30 @@ a:hover {
 .hero__quote blockquote::after {
   content: close-quote;
 }
-.hero__quote span {
+.hero__credit {
   display: block;
   margin-top: var(--s1);
   color: var(--mulberry);
-  font-size: var(--t12);
-  line-height: 1.35;
+  font-size: var(--t14);
+  line-height: 1.5;
+}
+/* A name or a translator's credit never breaks in the middle. */
+.hero__credit span {
+  white-space: nowrap;
 }
 
-@media (max-width: 82rem) {
+@media (width < 79.5rem) {
   .hero__intro {
     grid-template-columns: minmax(0, 1fr);
-  }
-}
-@media (max-width: 70rem) {
-  .hero__title {
-    font-size: var(--display);
   }
 }
 
 @supports (offset-path: ellipse(50% 50% at 50% 50%)) and (offset-anchor: center) {
   @media (width > 47rem) {
-    .hero .shot {
-      margin-top: calc(var(--s6) + var(--s2));
-    }
     .hero__pause {
       position: absolute;
       z-index: 3;
+      pointer-events: auto;
       inset: 0 0 auto auto;
       display: inline-flex;
       width: max(44px, 2.75rem);
@@ -599,6 +627,7 @@ a:hover {
       padding: 0;
       border: 0;
       border-radius: 50%;
+      background: var(--paper);
       color: var(--mulberry);
     }
     .hero__pause::before {
@@ -627,38 +656,45 @@ a:hover {
       display: initial;
     }
     .hero__orbit {
-      --orbit-center-y: calc(50% + var(--s2));
+      --orbit-center-y: 50%;
       --orbit-tilt: -22deg;
       --orbit-path: ellipse(50% 50% at 50% 50%);
 
       position: relative;
       display: block;
+      container-type: inline-size;
       height: var(--orbit-height);
     }
-    /* The ring and motion path use the same box and rotation. */
+
+    /* Two ellipses share the book's centre. The tilted rings (32.5 by 16 rem,
+       about 490 by 305 px on the page, as in the approved image) are drawn;
+       the cards ride an upright one (the art's width less 14.5 rem, by
+       17.5 rem). A
+       card is up to 14 rem wide and the column is 40 rem, so a tilted path
+       would push cards out of the column; the upright path keeps their
+       outer edges inside it and lets them tuck behind the book's corners. */
     .hero__rings,
     .hero__quote-track {
       position: absolute;
       inset: var(--orbit-center-y) 0 auto;
-      width: 34rem;
-      height: 15rem;
       margin-inline: auto;
-      transform: translateY(-50%) rotate(var(--orbit-tilt));
     }
     .hero__rings {
       display: block;
+      width: min(32.5rem, 82%);
+      aspect-ratio: 65 / 32;
+      transform: translateY(-50%) rotate(var(--orbit-tilt));
     }
     .hero__rings::before,
     .hero__rings::after {
       position: absolute;
       inset: -0.5px;
-      border: 1px solid color-mix(in srgb, var(--mulberry) 46%, var(--hair));
+      border: 1px solid var(--orbit-line);
       border-radius: 50%;
       content: "";
     }
     .hero__rings::after {
       inset: calc(var(--s3) - 0.5px);
-      border-color: color-mix(in srgb, var(--mulberry) 18%, var(--hair));
     }
     .hero__orbit-dot {
       position: absolute;
@@ -683,6 +719,10 @@ a:hover {
     }
     .hero__quote-track {
       z-index: 2;
+      width: calc(100% - 14.5rem);
+      /* Taller as the art narrows, so neighbouring cards keep their room. */
+      height: calc(17.5rem + (var(--orbit-width) - 100cqw) * 0.6);
+      transform: translateY(-50%);
     }
     .hero__quote,
     .hero__quote ~ .hero__quote {
@@ -693,57 +733,53 @@ a:hover {
       padding: var(--s2) var(--s3);
       border: 1px solid var(--hair);
       border-radius: var(--r-s);
-      background: color-mix(in srgb, var(--paper) 94%, white);
-      box-shadow: 0 1px var(--hair);
+      background: var(--paper);
       text-align: start;
       offset-path: var(--orbit-path);
       offset-distance: calc(var(--quote-position) * 1%);
-      offset-anchor: var(--quote-anchor, center);
-      offset-rotate: calc(-1 * var(--orbit-tilt));
+      offset-anchor: center;
+      offset-rotate: 0deg;
     }
 
+    /* Positions on the path, in percent of a lap, clockwise from its right
+       end. The four cards sit a quarter lap apart. At the start they stand
+       where the approved image puts them: Tagore upper left, Comenius right,
+       Thoreau lower right and Montessori left. */
     .hero__quote:first-child {
       --quote-width: 12rem;
-      --quote-position: 54;
-      --quote-anchor: calc(50% + var(--s2)) calc(50% + 0.6875rem);
+      --quote-position: 43;
     }
-    .hero__quote--descartes {
-      --quote-position: 36.5;
-    }
+    .hero__quote--descartes,
     .hero__quote--thoreau {
-      --quote-position: 18.5;
-      --quote-anchor: calc(50% - 2.625rem) calc(50% - 4.125rem);
+      --quote-position: 18;
     }
     .hero__quote:nth-child(4) {
-      --quote-width: 14.5rem;
-      --quote-position: 73;
-      --quote-anchor: calc(50% + var(--s5)) calc(50% + 2.375rem);
+      --quote-width: 13rem;
+      --quote-position: 68;
     }
     .hero__quote:last-child {
       --quote-width: 12rem;
-      --quote-position: 4.4;
-      --quote-anchor: calc(50% - var(--s2)) calc(50% - var(--s4));
+      --quote-position: 93;
+    }
+    /* Descartes and Thoreau share a place on alternate laps. Without motion
+       only Thoreau is shown, so four cards stand around the book. */
+    .hero__quote.hero__quote--descartes {
+      display: none;
     }
 
     @media (prefers-reduced-motion: no-preference) {
       .hero__pause:not([hidden]) + .hero__orbit .hero__quote {
         animation: quote-orbit var(--orbit-lap) linear infinite;
-        animation-delay: calc(var(--orbit-lap) * var(--quote-phase, var(--quote-position)) / -100);
-      }
-      .hero__quote:nth-child(4) {
-        --quote-phase: 77;
-      }
-      .hero__quote:last-child {
-        --quote-phase: 4;
+        animation-delay: calc(var(--orbit-lap) * var(--quote-position) / -100);
       }
 
-      /* Two quotations share one position on successive laps so four cards
-         have room to circle the book. Both are visible in the still layout. */
+      /* The pair trades places each lap, so four cards circle the book. */
       .hero__pause:not([hidden]) + .hero__orbit :is(.hero__quote--descartes, .hero__quote--thoreau) {
+        display: block;
         animation:
           quote-orbit var(--orbit-lap) linear infinite,
           alternate-quotes calc(2 * var(--orbit-lap)) steps(1, end) infinite;
-        animation-delay: calc(var(--orbit-lap) * -0.26), 0s;
+        animation-delay: calc(var(--orbit-lap) * var(--quote-position) / -100), 0s;
       }
       .hero__quote--descartes {
         --first-lap: hidden;
@@ -763,30 +799,9 @@ a:hover {
 @keyframes quote-orbit {
   from {
     offset-distance: 0%;
-    offset-anchor: center calc(50% + var(--s2));
-  }
-  3%, 29%, 45%, 53%, 79%, 95% {
-    offset-anchor: center;
-  }
-  /* Keep the anchor on the ellipse and ease the upright card past the book's corners. */
-  12.5% {
-    offset-anchor: calc(50% - 4.125rem) calc(50% - 6.5rem);
-  }
-  48% {
-    offset-anchor: center calc(50% - var(--s4));
-  }
-  50% {
-    offset-anchor: center calc(50% - var(--s2));
-  }
-  62.5% {
-    offset-anchor: calc(50% + 4.125rem) calc(50% + 6.5rem);
-  }
-  98% {
-    offset-anchor: center calc(50% + var(--s4));
   }
   to {
     offset-distance: 100%;
-    offset-anchor: center calc(50% + var(--s2));
   }
 }
 
@@ -802,6 +817,12 @@ a:hover {
 }
 
 @media (max-width: 45rem) {
+  .hero {
+    padding-top: var(--s6);
+  }
+  .hero .shot {
+    margin-top: var(--s7);
+  }
   .hero__book {
     width: min(100%, var(--hero-book-phone-width));
   }
