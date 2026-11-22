@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
+import { runInNewContext } from 'node:vm';
 import decodeQR from 'qr/decode.js';
 import { ANDROID_QR_URL } from '../build.mjs';
 
@@ -11,17 +12,77 @@ const origin = new URL(ANDROID_QR_URL).origin;
 const github = 'https://github.com/Milkeles/lectale/';
 const releaseLink = /^https:\/\/github\.com\/Milkeles\/lectale\/releases\//;
 const tags = [...html.matchAll(/<([a-z][\w-]*)\b[^>]*>/gi)];
+const hero = html.match(/<section class="hero"[^>]*>([\s\S]*?)<\/section>/)?.[1] ?? '';
 const csp = "default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; script-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'self'; object-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests";
 
 test('A11Y-001: native links provide the keyboard path to the primary action', () => {
   const links = [...html.matchAll(/<a\b[^>]* href="([^"]+)"/g)].map(([, href]) => href);
   assert.deepEqual(links.slice(0, 9), [
     '#main', '/', '#catalog', '#download', '#instructors', '/app/', '/app/',
-    '#instructors', '#catalog',
+    '/app/#/open', '#instructors',
   ]);
   assert.match(html, /<main id="main" tabindex="-1">/);
-  assert.match(html, /<a class="btn btn--primary btn--lg" href="#instructors">Make a course<\/a>/);
+  assert.match(hero, /<a class="btn btn--primary btn--lg" href="\/app\/#\/open">Open a course<\/a>/);
+  assert.match(hero, /<a class="btn btn--outline btn--lg" href="#instructors">Make a course<\/a>/);
   assert.match(html, /<section\b[^>]* id="instructors"/);
+});
+
+test('the hero has one heading with the approved copy', () => {
+  const headings = [...hero.matchAll(/<h1\b[^>]*>([^<]*)<\/h1>/g)].map(([, text]) => text);
+  assert.deepEqual(headings, ['Your course, online in minutes.']);
+});
+
+test('A11Y-001: the pause button toggles the orbit from the local script', async () => {
+  const button = hero.match(/<button\b[^>]* class="btn hero__pause"[^>]*>([\s\S]*?)<\/button>/);
+  assert.match(button?.[0] ?? '', /type="button" aria-pressed="false" hidden/);
+  assert.match(button?.[1] ?? '', /Pause quotes/);
+  assert.match(html, /<script src="hero-quotes\.js" defer><\/script>/);
+
+  const attributes = new Map([['aria-pressed', 'false']]);
+  const listeners = new Map();
+  const pause = {
+    hidden: true,
+    getAttribute: attributes.get.bind(attributes),
+    setAttribute: attributes.set.bind(attributes),
+    addEventListener: listeners.set.bind(listeners),
+  };
+  runInNewContext(await read('hero-quotes.js'), {
+    document: {
+      querySelector(selector) {
+        assert.equal(selector, '.hero__pause');
+        return pause;
+      },
+    },
+  });
+  assert.equal(pause.hidden, false);
+  listeners.get('click')();
+  assert.equal(attributes.get('aria-pressed'), 'true');
+  listeners.get('click')();
+  assert.equal(attributes.get('aria-pressed'), 'false');
+
+  const css = await read('site.css');
+  assert.match(css, /\.hero__pause\[aria-pressed="true"\]\s*\+\s*\.hero__orbit \.hero__quote\s*\{\s*animation-play-state: paused;/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.hero \.hero__pause\s*\{\s*display: none;\s*\}[^{]+\{\s*animation: none;/);
+});
+
+test('the static and aria-hidden copies contain the same quotations', () => {
+  const visible = hero.match(/<ul class="hero__quote-track" aria-hidden="true">([\s\S]*?)<\/ul>/)?.[1] ?? '';
+  const accessible = hero.match(/<ul class="vh" aria-label="Quotations on learning and reading">([\s\S]*?)<\/ul>/)?.[1] ?? '';
+  const quotations = (list) => [...list.matchAll(/<blockquote>([^<]+)<\/blockquote>/g)].map(([, text]) => text);
+  assert.equal(quotations(accessible).length, 5);
+  assert.deepEqual(quotations(visible), quotations(accessible));
+  assert.equal([...accessible.matchAll(/<cite>[^<]+<\/cite>/g)].length, 5);
+});
+
+test('the decorative book has intrinsic dimensions and both local formats', async () => {
+  assert.match(hero, /<picture class="hero__book">\s*<source type="image\/avif"/);
+  assert.match(hero, /<img\b[^>]*src="art\/book\.webp"[^>]*width="[1-9]\d*" height="[1-9]\d*" alt=""/);
+  for (const suffix of ['.avif', '.webp']) {
+    for (const name of ['book', 'book-small']) {
+      const file = new URL(`art/${name}${suffix}`, dist);
+      assert.ok((await readFile(file)).length > 0);
+    }
+  }
 });
 
 test('R17: assets are same-origin and outbound links stay within GitHub or mailto', () => {
@@ -33,6 +94,11 @@ test('R17: assets are same-origin and outbound links stay within GitHub or mailt
       const allowedLink = element.toLowerCase() === 'a' && attribute.toLowerCase() === 'href'
         && (url.href.startsWith(github) || url.protocol === 'mailto:');
       assert.ok(url.origin === origin || allowedLink, `Unexpected URL in ${tag}`);
+    }
+    const srcset = tag.match(/\ssrcset="([^"]+)"/)?.[1];
+    for (const candidate of srcset?.split(',') ?? []) {
+      const [value] = candidate.trim().split(/\s+/);
+      assert.equal(new URL(value, origin).origin, origin, `Unexpected URL in ${tag}`);
     }
   }
 });

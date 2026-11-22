@@ -10,13 +10,12 @@ used only at build and test time. Its npm metadata describes it as a
 
 ## Build and test
 
-Run from the repository root with the project's pinned Node and Flutter
-versions.
+Run from the repository root with the project's pinned Node version.
 
 ```sh
 npm --prefix apps/site ci
 npm --prefix apps/site run build
-node apps/site/test/site.test.mjs
+node --test apps/site/test/site.test.mjs
 ```
 
 The public site is in `apps/site/dist/`. The tests check URL allowlists,
@@ -53,10 +52,12 @@ open the landing-page preview until M10. The privacy notice, terms and
 accessibility links can be added when those pages are published.
 
 Tab starts at “Skip to main content”, then moves through the brand, Catalog,
-Download, For instructors, Log in and Create account to “Make a course” and
-“Find a course”. Activating the skip link focuses the main landmark so the
-next Tab reaches “Make a course”. Enter on that link jumps to the instructor
-section.
+Download, For instructors, Log in and Create account to “Open a course” and
+“Make a course”. “Pause quotes” follows when the orbit is active. Activating
+the skip link focuses the main landmark so the next Tab reaches “Open a
+course”. Enter opens `/app/#/open`. “Make a course” jumps to the instructor
+section. The wider layout shows the orbit at rest with reduced motion or
+JavaScript disabled.
 
 ## Cloudflare static assets
 

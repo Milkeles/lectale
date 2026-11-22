@@ -30,7 +30,7 @@ async function buildSite() {
 
   await rm(dist, { recursive: true, force: true });
   await mkdir(new URL('qr/', dist), { recursive: true });
-  const files = ['404.html', 'site.css', 'logo.svg', 'fonts', 'covers', '_headers'];
+  const files = ['404.html', 'site.css', 'hero-quotes.js', 'logo.svg', 'fonts', 'covers', 'art', '_headers'];
   await Promise.all([
     ...files.map((name) => cp(new URL(name, src), new URL(name, dist), { recursive: true })),
     writeFile(new URL('index.html', dist), landing),

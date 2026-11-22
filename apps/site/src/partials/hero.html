@@ -1,10 +1,43 @@
 <section class="hero" id="top" aria-labelledby="hero-title">
   <div class="wrap">
-    <h1 class="t-display hero__title" id="hero-title">Your course, online in minutes.</h1>
-    <p class="t-lead hero__lead">Put your lessons, PDFs and notebooks in a GitHub repository, add one outline file, and share a link. Anyone can read it free, no account.</p>
-    <div class="actions">
-      <a class="btn btn--primary btn--lg" href="#instructors">Make a course</a>
-      <a class="btn btn--outline btn--lg" href="#catalog">Find a course</a>
+    <div class="hero__intro">
+      <div>
+        <h1 class="t-display hero__title" id="hero-title">Your course, online in minutes.</h1>
+        <p class="t-lead hero__lead">Put your lessons, PDFs and notebooks in a GitHub repository, add one outline file, and share a link. Anyone can read it free, no account.</p>
+        <div class="actions">
+          <a class="btn btn--primary btn--lg" href="/app/#/open">Open a course</a>
+          <a class="btn btn--outline btn--lg" href="#instructors">Make a course</a>
+        </div>
+      </div>
+
+      <div class="hero__art">
+        <button class="btn hero__pause" type="button" aria-pressed="false" hidden>
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5 3v10m6-10v10"/></svg>
+          Pause quotes
+        </button>
+        <div class="hero__orbit">
+          <picture class="hero__book">
+            <source type="image/avif" srcset="art/book-small.avif 576w, art/book.avif 768w" sizes="(max-width: 20.5rem) calc(100vw - 2.5rem), (max-width: 45rem) 18rem, 24rem">
+            <img src="art/book.webp" srcset="art/book-small.webp 576w, art/book.webp 768w" sizes="(max-width: 20.5rem) calc(100vw - 2.5rem), (max-width: 45rem) 18rem, 24rem" width="384" height="192" alt="" decoding="async">
+          </picture>
+
+          <ul class="hero__quote-track" aria-hidden="true">
+            <li class="hero__quote"><blockquote>Discipline must come through liberty.</blockquote><span>Maria Montessori</span></li>
+            <li class="hero__quote"><blockquote>To hold converse with those of other ages and to travel, are almost the same thing.</blockquote><span>René Descartes</span></li>
+            <li class="hero__quote"><blockquote>Books must be read as deliberately and reservedly as they were written.</blockquote><span>Henry David Thoreau</span></li>
+            <li class="hero__quote"><blockquote>Where the mind is without fear and the head is held high; Where knowledge is free</blockquote><span>Rabindranath Tagore</span></li>
+            <li class="hero__quote"><blockquote>I felt an inextinguishable curiosity kindle in my mind</blockquote><span>Samuel Johnson (said by Imlac)</span></li>
+          </ul>
+        </div>
+
+        <ul class="vh" aria-label="Quotations on learning and reading">
+          <li><blockquote>Discipline must come through liberty.</blockquote><p>Maria Montessori, translated by Anne E. George, <cite>The Montessori Method</cite></p></li>
+          <li><blockquote>To hold converse with those of other ages and to travel, are almost the same thing.</blockquote><p>René Descartes, translated by John Veitch, <cite>Discourse on the Method</cite></p></li>
+          <li><blockquote>Books must be read as deliberately and reservedly as they were written.</blockquote><p>Henry David Thoreau, <cite>Walden</cite></p></li>
+          <li><blockquote>Where the mind is without fear and the head is held high; Where knowledge is free</blockquote><p>Rabindranath Tagore, <cite>Gitanjali</cite></p></li>
+          <li><blockquote>I felt an inextinguishable curiosity kindle in my mind</blockquote><p>Samuel Johnson (said by Imlac), <cite>The History of Rasselas, Prince of Abyssinia</cite></p></li>
+        </ul>
+      </div>
     </div>
 
     <figure class="shot">
@@ -38,3 +71,4 @@
     </figure>
   </div>
 </section>
+<script src="hero-quotes.js" defer></script>
