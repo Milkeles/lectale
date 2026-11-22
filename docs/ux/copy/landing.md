@@ -160,6 +160,13 @@ The hook should carry 1 and 2, the two-sided ease, and let the subheading carry 
 
 Calls to action with R4-A: **Find a course** (primary, gold, to the catalog with the link field above it) and **Make a course** (secondary, to the instructors section and its guide).
 
+### Chosen hero (owner, 2026-11-22)
+
+- **Headline:** Your course, online in minutes.
+- **Subheading:** Put your lessons, PDFs and notebooks in a GitHub repository, add one outline file, and share a link. Anyone can read it free, no account.
+- **Calls to action:** Make a course (primary, gold) and Find a course (secondary). The headline speaks to teachers, so making a course leads; finding one stays one click away.
+- **Why:** the owner judged earlier headlines as describing the product without convincing anyone. This one leads with the outcome a teacher wants, and the subheading shows why it is quick.
+
 ## 3. Navigation labels
 
 | Place | Label | Note |

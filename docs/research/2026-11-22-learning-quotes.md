@@ -1,0 +1,70 @@
+# Landing hero quotes about reading and learning (2026-11-22)
+
+Need: 12 to 16 short, verified quotes for a slowly circling hero element on the landing page.   Requirement IDs: none (marketing copy).
+Constraints checked: licence (MIT-compatible content, public-domain wording) / no new cost. Workers, six platforms and litse-ui do not apply to quote text.
+
+## How the sources were reached
+
+Blocked by the sandbox proxy (`CONNECT tunnel failed, response 403`, tested 2026-11-22): `en.wikiquote.org`, `en.wikisource.org`, `bg.wikisource.org`, `www.gutenberg.org`, `gutenberg.org`, `en.wikipedia.org`, `archive.org`, `commons.wikimedia.org`, `www.wikidata.org`, `babel.hathitrust.org`, `openlibrary.org`, `www.perseus.tufts.edu`, `classics.mit.edu`, `www.sacred-texts.com`, `chitanka.info`, `slovo.bg`, `www.britannica.com`, `www.bartleby.com`, `plato.stanford.edu`, `www.poetryfoundation.org`, `gutenberg.pglaf.org`, `gutenberg.readingroo.ms`, `aleph.gutenberg.org`, `www.fulltextarchive.com`, `onlinebooks.library.upenn.edu`, `www.marxists.org`, `www.google.com/books`, `dev.to`. (Curl returned exit 000/56 for each; no other host was tried to route around the block.)
+
+Reachable, and used instead:
+- `standardebooks.org`: complete texts, public-domain editions of named translations. Fetched as `https://standardebooks.org/ebooks/<author>/<title>/text/single-page`.
+- `raw.githubusercontent.com/GITenberg/<repo>/master/<id>.txt`: GITenberg, GitHub mirrors of Project Gutenberg files. Each file opens with "The Project Gutenberg EBook of ...", so the text is Gutenberg's, fetched through a mirror, not from gutenberg.org.
+
+Consequence: the Wikiquote "Sourced" check could not be run for anyone. Every quote below was instead matched, word for word, against the full text of the cited edition. "Verified" here means "found verbatim in the fetched edition", not "cross-checked on Wikiquote". Quotes I could not find in a fetched text are under "Rejected".
+
+All fetch dates are 2026-11-22. Wording keeps the edition's punctuation; I only dropped leading words and cut at a clause boundary where marked with "[...]".
+
+## Passed quotes (16)
+
+| # | Quote | Author | Work, year | Source URL | Licence status | Why it fits |
+|---|---|---|---|---|---|---|
+| 1 | "Learning without thought is labour lost; thought without learning is perilous." | Confucius, trans. James Legge | Analects, Book II ("Wei Chang"), ch. XV; Legge 1861 | https://standardebooks.org/ebooks/confucius/analects/james-legge | Public domain (Legge d.1897). Chinese original not fetched. | Learning and reflection paired; calm, not hustle. |
+| 2 | "[...] it is enough to possess only as many books as you can read." | Seneca, trans. Richard M. Gummere | Letters to Lucilius, Letter II "On Discursiveness in Reading"; Loeb 1917-25 | https://standardebooks.org/ebooks/seneca/moral-letters-to-lucilius/richard-m-gummere | Public domain (Seneca d.65 AD; Gummere d.1969, SE publishes it as US public domain, 1917 work; life+70 countries not verified). Latin not fetched. | Permission to own fewer books and finish them. |
+| 3 | "a tutor, who has rather a well-made than a well-filled head" (French: "qui eust plustost la teste bien faicte, que bien pleine") | Michel de Montaigne, trans. Charles Cotton, ed. W. C. Hazlitt | Essays, Book I, "Of the Education of Children" / "De l'institution des enfans"; French 16th c., Cotton 1685, Hazlitt ed. 1877 | EN https://raw.githubusercontent.com/GITenberg/Essays-of-Michel-de-Montaigne---Complete_3600/master/3600-0.txt ; FR https://raw.githubusercontent.com/GITenberg/Essais-de-Montaigne-self-edition_48529/master/48529-0.txt | Public domain (Montaigne d.1592, Cotton d.1687). Which French edition the PG file follows: not verified. | Quality of understanding over quantity read. The French line is the origin of the "tête bien faite" idea. |
+| 4 | "To hold converse with those of other ages and to travel, are almost the same thing." | René Descartes, trans. John Veitch | Discourse on the Method, Part I; French 1637, Veitch 1850-53 | EN https://standardebooks.org/ebooks/rene-descartes/philosophical-works/john-veitch ; FR https://raw.githubusercontent.com/GITenberg/Discours-de-la-m-thode_13846/master/13846-0.txt | Public domain (Descartes d.1650, Veitch d.1894). | Reading old books as travel. French: "Car c'est quasi le même de converser avec ceux des autres siècles que de voyager." The English opens "For to hold converse...", I dropped "For". |
+| 5 | "I felt an inextinguishable curiosity kindle in my mind" | Samuel Johnson (said by Imlac) | The History of Rasselas, Prince of Abyssinia, ch. VIII "The History of Imlac"; 1759 | https://standardebooks.org/ebooks/samuel-johnson/the-history-of-rasselas-prince-of-abyssinia | Public domain (d.1784). | Curiosity, the reason anyone opens a course. Spoken by a character; attribute to Johnson's novel, not Johnson's opinion. |
+| 6 | "Strengthen the female mind by enlarging it, and there will be an end to blind obedience" | Mary Wollstonecraft | A Vindication of the Rights of Woman, ch. II; 1792 | https://standardebooks.org/ebooks/mary-wollstonecraft/a-vindication-of-the-rights-of-woman | Public domain (d.1797). | Learning as freedom. 16 words; the source sentence continues after a semicolon, cut shown by omitting the rest. |
+| 7 | "From that moment, I understood the pathway from slavery to freedom." | Frederick Douglass | Narrative of the Life of Frederick Douglass, ch. VI; 1845 | https://standardebooks.org/ebooks/frederick-douglass/narrative-of-the-life-of-frederick-douglass | Public domain (d.1895). | Literacy as the way out. Caution: in context "that moment" is Master Auld's speech against teaching him to read, and Douglass then resolves to learn to read. The sentence does not mention reading by itself; keep a tooltip or caption with the context, or drop it if captions are not planned. |
+| 8 | "to esteem his own life the text, and books the commentary" | Ralph Waldo Emerson | "History", in Essays; SE colophon says 1841 and 1844 volumes (which one holds "History": not verified) | https://standardebooks.org/ebooks/ralph-waldo-emerson/essays | Public domain (d.1882). | Reading as a conversation with your own life. Excerpt of a longer sentence ("The student is to read history actively and not passively; to esteem ..."); mark with an ellipsis. |
+| 9 | "Books must be read as deliberately and reservedly as they were written." | Henry David Thoreau | Walden, chapter "Reading"; 1854 | https://standardebooks.org/ebooks/henry-david-thoreau/walden | Public domain (d.1862). | The slow-reading idea this app is built around. |
+| 10 | "Where the mind is without fear and the head is held high; Where knowledge is free" | Rabindranath Tagore | Gitanjali, poem XXXV; 1913 | https://standardebooks.org/ebooks/rabindranath-tagore/gitanjali | Public domain (d.1941). Tagore's own English version; colophon says "published in 1913". | Open knowledge, matches opening a public repo by URL. 16 words with the semicolon. |
+| 11 | "Learning should as far as possible follow the process of eating." | Rabindranath Tagore | My Reminiscences, ch. XI "Our Bengali Course Ends"; Bengali 1912, English 1916 | https://standardebooks.org/ebooks/rabindranath-tagore/my-reminiscences/the-macmillan-company | Public domain (d.1941). Translator: SE's colophon says "translated from Bengali in 1916 by The Macmillan Company"; individual translator not verified. Bengali original not fetched. | Learning should be tasted and enjoyed. In context the point is about being taught in a foreign language, so the sentence is true to the text but narrower there than it reads alone. |
+| 12 | "Come, Boy, learn to be wise." (Latin: "Veni, Puer, disce sapere.") | Johann Amos Comenius, trans. Charles Hoole | Orbis Sensualium Pictus, "I. Invitation"; Latin 1658, Hoole 1659, text via the 1727 English edition in Bardeen's 1887 edition | https://raw.githubusercontent.com/GITenberg/The-Orbis-Pictus_28299/master/28299-0.txt | Public domain (Comenius d.1670; Hoole d.1666; Bardeen d.1941). | Five words; the first line of the first European picture book for learners. Latin and English side by side in the file. |
+| 13 | "Discipline must come through liberty." | Maria Montessori, trans. Anne E. George | The Montessori Method, ch. V "Discipline"; Italian 1909, English 1912 | https://raw.githubusercontent.com/GITenberg/The-Montessori-MethodAuthor_39863/master/39863.txt | Public domain (Montessori d.1952, George's 1912 translation). Italian original not fetched. | Freedom to attend. Weakest fit of the set (about children, not reading); keep only if Montessori is wanted for range. |
+| 14 | Bulgarian: "младий прави мъдър, а стария - млад" (my literal gloss, not a published translation: "it makes the young wise and the old young") | Ivan Vazov | "Паисий" in Епопея на забравените (Epopee to the Forgotten), written 1881-84; the lines are the poem's Paisius speaking of his book | https://raw.githubusercontent.com/GITenberg/---------------------_2890/master/2890-0.txt | Public domain (Vazov d.1921). PG text is Bulgarian, in the original period spelling. The English gloss is mine and needs a Bulgarian reader's check before shipping. | Bulgarian author, in the original language. About what reading a book does. Neighbouring lines: "който я прочита няма да се кае, който знае нея, много ще да знае". |
+| 15 | "I sit with Shakespeare and he winces not." | W. E. B. Du Bois | The Souls of Black Folk, ch. VI "Of the Training of Black Men"; 1903 | https://standardebooks.org/ebooks/w-e-b-du-bois/the-souls-of-black-folk | Mark: US public domain by publication date (1903). Du Bois d.1963, so under life+70 rules the text is protected until 2034 in many countries. Short quotation only. | Reading as company, with no barrier. 8 words. |
+| 16 | "Literature is my Utopia." | Helen Keller | The Story of My Life, ch. XXI; 1903 | https://standardebooks.org/ebooks/helen-keller/the-story-of-my-life | Mark: US public domain by publication date (1903). Keller d.1968; life+70 protection until 2039 in many countries. Short quotation only. | Four words; the next sentences: "Here I am not disfranchised. No barrier of the senses shuts me out from the sweet, gracious discourse of my book-friends." |
+
+Total passed: 16. Of these, 13 are by authors who died before 1956 and are public domain in most places; 15 and 16 are marked for the life+70 caveat; 14 needs a Bulgarian reader to confirm the gloss.
+
+Strongest five for a calm reading app: Thoreau (9), Confucius (1), Seneca II (2), Descartes (4), Comenius (12). Short, complete in themselves, and about slowness, attention and returning to books.
+
+## Verified in the text but not chosen
+
+- Seneca, Letter LXXXII: "Leisure without study is death; it is a tomb for the living man." Found in Gummere (same URL as row 2). Left out because it is grim for a calm hero; usable as a spare.
+- Confucius, Analects I.1: "Is it not pleasant to learn with a constant perseverance and application?" Found in Legge. 13 words, spare.
+- Thoreau, Walden "Reading": "How many a man has dated a new era in his life from the reading of a book!" (17 words) and "Books are the treasured wealth of the world and the fit inheritance of generations and nations." (16 words). Spares.
+- Montessori, same book: "the aim of education is to develop the energies" (italic in the source). Spare.
+
+## Rejected
+
+| Famous or expected quote | Result |
+|---|---|
+| Montaigne, "I quote others only the better to express myself" | Not found: no match for "quote others" in the Cotton/Hazlitt text (PG #3600). Not confirmed in this run. |
+| Montaigne, "To know by heart is not to know" | Not found: no match in the Cotton/Hazlitt text. |
+| Seneca, "We are learning not for school but for life" | Not searched in English; the Latin was not fetchable (Wikisource blocked), so not verified. |
+| "Education is to guide activity, not repress it" (often given to Montessori) | Misattributed in the source text itself: it appears in the translator's introduction by Henry W. Holmes, not in Montessori's chapters. |
+| Marcus Aurelius, "Throw away thy books" (Meditations II) | Real, but says the opposite of the app's purpose. |
+| Jane Austen, "there is no enjoyment like reading!" (Pride and Prejudice) | Not fetched; the speaker (Caroline Bingley) is insincere in the scene, from memory, so not verified. Not used. |
+| Hazlitt, Table-Talk: "I could read with ever fresh delight" | Real, but conditional ("If I was not a great author, ...") and not self-contained. |
+| Ibn Khaldun (Muqaddimah) | No public-domain English edition found on a reachable host; GITenberg search returned nothing. Not verified. |
+| Hypatia | No surviving writings are on a reachable host; GITenberg returns only books about her. None verified, as expected. |
+| Virginia Woolf, "How Should One Read a Book?" | Standard Ebooks page says the ebook is not yet in its catalogue; no text fetched. |
+| Michel de Montaigne, Ruskin "Sesame and Lilies", Charles Lamb, Cicero, Erasmus (Standard Ebooks) | Pages exist but the ebooks are not in the catalogue yet (Standard Ebooks 404 or "wanted"). Not searched. |
+| Maria Montessori (Italian), Seneca (Latin), Confucius (Chinese), Tagore (Bengali) originals | Not fetched; host blocked or no text on reachable hosts. Translations only. |
+| Other Bulgarian authors, Comenius's Latin "Didactica Magna" | No text found on a reachable host. Vazov and the Orbis Pictus were the only ones. |
+
+## Recommendation
+
+Needs owner decision, then use as listed. Ship rows 1-13 as they stand. Row 14 needs a Bulgarian speaker to confirm the gloss, row 7 needs its context line or should be dropped, and rows 15-16 stay only as short quotation with the life+70 caveat. If the Wikiquote "Sourced" check is required as written, it has to be run from a network that reaches `en.wikiquote.org`; every wording here was matched against full edition text instead.
