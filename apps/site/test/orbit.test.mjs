@@ -1,6 +1,6 @@
 // The hero's quote cards circle the book on a CSS motion path. Whatever the
 // phase of the lap, a card must stay inside the content column and must never
-// cover the headline, the lead, the buttons or the pause button.
+// cover the visible book, the headline, the lead, the buttons or the pause button.
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -21,7 +21,11 @@ const types = {
   '.avif': 'image/avif',
   '.woff2': 'font/woff2',
 };
-const widths = [1440, 1280, 1024, 768];
+const viewports = [
+  ...[1440, 1280, 1100, 1024, 980, 900, 820, 768, 650].map((width) => ({ width, colorScheme: 'light', orbit: true })),
+  ...[600, 390].map((width) => ({ width, colorScheme: 'light', orbit: false })),
+  { width: 980, colorScheme: 'dark', orbit: true },
+];
 const LAP = 72; // seconds, `--orbit-lap`
 const STEPS = 24;
 // Two cards trade places every second lap, so the lap is sampled twice: once
@@ -75,10 +79,18 @@ function measure(time) {
     .filter((card) => getComputedStyle(card).visibility !== 'hidden' && card.offsetParent !== null)
     .map((card) => ({ name: card.textContent.trim().slice(0, 24), ...box(card) }));
   const pause = q('.hero__pause');
+  const { left, top, right, bottom, width, height } = q('.hero__book img').getBoundingClientRect();
   return {
     cards,
     column: box(q('.hero .wrap')),
     avoid: {
+      // Leave out the artwork's transparent margins.
+      book: {
+        left: left + width * 0.08,
+        top: top + height * 0.08,
+        right: right - width * 0.08,
+        bottom: bottom - height * 0.08,
+      },
       title: box(q('.hero__title')),
       lead: box(q('.hero__lead')),
       ...Object.fromEntries([...document.querySelectorAll('.hero .actions .btn')].map((b, i) => [`button ${i + 1}`, box(b)])),
@@ -115,8 +127,8 @@ function violations({ cards, column, avoid, blockedButtons, scrollWidth, innerWi
   return found;
 }
 
-async function open(width, reducedMotion) {
-  const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion, colorScheme: 'light' });
+async function open({ width, colorScheme }, reducedMotion) {
+  const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion, colorScheme });
   const page = await context.newPage();
   await page.goto(origin, { waitUntil: 'load' });
   await page.evaluate(() => document.fonts.ready);
@@ -124,12 +136,22 @@ async function open(width, reducedMotion) {
 }
 
 describe('hero orbit', () => {
-  for (const width of widths) {
-    test(`${width} px: cards stay in the column and clear of the text, buttons and pause button`, async () => {
-      const { context, page } = await open(width, 'no-preference');
+  for (const viewport of viewports) {
+    const { width, colorScheme, orbit } = viewport;
+    const label = `${width} px, ${colorScheme}`;
+    test(`${label}: quotes stay in the column and clear of the book, text and controls`, async () => {
+      const { context, page } = await open(viewport, 'no-preference');
       try {
+        if (!orbit) {
+          assert.equal(await page.locator('.hero__pause').isVisible(), false);
+          assert.equal(await page.locator('.hero__orbit').evaluate((el) => el.getAnimations({ subtree: true }).length), 0);
+          const state = await page.evaluate(measure, null);
+          assert.equal(state.cards.length, 1);
+          assert.deepEqual(violations(state, 'phone'), []);
+          return;
+        }
         await page.waitForSelector('.hero__pause:not([hidden])');
-        assert.ok(await page.evaluate(() => document.getAnimations().length > 0), 'the orbit is animated');
+        assert.ok(await page.locator('.hero__orbit').evaluate((el) => el.getAnimations({ subtree: true }).length > 0), 'the orbit is animated');
 
         const found = [];
         for (const time of times) {
@@ -143,11 +165,13 @@ describe('hero orbit', () => {
       }
     });
 
-    test(`${width} px, reduced motion: the still cards obey the same rules`, async () => {
-      const { context, page } = await open(width, 'reduce');
+    test(`${label}, reduced motion: the still quotes obey the same rules`, async () => {
+      const { context, page } = await open(viewport, 'reduce');
       try {
         assert.equal(await page.evaluate(() => document.getAnimations().length), 0);
-        assert.deepEqual(violations(await page.evaluate(measure, null), 'still'), []);
+        const state = await page.evaluate(measure, null);
+        assert.equal(state.cards.length, orbit ? 4 : 1);
+        assert.deepEqual(violations(state, 'still'), []);
       } finally {
         await context.close();
       }

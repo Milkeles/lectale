@@ -18,22 +18,24 @@
           </svg>
         </button>
         <div class="hero__orbit">
-          <div class="hero__rings" aria-hidden="true">
-            <span class="hero__orbit-dot"></span>
-            <span class="hero__orbit-dot"></span>
-          </div>
-          <picture class="hero__book">
-            <source type="image/avif" srcset="art/open-book-small.avif 416w, art/open-book.avif 512w" sizes="(max-width: 15.5rem) calc(100vw - 2.5rem), (max-width: 45rem) 13rem, 16rem">
-            <img src="art/open-book.webp" srcset="art/open-book-small.webp 416w, art/open-book.webp 512w" sizes="(max-width: 15.5rem) calc(100vw - 2.5rem), (max-width: 45rem) 13rem, 16rem" width="256" height="136" alt="" decoding="async">
-          </picture>
+          <div class="hero__orbit-scene">
+            <div class="hero__rings" aria-hidden="true">
+              <span class="hero__orbit-dot"></span>
+              <span class="hero__orbit-dot"></span>
+            </div>
+            <picture class="hero__book">
+              <source type="image/avif" srcset="art/open-book-small.avif 416w, art/open-book.avif 512w" sizes="(width <= 15.5rem) calc(100vw - 2.5rem), (width < 38.75rem) 13rem, (width < 43.75rem) calc((100vw - 2.5rem) * 16 / 41.25), (45rem < width < 45.25rem) calc((100vw - 4rem) * 16 / 41.25), 16rem">
+              <img src="art/open-book.webp" srcset="art/open-book-small.webp 416w, art/open-book.webp 512w" sizes="(width <= 15.5rem) calc(100vw - 2.5rem), (width < 38.75rem) 13rem, (width < 43.75rem) calc((100vw - 2.5rem) * 16 / 41.25), (45rem < width < 45.25rem) calc((100vw - 4rem) * 16 / 41.25), 16rem" width="256" height="136" alt="" decoding="async">
+            </picture>
 
-          <ul class="hero__quote-track" aria-hidden="true">
-            <li class="hero__quote"><blockquote>Discipline must come through liberty.</blockquote><span class="hero__credit"><span>Maria Montessori,</span> <span>trans. Anne E. George</span></span></li>
-            <li class="hero__quote hero__quote--descartes"><blockquote>To hold converse with those of other ages and to travel, are almost the same thing.</blockquote><span class="hero__credit"><span>René Descartes,</span> <span>trans. John Veitch</span></span></li>
-            <li class="hero__quote hero__quote--thoreau"><blockquote>Books must be read as deliberately and reservedly as they were written.</blockquote><span class="hero__credit"><span>Henry David Thoreau</span></span></li>
-            <li class="hero__quote"><blockquote>Where the mind is without fear and the head is held high; Where knowledge is free</blockquote><span class="hero__credit"><span>Rabindranath Tagore</span></span></li>
-            <li class="hero__quote"><blockquote>Come, Boy, learn to be wise.</blockquote><span class="hero__credit"><span>Johann Amos Comenius,</span> <span>trans. Charles Hoole</span></span></li>
-          </ul>
+            <ul class="hero__quote-track" aria-hidden="true">
+              <li class="hero__quote"><blockquote>Discipline must come through liberty.</blockquote><span class="hero__credit"><span>Maria Montessori,</span> <span>trans. Anne E. George</span></span></li>
+              <li class="hero__quote hero__quote--descartes"><blockquote>To hold converse with those of other ages and to travel, are almost the same thing.</blockquote><span class="hero__credit"><span>René Descartes,</span> <span>trans. John Veitch</span></span></li>
+              <li class="hero__quote hero__quote--thoreau"><blockquote>Books must be read as deliberately and reservedly as they were written.</blockquote><span class="hero__credit"><span>Henry David Thoreau</span></span></li>
+              <li class="hero__quote"><blockquote>Where the mind is without fear and the head is held high; Where knowledge is free</blockquote><span class="hero__credit"><span>Rabindranath Tagore</span></span></li>
+              <li class="hero__quote"><blockquote>Come, Boy, learn to be wise.</blockquote><span class="hero__credit"><span>Johann Amos Comenius,</span> <span>trans. Charles Hoole</span></span></li>
+            </ul>
+          </div>
         </div>
 
         <ul class="vh" aria-label="Quotations on learning and reading">
