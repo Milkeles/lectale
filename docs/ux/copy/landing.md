@@ -90,6 +90,53 @@ Runners-up: **D** has the most memorable promise, but "read like a good book" le
 
 Decision for the design lead: H's headline has two short sentences. Set them on two lines on wide screens, with the same size and weight, so the contrast reads at a glance.
 
+## Hero, round 3
+
+Ten new hooks after the owner asked for a stronger one that also sits well beside a visual of quotes about reading and learning. Headline 8 words or fewer, subheading 25 words or fewer (counts in brackets). Calls to action stay "Open a course" and "Browse courses" for all ten. Every subheading says what Lectale is in plain words and uses only facts in the spec: no prices, no claim about remembering a reading position.
+
+### Options
+
+1. **Keep your place in the course** (6)
+   - Subheading: Lectale shows a course's lessons, PDFs, notebooks, video and audio in one reader. Save a course with an account; reading needs none. (22)
+   - Angle: bookmark. Ties to the ribbon in the logo.
+2. **Read a course like a book** (6)
+   - Subheading: Lectale opens a course as one calm reader, with its lessons, PDFs, notebooks, video and audio in order. Free to read, no account. (23)
+   - Angle: reading a course like a good book.
+3. **Start at page one. Finish the course.** (7)
+   - Subheading: Lectale shows a course's outline and every lesson in one reader, so you can read it in order. Free to read, no account needed. (24)
+   - Angle: reading a course like a book, as a two-step arc.
+4. **Give the course your whole attention** (6)
+   - Subheading: Lectale shows lessons, PDFs, notebooks, video and audio in one quiet reader, with no ads and no tracking. (18)
+   - Angle: attention and calm. "No ads, no tracking" is true per the privacy section.
+5. **Nothing to find. Just the next lesson.** (7)
+   - Subheading: Lectale puts a course's outline, lessons, PDFs, notebooks, video and audio in one reader. Pick a lesson and read. (19)
+   - Angle: calm; one place instead of scattered material.
+6. **Someone wrote a course on it** (6)
+   - Subheading: Lectale opens courses that teachers publish on GitHub, and shows their lessons, PDFs, notebooks, video and audio in one reader. (20)
+   - Angle: curiosity and learning anything. Needs real courses in the catalog to be honest at launch.
+7. **A link is all a course needs** (7)
+   - Subheading: Paste the link to a course on GitHub. Lectale shows its lessons, PDFs, notebooks, video and audio. No account needed. (20)
+   - Angle: curiosity and openness; the link is the whole way in.
+8. **Courses that belong to their teachers** (6)
+   - Subheading: Teachers keep their course files in their own place on GitHub. Lectale lets anyone read them without an account. (19)
+   - Angle: open, free, instructor-owned, with no jargon.
+9. **Not a pile of files. A course.** (7)
+   - Subheading: Lectale turns the course files a teacher keeps on GitHub into one course you can read, with lessons, PDFs, notebooks, video and audio. (23)
+   - Angle: two-line contrast, and it names what Lectale does for the instructor's files.
+10. **One course. One tab.** (4)
+    - Subheading: Lectale shows a course's lessons, PDFs, notebooks, video and audio in one reader. Free to read, no account needed. (20)
+    - Angle: two-line contrast, a shorter and more exact version of the current hero.
+
+### Top three
+
+1. **Read a course like a book** (option 2). It names something a reader can picture at once, where "Close the other tabs" only names a chore. It also fits a right-hand visual of quotes about reading, because the words and the picture say the same thing. The subheading grounds the promise in the reader, so it does not depend on the instructor's writing.
+2. **Keep your place in the course** (option 1). It is the only hook that uses the ribbon, so the logo and the headline explain each other, and it promises something a tab pile cannot give. The line is true today only for saved courses (an account is needed). If Lectale will remember the lesson you stopped at, say so and make the headline stronger.
+3. **Someone wrote a course on it** (option 6). It gives a visitor a small jolt of recognition ("there may be a course on the thing I want to learn") rather than a tip about tabs, and no other learning app could say it because Lectale opens courses that teachers publish. It is honest only if the catalog has real courses, or the example cards are clearly labelled; otherwise use option 7.
+
+Call to action: keep "Open a course" for all three. If option 6 is chosen, the secondary "Browse courses" matters more, so keep it as a visible button, not a text link.
+
+Why the current hero ranks below: "Open the course. Close the other tabs." is an instruction and a chore. It makes the visitor think about their own mess, not about what reading in Lectale is like.
+
 ## 3. Navigation labels
 
 | Place | Label | Note |
