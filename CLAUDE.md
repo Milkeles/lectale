@@ -21,7 +21,14 @@ The main session is the orchestrator. It plans each milestone, writes the task s
 
 Do small, sequential or single-file work directly instead of delegating. Code-writing agents run in a git worktree; merge their branch only after its Verify command passes.
 
-**Second model.** Codex reviews every security-sensitive diff and every milestone plan, and can take isolated tasks. Use it for what it does best alongside Claude: generating logos, illustrations and image concepts, and a second opinion on screen specs and screenshots. Use the `codex-dispatch` skill. Run `codex login status` first; if it is logged out, ask the owner to complete `codex login --device-auth`.
+**Second model: Codex takes the volume.** Claude usage runs out much faster than the owner's ChatGPT plan, and the owner asked (2026-11-22) for Codex to carry more of the work. So, by default:
+
+- **Codex implements** every well-specified task: a renderer, a screen from an approved spec, the static site, a workflow, a proof-of-concept script. It runs in its own git worktree (`codex-dispatch`, mode 2), from a task spec in `spec/tasks/` with the intake gate and exact Verify commands.
+- **Codex critiques**: screenshots, screen specs, copy, and every security-sensitive diff and milestone plan (mode 1). Design and copy critiques go to Codex first; the Opus `design-reviewer` is kept for a final pass before the owner sees a screen.
+- **Codex makes images**: logos, illustrations, covers and visual concepts.
+- **Claude orchestrates and judges**: plans, writes the task specs, reviews Codex's diff, runs the Verify commands itself, does security reviews of trust-boundary code, and merges. Claude agents take work that needs this conversation's context or a skill Codex lacks.
+
+Use the `codex-dispatch` skill. Run `codex login status` first; if it is logged out, ask the owner to complete `codex login --device-auth`. Run long Codex jobs in the background and keep working.
 
 **Research.** Get facts from pages fetched during the task, never from memory. The WebFetch tool can't reach some documentation hosts from the cloud sandbox, so use `curl -sL <url> | pandoc -f html -t plain`. developers.cloudflare.com serves Markdown at `<page>/index.md`. Save findings to `docs/research/` so nobody looks them up twice.
 
