@@ -337,7 +337,7 @@ Options for the owner after the M2 measurement:
 - **Public:** anyone can join, and the course can be listed in the catalog.
 - **Hidden:** anyone with the link can join; the course is not in the catalog.
 - **Private:** joining is by the instructor's invitation, or by a request the instructor approves after a student opens the course link. The instructor can turn requests off.
-- **Price:** free or paid, independent of the above.
+- **Price:** a number, independent of the above. `0` means free; any other value is the price (owner, 2026-11-22).
 
 **What the spec already has.** `db/0001_init.sql` stores `visibility` (`public`, `private`) and `enrollment_policy` (`open`, `approval`, `invite`). `db/0004_catalog_discovery.sql` adds `catalog_listing` (`unlisted` by default). Paid courses are milestone M9 (`docs/COMMERCE_AND_ACCESS.md`). `docs/CORE_EXPERIENCE_AND_CATALOG.md` says entitlements are created "by a verified payment event or properly authorized grant, not by YAML or catalog listing".
 
@@ -347,7 +347,8 @@ Options for the owner after the M2 measurement:
 access:
   visibility: public    # public | hidden | private
   requests: true        # private only: allow requests to join by link (default true)
-  price: free           # free | paid
+  price: 0              # 0 = free; otherwise the price, for example 19.99
+  currency: EUR         # ISO 4217 code; required when price is above 0
 ```
 
 | `visibility` | `courses.visibility` | `enrollment_policy` | `catalog_listing` |
@@ -361,7 +362,7 @@ Rules that keep this safe:
 
 1. **The YAML proposes; the platform enforces.** Lectale reads `access` when a verified owner registers or publishes the course, and pre-fills the settings. A later change in the YAML shows the owner "Settings changed in course.yaml: apply?" and takes effect only after the owner confirms in the app. A repository collaborator therefore can't silently widen access, and V4-CAT-01 (listing is an explicit opt-in) still holds.
 2. **`private` needs a private repository.** Files in a public GitHub repository are readable on GitHub whatever Lectale says. The validator reports `private` on a public repository as an error with that explanation.
-3. **`price: paid` only declares intent.** The amount, currency and payout account are set in the app by the verified owner (M9). Entitlements still come only from verified payments or grants. Until M9 ships, a `paid` course is refused at publish with a clear message.
+3. **`price` is checked, and confirmed like the other settings.** It must be a number of at least 0 with at most two decimal places, and `currency` must be a valid ISO 4217 code when `price` is above 0. A changed price takes effect only after the verified owner confirms it in the app, and it never changes what earlier buyers paid. The payout account is set in the app (M9). Entitlements still come only from verified payments or grants. Until M9 ships, a course with `price` above 0 is refused at publish with a clear message. Not yet verified: the payment provider's minimum charge per currency, which the validator should enforce once fetched.
 4. **The anonymous preview of a public repository ignores `access`.** Anyone can already read it on GitHub (V4-CORE-01). `access` governs managed courses only.
 
 **To do:** add `access` to `spec/errata/` schema and OpenAPI (contract-engineer), semantic rule and fixtures (validator), and the owner's confirm-changes flow (M4, M5).
