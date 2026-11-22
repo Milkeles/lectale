@@ -27,6 +27,7 @@ Do small, sequential or single-file work directly instead of delegating. Code-wr
 - **Codex makes images**: logos, illustrations, covers, visual concepts and art direction, using its image generation tool. It pairs with the design lead on visual work.
 - **Codex critiques**: a second opinion on screenshots, screen specs and copy, and a required review of every security-sensitive diff and milestone plan (mode 1).
 - **Codex implements some isolated, well-specified tasks** in its own worktree (mode 2): about one in three, picked where its strengths fit (the static site, scripts, a proof of concept) or when Claude usage runs low. Claude reviews its diff, runs the Verify commands itself, and merges.
+- **Claude's reviewers check everything Codex builds** against this project's standards before it reaches the owner, because Codex doesn't carry them. The owner asked for this (2026-11-22). Use `design-reviewer` for anything visible: WCAG 2.2 AA, keyboard, tokens, type scale, AI tells, and fidelity to the approved design. Use `security-reviewer` for trust-boundary code, and `qa-engineer` for missing tests. Their findings go back to Codex or a Claude agent, and the work merges only once they're resolved.
 
 Use the `codex-dispatch` skill. Run `codex login status` first; if it is logged out, ask the owner to complete `codex login --device-auth`. Run long Codex jobs in the background and keep working.
 
