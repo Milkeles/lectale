@@ -34,8 +34,8 @@ test('the hero has one heading with the approved copy', () => {
 
 test('A11Y-001: the pause button toggles the orbit from the local script', async () => {
   const button = hero.match(/<button\b[^>]* class="btn hero__pause"[^>]*>([\s\S]*?)<\/button>/);
-  assert.match(button?.[0] ?? '', /type="button" aria-pressed="false" hidden/);
-  assert.match(button?.[1] ?? '', /Pause quotes/);
+  assert.match(button?.[0] ?? '', /type="button" aria-label="Pause quotes" aria-pressed="false" hidden/);
+  assert.match(button?.[1] ?? '', /^\s*<svg\b[^>]* aria-hidden="true"[^>]*>[\s\S]*<\/svg>\s*$/);
   assert.match(html, /<script src="hero-quotes\.js" defer><\/script>/);
 
   const attributes = new Map([['aria-pressed', 'false']]);
@@ -61,8 +61,10 @@ test('A11Y-001: the pause button toggles the orbit from the local script', async
   assert.equal(attributes.get('aria-pressed'), 'false');
 
   const css = await read('site.css');
+  assert.match(css, /--orbit-lap: 72s;/);
+  assert.match(css, /@media \(prefers-reduced-motion: no-preference\)\s*\{\s*\.hero__pause:not\(\[hidden\]\)\s*\+\s*\.hero__orbit \.hero__quote\s*\{\s*animation: quote-orbit var\(--orbit-lap\) linear infinite;/);
   assert.match(css, /\.hero__pause\[aria-pressed="true"\]\s*\+\s*\.hero__orbit \.hero__quote\s*\{\s*animation-play-state: paused;/);
-  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.hero \.hero__pause\s*\{\s*display: none;\s*\}[^{]+\{\s*animation: none;/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)\s*\{\s*\.hero \.hero__pause\s*\{\s*display: none;/);
 });
 
 test('the static and aria-hidden copies contain the same quotations', () => {
@@ -71,16 +73,21 @@ test('the static and aria-hidden copies contain the same quotations', () => {
   const quotations = (list) => [...list.matchAll(/<blockquote>([^<]+)<\/blockquote>/g)].map(([, text]) => text);
   assert.equal(quotations(accessible).length, 5);
   assert.deepEqual(quotations(visible), quotations(accessible));
+  assert.match(visible, /<blockquote>Come, Boy, learn to be wise\.<\/blockquote><span>Johann Amos Comenius, trans\. Charles Hoole<\/span>/);
+  assert.doesNotMatch(hero, /Samuel Johnson/);
   assert.equal([...accessible.matchAll(/<cite>[^<]+<\/cite>/g)].length, 5);
 });
 
 test('the decorative book has intrinsic dimensions and both local formats', async () => {
   assert.match(hero, /<picture class="hero__book">\s*<source type="image\/avif"/);
-  assert.match(hero, /<img\b[^>]*src="art\/book\.webp"[^>]*width="[1-9]\d*" height="[1-9]\d*" alt=""/);
+  assert.match(hero, /<img\b[^>]*src="art\/open-book\.webp"[^>]*width="256" height="121" alt=""/);
   for (const suffix of ['.avif', '.webp']) {
-    for (const name of ['book', 'book-small']) {
+    for (const name of ['open-book', 'open-book-small']) {
       const file = new URL(`art/${name}${suffix}`, dist);
       assert.ok((await readFile(file)).length > 0);
+    }
+    for (const name of ['book', 'book-small']) {
+      await assert.rejects(readFile(new URL(`art/${name}${suffix}`, dist)), { code: 'ENOENT' });
     }
   }
 });
