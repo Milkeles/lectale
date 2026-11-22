@@ -378,3 +378,20 @@ images whose aspect ratio differs by more than 5 percent.
 Import reports `cover_too_small` for dimensions below the minimum, `cover_format`
 for an unsupported format or unreadable header, and `cover_too_large` for a
 file over 2 MB. The course still opens with the placeholder cover.
+
+## O3 Submissions upload through the Worker, not directly to GitHub LFS (owner, 2026-11-22)
+
+**What the spec says.** Students upload files straight from the client to GitHub LFS with a delegated upload action, and uploads "should not traverse the Worker", to avoid backend cost. Direct upload stays off until a real-repository proof passes (V4-SEC-05, SEC-024 to SEC-026, DEC-16).
+
+**What the proof showed** (`docs/research/2026-11-22-lfs-poc-results.md`):
+
+1. GitHub's LFS storage (S3) refuses the CORS preflight for every origin, so the web app can't upload directly.
+2. The upload signature doesn't cover the size, and `verify` accepted a wrong size, so a direct upload can't enforce SEC-022's byte caps before the bytes land in the instructor's storage.
+3. Relaying a 95 MiB file through a Worker used about 1.4 ms of CPU and no billable bandwidth.
+
+**Correction, approved by the owner:**
+
+- Submissions upload through the Worker. The Worker requests the upload action server-side with the installation token and checks the reservation (course, assignment, learner, attempt, declared size and oid, SEC-021 to SEC-023). It then streams the body to the action's `PUT` through `FixedLengthStream(declared size)`, calls `verify` server-side and commits the pointer.
+- The client never receives an LFS action or a GitHub token.
+- **Maximum 100 MB per file**: the Free and Pro request-body limit. An assignment's `maxFileBytes` can't exceed it.
+- `LFS_DIRECT_UPLOAD_ENABLED` stays `false`. Direct native upload (option B) remains possible later, only per course and as an explicit opt-in, because of finding 2.

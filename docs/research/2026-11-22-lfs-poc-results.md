@@ -57,3 +57,36 @@ Test plan: `spec/tasks/s1-lfs-delegated-upload-poc.md`. Earlier research: `docs/
 | C. Uploads pass through the Worker, which counts bytes and streams the body to the upload action | yes | yes | **yes**: the Worker stops at the cap, and S3 still checks the hash | Cloudflare request body limit 100 MB on Free and Pro (ledger); CPU on Workers Free not yet measured | erratum: the spec's "uploads don't traverse the Worker" |
 
 Phase 2 would prove option C with a deployed test Worker: stream a body to the upload action with a byte cap, and measure CPU time.
+
+## Phase 2: uploads through the Worker (option C), 2026-11-22
+
+The owner approved phase 2 and option C, on the condition that it adds nothing to the bill.
+
+**Setup.**
+- A temporary Worker, `lectale-lfs-relay-test`, deployed through the Cloudflare connector. It accepted only requests carrying a one-time token, forwarded only to `github-cloud.s3.amazonaws.com`, and refused bodies over 100 MiB.
+- It streamed the request body into the upload action's `PUT` through `FixedLengthStream`, so S3 received a `Content-Length`.
+- It was deleted after the test, and its address was removed from the sandbox allowlist.
+
+| # | Test | Result |
+|---|---|---|
+| A | Request without the token | 403, the Worker refused it |
+| B | Upload link on another host | 400, the Worker refused it |
+| C | 95 MiB (99,614,720 bytes) through the Worker to the real upload action | **S3 200**. About 1 s inside the Worker, 5.3 s end to end from the sandbox |
+| D | `verify` (kept on the server) | 200 |
+| E | Download through the batch API and SHA-256 comparison | **Equal** |
+| F | 102 MiB request | **413 from Cloudflare's edge**, before the Worker ran |
+
+**Cost.** Cloudflare's analytics (`workersInvocationsAdaptive`, the last hour) for the three invocations:
+
+- CPU time: P50 915 µs, P99 1,379 µs.
+- Wall time: P99 961,454 µs, which is mostly waiting on the network.
+- No errors.
+
+The 95 MiB relay used about **1.4 ms of CPU**, against Workers Free's 10 ms per invocation. Cloudflare's pricing page says "There are no additional charges for data transfer (egress) or throughput (bandwidth)". So each upload costs one request and well under the free CPU limit.
+
+## Verdict
+
+- The spec's plan, direct browser upload to GitHub LFS, fails on the web because of CORS.
+- Option C, uploads through the Worker, **works on every platform at no added cost**. It also enforces size, because `FixedLengthStream` and the edge's 100 MB body limit cap each upload before any byte reaches the instructor's storage.
+- The limit is **100 MB per file** on the Free and Pro zone plans.
+- Recorded as errata O3. `LFS_DIRECT_UPLOAD_ENABLED` stays `false`. Uploads through the Worker are milestone M6 work, with their own security review.
