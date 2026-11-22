@@ -489,25 +489,23 @@ a:hover {
 /* ---------- Hero ---------- */
 
 .hero {
-  --hero-book-width: 24rem;
-  --hero-book-phone-width: 18rem;
-  --orbit-width: 46rem;
-  --orbit-height: 28rem;
-  --orbit-inset-x: calc(var(--s9) - var(--s1));
-  --orbit-inset-y: var(--s8);
-  --quote-width: 11rem;
+  --hero-book-width: 16rem;
+  --hero-book-phone-width: 13rem;
+  --orbit-width: 40.25rem;
+  --orbit-height: 26rem;
+  --quote-width: 14rem;
   --orbit-lap: 72s;
 
-  padding-top: var(--s5);
+  padding-top: var(--s6);
 }
 .hero__intro {
   display: grid;
-  grid-template-columns: minmax(0, 3fr) minmax(0, 4fr);
+  grid-template-columns: minmax(0, 1fr) var(--orbit-width);
   align-items: center;
   gap: var(--s6) var(--gap);
 }
 .hero__title {
-  max-width: 7.25em;
+  max-width: 8em;
   font-size: min(var(--display), max(var(--t48), 4.9vw));
 }
 .hero__lead {
@@ -530,7 +528,8 @@ a:hover {
   max-width: var(--orbit-width);
   justify-self: center;
 }
-.hero__pause {
+.hero__pause,
+.hero__rings {
   display: none;
 }
 .hero__orbit {
@@ -539,7 +538,7 @@ a:hover {
   gap: var(--s4);
 }
 .hero__book {
-  width: min(100%, var(--hero-book-phone-width));
+  width: min(100%, var(--hero-book-width));
 }
 .hero__book img {
   width: 100%;
@@ -585,21 +584,29 @@ a:hover {
   }
 }
 
-@supports (offset-path: ellipse(45% 40% at 50% 50%)) {
-  @media (width > 45rem) {
-    .hero__art {
-      padding-top: var(--s7);
+@supports (offset-path: ellipse(50% 50% at 50% 50%)) and (offset-anchor: center) {
+  @media (width > 47rem) {
+    .hero .shot {
+      margin-top: calc(var(--s6) + var(--s2));
     }
     .hero__pause {
       position: absolute;
-      z-index: 1;
+      z-index: 3;
       inset: 0 0 auto auto;
       display: inline-flex;
-      gap: var(--s2);
-      padding-inline: var(--s3);
-      border-color: var(--hair);
-      color: var(--ink-2);
-      font-size: var(--t14);
+      width: max(44px, 2.75rem);
+      min-height: max(44px, 2.75rem);
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      color: var(--mulberry);
+    }
+    .hero__pause::before {
+      position: absolute;
+      inset: 3px;
+      border: 1px solid var(--hair);
+      border-radius: inherit;
+      content: "";
     }
     .hero__pause svg {
       width: var(--t16);
@@ -611,39 +618,71 @@ a:hover {
     .hero__pause:hover,
     .hero__pause[aria-pressed="true"] {
       background: var(--sand);
-      color: var(--ink);
+    }
+    .hero__play-icon,
+    .hero__pause[aria-pressed="true"] .hero__pause-icon {
+      display: none;
+    }
+    .hero__pause[aria-pressed="true"] .hero__play-icon {
+      display: initial;
     }
     .hero__orbit {
+      --orbit-center-y: calc(50% + var(--s2));
+      --orbit-tilt: -22deg;
+      --orbit-path: ellipse(50% 50% at 50% 50%);
+
       position: relative;
       display: block;
       height: var(--orbit-height);
     }
-    .hero__orbit::before,
-    .hero__orbit::after {
+    /* The ring and motion path use the same box and rotation. */
+    .hero__rings,
+    .hero__quote-track {
       position: absolute;
-      inset: var(--orbit-inset-y) var(--orbit-inset-x);
-      border: 1px solid var(--hair);
+      inset: var(--orbit-center-y) 0 auto;
+      width: 34rem;
+      height: 15rem;
+      margin-inline: auto;
+      transform: translateY(-50%) rotate(var(--orbit-tilt));
+    }
+    .hero__rings {
+      display: block;
+    }
+    .hero__rings::before,
+    .hero__rings::after {
+      position: absolute;
+      inset: -0.5px;
+      border: 1px solid color-mix(in srgb, var(--mulberry) 46%, var(--hair));
       border-radius: 50%;
       content: "";
     }
-    .hero__orbit::before {
-      border-color: color-mix(in srgb, var(--mulberry) 35%, var(--hair));
+    .hero__rings::after {
+      inset: calc(var(--s3) - 0.5px);
+      border-color: color-mix(in srgb, var(--mulberry) 18%, var(--hair));
     }
-    .hero__orbit::after {
-      inset: calc(var(--orbit-inset-y) + var(--s2)) calc(var(--orbit-inset-x) + var(--s2));
+    .hero__orbit-dot {
+      position: absolute;
+      inset: 0 auto auto 0;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--mulberry);
+      offset-path: var(--orbit-path);
+      offset-anchor: center;
+      offset-distance: 61%;
+    }
+    .hero__orbit-dot + .hero__orbit-dot {
+      offset-distance: 16%;
     }
     .hero__book {
       position: absolute;
       z-index: 1;
-      top: 50%;
+      top: var(--orbit-center-y);
       left: 50%;
-      width: var(--hero-book-width);
       transform: translate(-50%, -50%);
     }
     .hero__quote-track {
-      position: absolute;
       z-index: 2;
-      inset: 0;
     }
     .hero__quote,
     .hero__quote ~ .hero__quote {
@@ -651,53 +690,120 @@ a:hover {
       inset: 0 auto auto 0;
       display: block;
       width: var(--quote-width);
-      padding: var(--s2);
+      padding: var(--s2) var(--s3);
       border: 1px solid var(--hair);
       border-radius: var(--r-s);
-      background: var(--paper);
+      background: color-mix(in srgb, var(--paper) 94%, white);
+      box-shadow: 0 1px var(--hair);
       text-align: start;
-      offset-path: ellipse(
-        calc(50% - var(--orbit-inset-x)) calc(50% - var(--orbit-inset-y)) at 50% 50%
-      );
-      offset-distance: var(--quote-position);
-      offset-anchor: center;
-      offset-rotate: 0deg;
+      offset-path: var(--orbit-path);
+      offset-distance: calc(var(--quote-position) * 1%);
+      offset-anchor: var(--quote-anchor, center);
+      offset-rotate: calc(-1 * var(--orbit-tilt));
     }
 
-    /* Equal distances along the path keep a reading gap through each turn. */
-    .hero__quote:nth-child(1) { --quote-position: 72%; }
-    .hero__quote:nth-child(2) { --quote-position: 92%; }
-    .hero__quote:nth-child(3) { --quote-position: 12%; }
-    .hero__quote:nth-child(4) { --quote-position: 32%; }
-    .hero__quote:nth-child(5) { --quote-position: 52%; }
-
-    .hero__pause:not([hidden]) + .hero__orbit .hero__quote {
-      animation: quote-orbit var(--orbit-lap) linear infinite;
+    .hero__quote:first-child {
+      --quote-width: 12rem;
+      --quote-position: 54;
+      --quote-anchor: calc(50% + var(--s2)) calc(50% + 0.6875rem);
     }
-    .hero__pause[aria-pressed="true"] + .hero__orbit .hero__quote {
-      animation-play-state: paused;
+    .hero__quote--descartes {
+      --quote-position: 36.5;
+    }
+    .hero__quote--thoreau {
+      --quote-position: 18.5;
+      --quote-anchor: calc(50% - 2.625rem) calc(50% - 4.125rem);
+    }
+    .hero__quote:nth-child(4) {
+      --quote-width: 14.5rem;
+      --quote-position: 73;
+      --quote-anchor: calc(50% + var(--s5)) calc(50% + 2.375rem);
+    }
+    .hero__quote:last-child {
+      --quote-width: 12rem;
+      --quote-position: 4.4;
+      --quote-anchor: calc(50% - var(--s2)) calc(50% - var(--s4));
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .hero__pause:not([hidden]) + .hero__orbit .hero__quote {
+        animation: quote-orbit var(--orbit-lap) linear infinite;
+        animation-delay: calc(var(--orbit-lap) * var(--quote-phase, var(--quote-position)) / -100);
+      }
+      .hero__quote:nth-child(4) {
+        --quote-phase: 77;
+      }
+      .hero__quote:last-child {
+        --quote-phase: 4;
+      }
+
+      /* Two quotations share one position on successive laps so four cards
+         have room to circle the book. Both are visible in the still layout. */
+      .hero__pause:not([hidden]) + .hero__orbit :is(.hero__quote--descartes, .hero__quote--thoreau) {
+        animation:
+          quote-orbit var(--orbit-lap) linear infinite,
+          alternate-quotes calc(2 * var(--orbit-lap)) steps(1, end) infinite;
+        animation-delay: calc(var(--orbit-lap) * -0.26), 0s;
+      }
+      .hero__quote--descartes {
+        --first-lap: hidden;
+        --second-lap: visible;
+      }
+      .hero__quote--thoreau {
+        --first-lap: visible;
+        --second-lap: hidden;
+      }
+      .hero__pause[aria-pressed="true"] + .hero__orbit .hero__quote {
+        animation-play-state: paused;
+      }
     }
   }
 }
 
 @keyframes quote-orbit {
-  to {
-    offset-distance: calc(var(--quote-position) + 100%);
+  from {
+    offset-distance: 0%;
+    offset-anchor: center calc(50% + var(--s2));
   }
+  3%, 29%, 45%, 53%, 79%, 95% {
+    offset-anchor: center;
+  }
+  /* Keep the anchor on the ellipse and ease the upright card past the book's corners. */
+  12.5% {
+    offset-anchor: calc(50% - 4.125rem) calc(50% - 6.5rem);
+  }
+  48% {
+    offset-anchor: center calc(50% - var(--s4));
+  }
+  50% {
+    offset-anchor: center calc(50% - var(--s2));
+  }
+  62.5% {
+    offset-anchor: calc(50% + 4.125rem) calc(50% + 6.5rem);
+  }
+  98% {
+    offset-anchor: center calc(50% + var(--s4));
+  }
+  to {
+    offset-distance: 100%;
+    offset-anchor: center calc(50% + var(--s2));
+  }
+}
+
+@keyframes alternate-quotes {
+  from { visibility: var(--first-lap); }
+  50%, to { visibility: var(--second-lap); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .hero .hero__pause {
     display: none;
   }
-  .hero__pause:not([hidden]) + .hero__orbit .hero__quote {
-    animation: none;
-  }
 }
 
 @media (max-width: 45rem) {
-  .hero {
-    padding-top: var(--s6);
+  .hero__book {
+    width: min(100%, var(--hero-book-phone-width));
   }
   .hero__title {
     max-width: none;
