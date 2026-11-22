@@ -137,6 +137,29 @@ Call to action: keep "Open a course" for all three. If option 6 is chosen, the s
 
 Why the current hero ranks below: "Open the course. Close the other tabs." is an instruction and a chore. It makes the visitor think about their own mess, not about what reading in Lectale is like.
 
+## Hero, round 4: from the platform's strengths (orchestrator, 2026-11-22)
+
+The owner called rounds 1 to 3 "mid" and asked for hooks built on what makes the platform worth using, especially how easy it is to create, find and learn from courses. The strengths, from the spec:
+
+1. **A course is a folder.** Lessons, PDFs and notebooks in a GitHub repository plus one outline file, `course.yaml`, are the whole course. No upload, no lock-in; the author keeps the content, its history and the freedom to leave (DEC-08).
+2. **Publishing is sharing a link.** Any public repository with `course.yaml` opens in Lectale by its link; neither author nor reader needs an account (V4-CORE-01, V4-CORE-02).
+3. **Learning is free and frictionless.** No sign-up, no tracking, no paywall to read (V4-COST-06).
+4. **One reader for everything**, on web, desktop and Android.
+5. **Courses don't shift under you.** A course is read at a fixed commit (pinned SHA).
+6. **Courses are findable** in the opt-in catalog (V4-CAT-01).
+
+The hook should carry 1 and 2, the two-sided ease, and let the subheading carry 3.
+
+| Option | Headline | Subheading |
+|---|---|---|
+| **R4-A (recommended)** | Teach from a folder. Learn from a link. | Put your lessons, PDFs and notebooks in a GitHub repository, add one outline file, and share a link. Anyone can read it free, no account. |
+| R4-B | Any folder can be a course. | Put lessons, PDFs and notebooks in a GitHub repository with one outline file. Lectale turns it into a course anyone can read free. |
+| R4-C | Publish a course with one file. | Add `course.yaml` to a GitHub repository of lessons, PDFs and notebooks, and share the link. Lectale shows it as a course, free to read. |
+| R4-D | Free courses, straight from the people who teach them. | Teachers keep their courses on GitHub. Lectale lets you find them and read lessons, PDFs, notebooks and video in one place, without an account. |
+| R4-E | Write it on GitHub. Teach it anywhere. | Your repository becomes a course on the web, desktop and Android. Learners read it free; you keep every file and every change. |
+
+Calls to action with R4-A: **Find a course** (primary, gold, to the catalog with the link field above it) and **Make a course** (secondary, to the instructors section and its guide).
+
 ## 3. Navigation labels
 
 | Place | Label | Note |
