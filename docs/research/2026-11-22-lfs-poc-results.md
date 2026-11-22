@@ -31,7 +31,7 @@ Test plan: `spec/tasks/s1-lfs-delegated-upload-poc.md`. Earlier research: `docs/
 | 5b | `verify` claiming a wrong size (999) | refused | **Fail.** 200: verify does not check the size |
 | 6 | Download via the batch API and compare SHA-256 | equal | **Pass.** Equal. Before verify, the download batch answered `404 Object does not exist on the server`. |
 | 7 | GitHub token (`gh?_…`) anywhere in the upload action | none | **Pass.** None. The only GitHub credential is the `RemoteAuth` token in the `verify` action. |
-| 8 | `PUT` again after `expires_at` | refused | Pending; see below |
+| 8 | `PUT` again after `expires_at` (10:27:34Z), run at 10:31:14Z | refused | **Pass.** 403 `RequestTimeTooSkewed`: "The difference between the request time and the current time is too large." S3 rejects a SigV4 request whose signed `x-amz-date` is more than 15 minutes old, so the action expires as stated. An earlier try at 10:25, before expiry, still returned 200, as expected. |
 
 ## What this means
 
@@ -40,7 +40,7 @@ Test plan: `spec/tasks/s1-lfs-delegated-upload-poc.md`. Earlier research: `docs/
    - it is limited to one object, by path and content hash (tests 2 and 3);
    - it can't read (test 4);
    - it carries no GitHub token (test 7);
-   - it is short-lived (15 minutes; reuse after expiry is still pending, test 8);
+   - it is short-lived: 15 minutes, confirmed by test 8;
    - the content is bound to the declared hash, because S3 checks `x-amz-content-sha256`.
 
    The `verify` action carries a GitHub `RemoteAuth` token, so it must stay on the server.

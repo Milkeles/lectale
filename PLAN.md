@@ -65,7 +65,7 @@ The owner can't test with screen readers or on real devices, so accessibility is
 
 ## Spikes (in parallel with M1)
 
-- [x] S1: Git LFS upload proof, done 2026-11-22. Direct browser upload fails (S3 refuses CORS) and direct uploads can't enforce size. Uploads through the Worker work on every platform for about 1.4 ms of CPU per 95 MB and no bandwidth charge, up to 100 MB per file (errata O3, `docs/research/2026-11-22-lfs-poc-results.md`). The owner's condition for buying the domain is met. The throwaway repository `lectale-lfs-test` can be deleted once the expiry check (row 8) is recorded.
+- [x] S1: Git LFS upload proof, done 2026-11-22. Direct browser upload fails (S3 refuses CORS) and direct uploads can't enforce size. Uploads through the Worker work on every platform for about 1.4 ms of CPU per 95 MB and no bandwidth charge, up to 100 MB per file (errata O3, `docs/research/2026-11-22-lfs-poc-results.md`). The owner's condition for buying the domain is met. The expiry check passed (403 after 15 minutes). The owner can delete the throwaway repository `lectale-lfs-test`.
 - [ ] S2: GitHub App authentication on Workers (`@octokit/auth-app` versus jose).
 - [ ] S3: Content Security Policy that Flutter Web needs.
 
