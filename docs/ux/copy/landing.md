@@ -162,6 +162,8 @@ Calls to action with R4-A: **Find a course** (primary, gold, to the catalog with
 
 ### Chosen hero (owner, 2026-11-22)
 
+> **Owner, after the copywriter's check:** keep "Your course, online in minutes."; it is the catchier line. To make "in minutes" true rather than an untested claim, Lectale offers a ready course template repository ("Use this template", rename, share the link), and the instructors section shows those steps.
+
 - **Headline:** Your course, online in minutes.
 - **Subheading:** Put your lessons, PDFs and notebooks in a GitHub repository, add one outline file, and share a link. Anyone can read it free, no account.
 - **Calls to action:** Make a course (primary, gold) and Find a course (secondary). The headline speaks to teachers, so making a course leads; finding one stays one click away.
