@@ -167,6 +167,22 @@ Calls to action with R4-A: **Find a course** (primary, gold, to the catalog with
 - **Calls to action:** Make a course (primary, gold) and Find a course (secondary). The headline speaks to teachers, so making a course leads; finding one stays one click away.
 - **Why:** the owner judged earlier headlines as describing the product without convincing anyone. This one leads with the outcome a teacher wants, and the subheading shows why it is quick.
 
+#### Headline check (copywriter, 2026-11-22)
+
+**Verdict: the direction holds, the wording does not quite.** Subheading and buttons stay as chosen.
+
+- **Convinces:** it speaks to the teacher's outcome, and the subheading's last sentence covers learners. But "in minutes" is an unmeasured claim. A teacher also needs a GitHub account, a repository with their files and a `course.yaml`, and the brief rules out invented numbers. "Online" is loose: the course stays on GitHub and Lectale presents it. Nobody has timed a first-time teacher. Use "in minutes" only after someone has.
+- **Fit:** no repeated words, no contradiction. One small tension: "Your course" assumes a course exists, while the button says "Make a course".
+- **Distinct:** no. Any course builder could say it. Lectale's own strength is that the files a teacher already has become the course, with no upload and no rebuilding. The subheading says this, but the headline does not.
+
+**Options (8 words or fewer):**
+
+1. **Turn the files you have into a course.** (8) Recommended. It says what is distinct (no rebuilding, no upload), implies speed without a number, and matches the "Make a course" button.
+2. **Publish the course you already have.** (6) Strong for teachers with finished material, but it clashes with "Make a course". If chosen, rename the button "Publish a course" everywhere.
+3. **Your files, published as a course.** (6) The shortest version of option 1, with a little less warmth.
+
+If the owner keeps the current line, the minimum fix is to drop "in minutes" or test it first: "Your course, online." is honest but weaker.
+
 ## 3. Navigation labels
 
 | Place | Label | Note |
