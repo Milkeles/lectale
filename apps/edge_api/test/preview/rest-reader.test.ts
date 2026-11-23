@@ -69,10 +69,21 @@ describe("GitHub REST preview reader", () => {
     expect(log.mock.calls).toContainEqual(["GitHub preview metadata", { operation: "head", address: "id" }]);
   });
 
-  it.each([401, 403, 404])("retries an authenticated %s anonymously for public repositories", async (status) => {
+  it.each([403, 404])("takes an authenticated %s as GitHub's answer, with no anonymous retry", async (status) => {
+    // The 2026-11-23 deploy check showed a scoped token reading a public
+    // repository outside its scope, so its denial matches an anonymous one.
+    const outbound = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(null, { status }));
+    vi.stubGlobal("fetch", outbound);
+
+    await expect(new GitHubRestReader(async () => crypto.randomUUID()).resolveRepository("owner", "repository"))
+      .rejects.toMatchObject({ kind: "not_found" });
+    expect(outbound).toHaveBeenCalledOnce();
+  });
+
+  it("retries a rejected token's 401 anonymously", async () => {
     const token = crypto.randomUUID();
     const outbound = vi.fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response(null, { status }))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
       .mockResolvedValueOnce(Response.json(repo));
     vi.stubGlobal("fetch", outbound);
 
@@ -117,7 +128,6 @@ describe("GitHub REST preview reader", () => {
     const token = crypto.randomUUID();
     const outbound = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(new Response(null, { status: 404 }))
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
       // The name lookup now shows the repository as private.
       .mockResolvedValueOnce(Response.json({ ...repo, private: true }));
     vi.stubGlobal("fetch", outbound);
@@ -126,7 +136,7 @@ describe("GitHub REST preview reader", () => {
     await expect(new GitHubRestReader(async () => token, { repositoryId: 7 }).headCommit(repository))
       .rejects.toMatchObject({ kind: "repo_changed" });
     expect(outbound.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
-      "/repositories/42/commits/HEAD", "/repositories/42/commits/HEAD", "/repos/Owner/Repository",
+      "/repositories/42/commits/HEAD", "/repos/Owner/Repository",
     ]);
   });
 
@@ -143,18 +153,18 @@ describe("GitHub REST preview reader", () => {
     expect(rejected).toHaveBeenCalledExactlyOnceWith(token);
   });
 
-  it("pauses anonymous retries after a rate limit, keeps token reads going and leaves the global cooldown alone",
+  it("pauses the 401 fallback after a rate limit, keeps token reads going and leaves the global cooldown alone",
     async () => {
       const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-23T12:00:00Z"));
       const start = Date.now();
       const token = crypto.randomUUID();
       const fallbackCooldown = { until: 0 };
       const outbound = vi.fn<typeof fetch>()
-        .mockResolvedValueOnce(new Response(null, { status: 404 }))
+        .mockResolvedValueOnce(new Response(null, { status: 401 }))
         .mockResolvedValueOnce(new Response(null, { status: 403, headers: { "Retry-After": "90" } }))
-        .mockResolvedValueOnce(new Response(null, { status: 404 }))
+        .mockResolvedValueOnce(new Response(null, { status: 401 }))
         .mockResolvedValueOnce(Response.json(repo))
-        .mockResolvedValueOnce(new Response(null, { status: 404 }))
+        .mockResolvedValueOnce(new Response(null, { status: 401 }))
         .mockResolvedValueOnce(Response.json(repo));
       vi.stubGlobal("fetch", outbound);
       // A new reader per request, as the routes create them.

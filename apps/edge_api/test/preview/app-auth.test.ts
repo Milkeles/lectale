@@ -133,7 +133,7 @@ describe("GitHub App authentication", () => {
     expect(outbound).toHaveBeenCalledTimes(4);
   });
 
-  it("sends the App token on preview REST reads, retries anonymously on denial and redacts failures", async () => {
+  it("sends the App token on preview REST reads, takes its 404 as final and redacts failures", async () => {
     vi.spyOn(Date, "now").mockReturnValue(now);
     const token = crypto.randomUUID();
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -142,8 +142,7 @@ describe("GitHub App authentication", () => {
     const outbound = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(installations())
       .mockResolvedValueOnce(tokenResponse(token))
-      .mockResolvedValueOnce(Response.json({ message: token }, { status: 404 }))
-      .mockResolvedValueOnce(Response.json({ message: pem }, { status: 404 }));
+      .mockResolvedValueOnce(Response.json({ message: `${token} ${pem}` }, { status: 404 }));
     vi.stubGlobal("fetch", outbound);
     const app = createApp();
 
@@ -153,9 +152,10 @@ describe("GitHub App authentication", () => {
       code: "course_not_found", message: "This public course or file is unavailable.",
       retryable: false, requestId: expect.any(String),
     });
-    expect(outbound).toHaveBeenCalledTimes(4);
+    // A scoped token reads public repositories outside its scope, so its 404
+    // is GitHub's real answer and no anonymous retry follows.
+    expect(outbound).toHaveBeenCalledTimes(3);
     expect(authorization(outbound.mock.calls[2]?.[1]) === `Bearer ${token}`).toBe(true);
-    expect(authorization(outbound.mock.calls[3]?.[1])).toBeNull();
     expect([warning, error, info].every((log) => log.mock.calls.length === 0)).toBe(true);
   });
 
@@ -170,7 +170,6 @@ describe("GitHub App authentication", () => {
       .mockResolvedValueOnce(new Response(null, { status: 404 }))
       .mockResolvedValueOnce(installations())
       .mockResolvedValueOnce(tokenResponse(token, now + 60_000))
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
       .mockResolvedValueOnce(new Response(null, { status: 404 }));
     vi.stubGlobal("fetch", outbound);
     const app = createApp();
@@ -190,9 +189,8 @@ describe("GitHub App authentication", () => {
 
     clock.mockReturnValue(now + 60_000);
     expect((await importCourse(app, "absent-3", bindings())).status).toBe(404);
-    expect(outbound).toHaveBeenCalledTimes(8);
+    expect(outbound).toHaveBeenCalledTimes(7);
     expect(authorization(outbound.mock.calls[6]?.[1]) === `Bearer ${token}`).toBe(true);
-    expect(authorization(outbound.mock.calls[7]?.[1])).toBeNull();
     expect(warning).toHaveBeenCalledOnce();
   });
 
@@ -293,17 +291,17 @@ describe("GitHub App authentication", () => {
       .mockResolvedValueOnce(new Response(null, { status: 404 }))
       .mockResolvedValueOnce(installations())
       .mockResolvedValueOnce(tokenResponse(second))
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
       .mockResolvedValueOnce(new Response(null, { status: 404 }));
     vi.stubGlobal("fetch", outbound);
     const app = createApp();
 
+    // The rejected token is dropped, and its read is retried anonymously.
     expect((await importCourse(app, "revoked-1", bindings())).status).toBe(404);
     expect(authorization(outbound.mock.calls[2]?.[1]) === `Bearer ${first}`).toBe(true);
+    expect(authorization(outbound.mock.calls[3]?.[1])).toBeNull();
     expect((await importCourse(app, "revoked-2", bindings())).status).toBe(404);
-    expect(outbound).toHaveBeenCalledTimes(8);
+    expect(outbound).toHaveBeenCalledTimes(7);
     expect(authorization(outbound.mock.calls[6]?.[1]) === `Bearer ${second}`).toBe(true);
-    expect(authorization(outbound.mock.calls[7]?.[1])).toBeNull();
   });
 
   it("answers a private and a missing repository alike, with the same GitHub calls", async () => {
@@ -337,46 +335,55 @@ describe("GitHub App authentication", () => {
     const missingBody = await missingResponse.json() as { requestId: string };
     expect({ ...privateBody, requestId: "" }).toEqual({ ...missingBody, requestId: "" });
     // The first import also discovered the installation and minted the token.
-    expect(privateCalls.slice(-2)).toEqual(missingCalls);
-    expect(missingCalls).toEqual([
-      ["GET", "/repos/owner/NAME", "authenticated"],
-      ["GET", "/repos/owner/NAME", "anonymous"],
-    ]);
+    expect(privateCalls.slice(-1)).toEqual(missingCalls);
+    expect(missingCalls).toEqual([["GET", "/repos/owner/NAME", "authenticated"]]);
   });
 
-  it("starts a fallback-only cooldown when the anonymous retry is rate limited", async () => {
+  it("pauses the anonymous retry after a revoked token meets a rate limit, and token reads go on", async () => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(now);
-    const token = crypto.randomUUID();
+    const [first, second, third] = [crypto.randomUUID(), crypto.randomUUID(), crypto.randomUUID()];
     const outbound = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(installations())
-      .mockResolvedValueOnce(tokenResponse(token))
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(tokenResponse(first))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
       .mockResolvedValueOnce(new Response(null, { status: 403, headers: { "Retry-After": "120" } }))
+      .mockResolvedValueOnce(installations())
+      .mockResolvedValueOnce(tokenResponse(second, now + 60_000))
       .mockResolvedValueOnce(new Response(null, { status: 404 }))
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(installations())
+      .mockResolvedValueOnce(tokenResponse(third, now + 121_000))
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
       .mockResolvedValueOnce(new Response(null, { status: 404 }));
     vi.stubGlobal("fetch", outbound);
     const app = createApp();
 
-    // The paused retry answers a retryable 429, never "not found", because
-    // the repository's state is unknown.
+    // A revoked token falls back to an anonymous read. When that read is
+    // rate-limited, the answer is a retryable 429: the repository's state is
+    // unknown, so it is never "not found".
     const limited = await importCourse(app, "throttled-1", bindings());
     expect(limited.status).toBe(429);
     expect(limited.headers.get("Retry-After")).toBe("120");
     expect(await limited.json()).toMatchObject({ code: "rate_limited", retryable: true });
     expect(outbound).toHaveBeenCalledTimes(4);
 
-    // The token's request still goes out: the global cooldown stays closed.
+    // The shared cooldown stays closed: a new token is minted and its read
+    // answers as usual.
     clock.mockReturnValue(now + 60_000);
-    const next = await importCourse(app, "throttled-2", bindings());
-    expect(next.status).toBe(429);
-    expect(outbound).toHaveBeenCalledTimes(5);
-    expect(authorization(outbound.mock.calls[4]?.[1]) === `Bearer ${token}`).toBe(true);
-
-    clock.mockReturnValue(now + 121_000);
-    expect((await importCourse(app, "throttled-3", bindings())).status).toBe(404);
+    expect((await importCourse(app, "throttled-2", bindings())).status).toBe(404);
     expect(outbound).toHaveBeenCalledTimes(7);
-    expect(authorization(outbound.mock.calls[6]?.[1])).toBeNull();
+    expect(authorization(outbound.mock.calls[6]?.[1]) === `Bearer ${second}`).toBe(true);
+
+    // Another 401 while the pause runs makes no anonymous call.
+    expect((await importCourse(app, "throttled-3", bindings())).status).toBe(429);
+    expect(outbound).toHaveBeenCalledTimes(8);
+
+    // After the pause, a 401 falls back to an anonymous read again.
+    clock.mockReturnValue(now + 121_000);
+    expect((await importCourse(app, "throttled-4", bindings())).status).toBe(404);
+    expect(outbound).toHaveBeenCalledTimes(12);
+    expect(authorization(outbound.mock.calls[10]?.[1]) === `Bearer ${third}`).toBe(true);
+    expect(authorization(outbound.mock.calls[11]?.[1])).toBeNull();
   });
 
   it("never lets the token reach the Cache API, in keys or stored bodies", async () => {

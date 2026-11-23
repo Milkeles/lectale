@@ -54,3 +54,7 @@ Both reviewers re-checked the fix round. They agree findings 1, 2, 5, 6, 7 and 8
 ## Round 3 (same day)
 
 Claude's security-reviewer confirmed that findings 3 and 4 and both lows are closed. The 429 path can't tell a private repository from a missing one: both make the same calls and get the same status, code and `Retry-After`. Nothing caches it. One new low: `checkCover` turned a throttled read into a `cover_format` warning, which the pinned cache then kept for 300 s. Fixed: `checkCover` rethrows `rate_limited`. A route test fails without the fix and passes with it.
+
+## Follow-up: the open question is settled
+
+The first deploy's key check read `octocat/Hello-World` with the scoped token and got HTTP 200. A 403 or 404 on a token read is therefore final, and the anonymous retry for them is gone. Only a 401 falls back to an anonymous read, under the fallback cooldown and its retryable 429. A private and a missing repository now cost one identical call each. This also removes the anonymous-budget drain in finding 3 at its source.

@@ -32,17 +32,13 @@ workflow checks the key and the scoped exchange with GitHub before deploying.
 
 ## Public repositories outside the installation
 
-GitHub documents that an installation token can be granted access only within
-the installation and that public repository metadata can be read without
-credentials. Whether the public REST reads succeed with an installation token
-outside its installation is still unverified. The Worker retries anonymously
-once on credential or scope denials, while honoring rate limits; when that
-retry is itself rate-limited it pauses and answers a retryable 429. The deploy
-workflow's key check prints whether the scoped token reads
-`octocat/Hello-World`, which settles this on the first deployment.
+Settled on 2026-11-23. The deploy workflow's key check minted a token scoped
+by `repository_ids` to `Milkeles/lectale` and read `octocat/Hello-World` with
+it: HTTP 200 (log of the "Deploy preview" run 45148228687). A scoped
+installation token reads public repositories outside its scope. Its 403 or 404
+is therefore GitHub's real answer, the same an anonymous read gets, so the
+Worker no longer retries those anonymously. Only a rejected token (401) falls
+back to one anonymous read, with its own cooldown.
+
 [Installation token scope](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app),
 [Get a repository](https://docs.github.com/en/rest/repos/repos#get-a-repository)
-
-The shell proxy refused the requested curl connections, and direct curl could
-not resolve `docs.github.com`. The excerpts above were checked against the
-official pages through the browser tool.

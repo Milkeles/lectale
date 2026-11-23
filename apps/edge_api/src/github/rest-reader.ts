@@ -132,8 +132,8 @@ export class GitHubRestReader implements GitHubReader {
   }
 
   /**
-   * The token was denied and the anonymous retry is paused, so the resource's
-   * state is unknown. A retryable 429 says so honestly and answers a private
+   * The token was rejected and the anonymous retry is paused, so the
+   * resource's state is unknown. A retryable 429 says so honestly and answers a private
    * and a missing repository alike (SEC-005).
    */
   private fallbackPaused(): GitHubReadError {
@@ -155,19 +155,13 @@ export class GitHubRestReader implements GitHubReader {
     const url = `${REST}${path}`;
     const response = await request(url, token ? { ...options, token } : options);
     if (response.status === 200) return readText(response, cap);
-    if (!token) return readFailure(response);
-
-    if (response.status === 401) {
-      void response.body?.cancel().catch(() => undefined);
-      this.scope.rejected?.(token);
-    } else {
-      try {
-        await readFailure(response);
-      } catch (error) {
-        // Installation scope can deny a public resource. Rate limits still take precedence (ERR-004).
-        if (!(error instanceof AddressUnavailable)) throw error;
-      }
-    }
+    // A scoped token reads public repositories outside its scope (HTTP 200 in
+    // the 2026-11-23 deploy check), so its 403 or 404 is GitHub's real answer,
+    // the same an anonymous read would get. Only a rejected token (401) falls
+    // back to an anonymous read.
+    if (!token || response.status !== 401) return readFailure(response);
+    void response.body?.cancel().catch(() => undefined);
+    this.scope.rejected?.(token);
     if (this.fallbackCooldown.until > Date.now()) throw this.fallbackPaused();
     const anonymous = await request(url, options);
     if (anonymous.status === 200) return readText(anonymous, cap);
