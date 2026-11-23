@@ -177,7 +177,7 @@ Names are illustrative. Regions are unbordered (C9); `|` is the ribbon, `*` the 
 | Assignment dates | Opens {date and time}, Due {date and time}, Closes {date and time} (learner's time zone) |
 | Assignment note | You can read this assignment here. Submitting work isn't available in Lectale yet. |
 | Errors, retry | `../journeys-m2.md`, J5 error table; link: Enter the GitHub address; Try again |
-| File card, no viewer | Lectale can't show {PDF files} in this version. Download the file to read it. |
+| File card, no viewer | Lectale can't show {PDF files} in this version. The button reads "Download PDF" for a PDF and "Download" otherwise. *Shortened 2026-11-23: the button already says what to do.* |
 | File card, unknown | Lectale can't show this type of file. Download it to open it in another app. |
 | File card, too large | This file is too large to show here. Download it to read it. |
 | Folder | Folder; This folder is empty.; Lectale shows up to {n} items from this folder. |

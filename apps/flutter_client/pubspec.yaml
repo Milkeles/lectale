@@ -24,6 +24,10 @@ dependencies:
   flutter_riverpod: ^3.5.0
   go_router: ^18.1.4
   lectale_api_client: ^0.1.0
+  resource_renderers: ^0.1.0
+  # Opens a link or a download outside the app: the browser, or the system's
+  # handler. Used only by the preview's ResourceHost.
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

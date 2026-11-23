@@ -1,6 +1,7 @@
 import 'package:devchat_ui/devchat_ui.dart';
 import 'package:flutter/widgets.dart';
 import 'package:lectale/src/app/theme.dart';
+import 'package:resource_renderers/resource_renderers.dart';
 
 /// The family name of the reading face, declared in pubspec.yaml (ADR-0012).
 const String readingFontFamily = 'Source Serif 4';
@@ -54,12 +55,13 @@ Locale? localeFromLanguageTag(String? tag) {
 /// since Flutter doesn't set it. Weights come from the theme, so the dark
 /// weight offset applies. Pass [locale] from `course.language`, or from the
 /// resource's own language when it has one.
-class ReadingStyles {
+class ReadingStyles implements ContentStyles {
   /// Creates the styles for [locale].
   const ReadingStyles._({
     required this.locale,
     required this.reading,
     required this.titleColor,
+    required this.link,
     required this._titles,
   });
 
@@ -107,6 +109,7 @@ class ReadingStyles {
         color: theme.colors.foreground,
       ),
       titleColor: brand,
+      link: LectaleColors.of(context).link,
       titles: {
         for (final MapEntry(key: level, value: (size, lineHeight))
             in sizes.entries)
@@ -121,9 +124,15 @@ class ReadingStyles {
   }
 
   /// The language the styles shape for; null for the platform's.
+  @override
   final Locale? locale;
 
+  /// The color of underlined links: mulberry.
+  @override
+  final Color link;
+
   /// Course text: 18 dp on 30 dp, regular, in the foreground color.
+  @override
   final TextStyle reading;
 
   /// The color of titles: the brand mulberry.
@@ -134,5 +143,6 @@ class ReadingStyles {
   /// The title style of heading [level] (1 to 6): semibold mulberry, with the
   /// optical size of the size it is drawn at. Level 1 is the course or
   /// lesson title.
+  @override
   TextStyle title([int level = 1]) => _titles[level.clamp(1, 6)]!;
 }

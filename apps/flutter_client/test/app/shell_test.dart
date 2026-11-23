@@ -1,14 +1,17 @@
 import 'package:devchat_ui/devchat_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lectale/src/app/theme.dart';
 import 'package:lectale/src/widgets/skip_link.dart';
 import 'package:lectale/src/widgets/top_bar.dart';
 
+import '../support/course_fixture.dart';
 import '../support/fake_http_adapter.dart';
 import '../support/keyboard.dart';
 import '../support/pump_app.dart';
 
-const String _course = '/preview/42/$fixtureSha';
+const String _course = fixtureCourse;
+final String _reader = fixtureReader('reading-data', 'notes');
 
 /// Where the skip link is drawn. Its layout box stays in place and the visible
 /// part moves, so measure the part inside.
@@ -22,7 +25,10 @@ Rect _skipLinkRect(WidgetTester tester) => tester.getRect(
 void main() {
   late FakeHttpAdapter server;
 
-  setUp(() => server = FakeHttpAdapter());
+  setUp(() {
+    server = FakeHttpAdapter();
+    serveCourse(server);
+  });
 
   group('skip link', () {
     testSemantics('is out of sight until it has focus', (tester) async {
@@ -32,21 +38,88 @@ void main() {
       await expectTabOrder(tester, ['Skip to main content']);
 
       final rect = _skipLinkRect(tester);
-      expect(rect.top, greaterThanOrEqualTo(0));
       expect(rect.left, greaterThanOrEqualTo(0));
       expect(rect.height, greaterThanOrEqualTo(24));
       expect(rect.width, greaterThanOrEqualTo(24));
     });
 
-    for (final (name, location) in [
-      ('Course', _course),
-      ('Reader', '$_course/read/intro'),
-    ]) {
+    for (final (name, location) in [('Course', _course), ('Reader', _reader)]) {
       testSemantics('is the first stop on $name', (tester) async {
         await pumpLectale(tester, server, initialLocation: location);
         await expectTabOrder(tester, ['Skip to main content', 'Lectale home']);
       });
     }
+  });
+
+  group('skip link ring', () {
+    testSemantics('fits inside the window, ring and gap included', (
+      tester,
+    ) async {
+      await pumpLectale(tester, server);
+      await expectTabOrder(tester, ['Skip to main content']);
+      await tester.pump(const Duration(seconds: 1));
+
+      final ring = lectaleStyle.focusRing;
+      expect(
+        _skipLinkRect(tester).top,
+        greaterThanOrEqualTo(ring.offset + ring.width),
+        reason: 'the ring is drawn offset + width above the link',
+      );
+    });
+
+    testSemantics('also on Course, which has its own frame', (tester) async {
+      await pumpLectale(tester, server, initialLocation: _course);
+      await expectTabOrder(tester, ['Skip to main content']);
+      await tester.pump(const Duration(seconds: 1));
+
+      final ring = lectaleStyle.focusRing;
+      expect(
+        _skipLinkRect(tester).top,
+        greaterThanOrEqualTo(ring.offset + ring.width),
+      );
+    });
+  });
+
+  group('routes', () {
+    for (final bad in [
+      '/preview/abc/$fixtureSha',
+      '/preview/42/xyz',
+      '/preview/0/$fixtureSha',
+      '/preview/-1/$fixtureSha',
+      '/preview/42/${fixtureSha.toUpperCase()}',
+      '/preview/42/${fixtureSha.substring(1)}',
+      '/preview/9007199254740993/$fixtureSha',
+      '/preview/42.5/$fixtureSha',
+    ]) {
+      testWidgets('a bad deep link $bad redirects to /open', (tester) async {
+        final router = await pumpLectale(tester, server, initialLocation: bad);
+        await tester.pumpAndSettle();
+
+        expect(locationOf(router), '/open');
+        expect(find.text('Open a course from GitHub'), findsOneWidget);
+        expect(server.requests, isEmpty, reason: 'no request for a bad link');
+      });
+    }
+
+    testWidgets('a bad link inside a lesson address redirects too', (
+      tester,
+    ) async {
+      final router = await pumpLectale(
+        tester,
+        server,
+        initialLocation: '/preview/abc/xyz/lesson/item',
+      );
+      await tester.pumpAndSettle();
+
+      expect(locationOf(router), '/open');
+    });
+
+    testWidgets('/ redirects to the open-by-link screen', (tester) async {
+      final router = await pumpLectale(tester, server);
+
+      expect(locationOf(router), '/open');
+      expect(find.text('Open a course from GitHub'), findsOneWidget);
+    });
   });
 
   group('top bar', () {
@@ -79,7 +152,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(locationOf(router), '/');
+      expect(locationOf(router), '/open');
       expect(find.text('Open a course from GitHub'), findsOneWidget);
     });
 
@@ -94,17 +167,16 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
 
-      expect(locationOf(router), '/');
+      expect(locationOf(router), '/open');
     });
 
-    for (final (name, location) in [
-      ('Course', _course),
-      ('Reader', '$_course/read/intro'),
-    ]) {
+    for (final (name, location) in [('Course', _course), ('Reader', _reader)]) {
       testSemantics('$name meets the guidelines', (tester) async {
         await pumpLectale(tester, server, initialLocation: location);
+        for (var i = 0; i < 6; i++) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
         await expectAccessible(tester);
-        expect(find.text(name), findsOneWidget, reason: 'placeholder heading');
       });
     }
   });

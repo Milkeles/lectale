@@ -1,0 +1,25 @@
+name: resource_renderers
+description: Viewers for the files of a Lectale course, chosen by resource kind.
+publish_to: none
+version: 0.1.0
+
+environment:
+  sdk: ^3.14.0
+
+resolution: workspace
+
+dependencies:
+  devchat_ui:
+    git:
+      url: https://github.com/Milkeles/litse-ui-private.git
+      ref: 1ba314a75a9de1ba23acdb0c5490d7df8bf4710e
+  flutter:
+    sdk: flutter
+  flutter_markdown_plus: ^1.0.12
+  flutter_math_fork: ^0.7.4
+  lectale_api_client: ^0.1.0
+  markdown: ^7.3.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

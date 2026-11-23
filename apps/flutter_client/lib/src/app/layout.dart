@@ -11,13 +11,17 @@ abstract final class Breakpoints {
   /// reading column.
   static const double readingEm = 18;
 
+  /// The space between the Contents pane and the text column on wide
+  /// windows: 72 dp, inside the 64 to 80 dp the design review asked for.
+  static const double contentsGap = 72;
+
   /// The window width where the wide layout begins: gutter, 272 dp pane,
-  /// gutter, a 32 em text column and a closing gutter. 956 dp at 100 percent
-  /// text, 1532 dp at 200 percent.
+  /// the 72 dp gap, a 32 em text column and a closing gutter. 992 dp at 100
+  /// percent text, 1568 dp at 200 percent.
   static double wide(BuildContext context) {
     final em = MediaQuery.textScalerOf(context).scale(readingEm);
     final gutter = DcTheme.of(context).style.space(8);
-    return gutter + 272 + gutter + 32 * em + gutter;
+    return gutter + 272 + contentsGap + 32 * em + gutter;
   }
 }
 

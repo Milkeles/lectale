@@ -45,7 +45,15 @@ String _focused() {
 void main() {
   late FakeHttpAdapter server;
 
-  setUp(() => server = FakeHttpAdapter());
+  setUp(() {
+    server = FakeHttpAdapter()
+      // An opened course loads its README.
+      ..on(
+        'GET',
+        '/api/preview/42/$fixtureSha/readme',
+        const FakeResponse(200, '# Statistics 101'),
+      );
+  });
 
   group('idle', () {
     testSemantics('shows the heading, help, label, hint and button', (
@@ -181,7 +189,7 @@ void main() {
       await tester.testTextInput.receiveAction(TextInputAction.go);
       await tester.pumpAndSettle();
 
-      expect(server.requests, hasLength(1));
+      expect(server.requests.where((r) => r.method == 'POST'), hasLength(1));
     });
   });
 
@@ -655,7 +663,15 @@ void main() {
       await _submitAndSettle(tester);
 
       expect(locationOf(router), '/preview/42/$fixtureSha');
-      expect(find.text('Course'), findsOneWidget);
+      // The course opens from the import result in memory: no second request
+      // for the preview, only the README of the overview.
+      expect(find.text('Statistics 101'), findsWidgets);
+      expect(
+        server.requests.where(
+          (r) => r.method == 'GET' && r.path == '/api/preview/42/$fixtureSha',
+        ),
+        isEmpty,
+      );
       expect(find.text('Open a course from GitHub'), findsNothing);
     });
   });

@@ -11,6 +11,7 @@ workspace:
   - apps/flutter_client
   - packages/api_client
   - packages/ipynb
+  - packages/resource_renderers
 
 dev_dependencies:
   swagger_parser: ^2.3.0

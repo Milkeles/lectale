@@ -157,8 +157,7 @@ Future<void> pressOpenCourse(WidgetTester tester) async {
 }
 
 /// The location the router is at.
-String locationOf(GoRouter router) =>
-    router.routerDelegate.currentConfiguration.uri.toString();
+String locationOf(GoRouter router) => router.state.uri.toString();
 
 /// Like `testWidgets`, with the semantics tree switched on for the whole
 /// test and released at its end, as the tester requires.

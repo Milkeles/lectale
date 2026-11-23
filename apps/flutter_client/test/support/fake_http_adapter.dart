@@ -33,8 +33,8 @@ class FakeResponse {
   /// The status code; 0 for [FakeResponse.offline] and [FakeResponse.hangs].
   final int statusCode;
 
-  /// The body, encoded as JSON, or sent as is when it is a [String]; null for
-  /// none.
+  /// The body, encoded as JSON, or sent as is when it is a [String] or bytes;
+  /// null for none.
   final Object? body;
 
   /// How long the answer takes.
@@ -123,6 +123,16 @@ class FakeHttpAdapter implements HttpClientAdapter {
       );
     }
     final body = response.body;
+    if (body is Uint8List) {
+      return ResponseBody.fromBytes(
+        body,
+        response.statusCode,
+        headers: {
+          Headers.contentLengthHeader: ['${body.length}'],
+          Headers.contentTypeHeader: ['application/octet-stream'],
+        },
+      );
+    }
     final text = switch (body) {
       null => '',
       final String raw => raw,

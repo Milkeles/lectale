@@ -1,4 +1,5 @@
 import 'package:devchat_ui/devchat_ui.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import 'package:lectale/src/home/failure_view.dart';
 import 'package:lectale/src/home/home_controller.dart';
 import 'package:lectale/src/home/home_copy.dart';
 import 'package:lectale/src/home/home_state.dart';
+import 'package:lectale/src/preview/preview_providers.dart';
 
 /// Home: turn a pasted GitHub address into an open course, or say exactly
 /// why it can't open (`docs/ux/screens/home.md`).
@@ -44,6 +46,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   void _onStateChanged(HomeState? previous, HomeState next) {
     switch (next) {
       case HomeSuccess(:final preview):
+        // Course finds it in memory and needs no second request.
+        ref.read(importedPreviewsProvider.notifier).put(preview);
         context.go(
           AppRoutes.course(
             repoId: preview.repoId.value,
@@ -113,13 +117,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       child: const Text(HomeCopy.button),
     );
 
-    return AppShell(
-      homeLink: false,
-      child: CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.escape): () =>
-              ref.read(homeControllerProvider.notifier).cancel(),
-        },
+    return CallbackShortcuts(
+      // Above the shell, so Escape cancels wherever focus is on this screen,
+      // the skip link included (home.md §6).
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            ref.read(homeControllerProvider.notifier).cancel(),
+      },
+      child: AppShell(
+        homeLink: false,
         child: Align(
           alignment: AlignmentDirectional.topStart,
           child: ConstrainedBox(
@@ -202,6 +208,21 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   }
 }
 
+/// What Enter does in the field.
+///
+/// A text field finishes a "go", "done" or "search" by dropping focus, and
+/// then restarts its input connection; litse-ui's field has no
+/// `onEditingComplete` to change that. Focus loss breaks Escape and Tab
+/// (home.md §6), and on the web the restart leaves the field showing focus
+/// while the browser's typing element has lost it. "Unspecified" submits
+/// without either. Only the soft keyboards of Android and iOS keep "go": the
+/// key is labelled, and the keyboard should close when the address is sent.
+TextInputAction get _enterAction => switch (defaultTargetPlatform) {
+  TargetPlatform.android ||
+  TargetPlatform.iOS when !kIsWeb => TextInputAction.go,
+  _ => TextInputAction.unspecified,
+};
+
 /// The address field with its hint and inline error, read by a screen reader
 /// as one control.
 class _AddressField extends StatelessWidget {
@@ -244,7 +265,7 @@ class _AddressField extends StatelessWidget {
           autofocus: autofocus,
           invalid: invalid,
           keyboardType: TextInputType.url,
-          textInputAction: TextInputAction.go,
+          textInputAction: _enterAction,
           autofillHints: const [AutofillHints.url],
           // As tall as the button beside it.
           style: DcInputStyle(height: style.controlHeights.large),

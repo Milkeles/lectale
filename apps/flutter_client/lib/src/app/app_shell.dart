@@ -1,3 +1,4 @@
+import 'package:devchat_ui/devchat_ui.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
@@ -63,7 +64,7 @@ class _AppShellState extends State<AppShell> {
                       markColor: LectaleColors.of(context).brand,
                       homeLabel: widget.homeLink ? AppCopy.homeLink : null,
                       onHome: widget.homeLink
-                          ? () => context.go(AppRoutes.home)
+                          ? () => context.go(AppRoutes.open)
                           : null,
                     ),
                   ),
@@ -94,7 +95,9 @@ class _AppShellState extends State<AppShell> {
             ),
           ),
           PositionedDirectional(
-            top: 0,
+            // Below the window edge by the ring's 2 dp gap and 2 dp width, so
+            // the ring is not cut off at the top (WCAG 2.4.7, 2.4.11).
+            top: DcTheme.of(context).style.space(2),
             start: gutter,
             child: FocusTraversalOrder(
               order: const NumericFocusOrder(0),
