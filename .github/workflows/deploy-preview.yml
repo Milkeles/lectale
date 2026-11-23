@@ -43,6 +43,150 @@ jobs:
         run: |
           npm ci
           npm run build -- --with-app
+      # A wrong key, a missing installation or an over-broad token would leave
+      # the Worker anonymous (60 an hour) or too powerful, so stop here. The
+      # check applies the Worker's own rules (src/github/app-auth.ts): a PKCS#8
+      # key, the account and repository ID from wrangler.jsonc, the same scoped
+      # exchange and the same response checks. It prints no token, JWT or key.
+      - name: Check the GitHub App key with GitHub
+        shell: bash
+        env:
+          GH_APP_ID: ${{ secrets.GH_APP_ID }}
+          GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        run: |
+          node - <<'NODE'
+          const { sign } = require("node:crypto");
+          const { readFileSync } = require("node:fs");
+          const { GH_APP_ID, GH_APP_PRIVATE_KEY } = process.env;
+          const API = "https://api.github.com";
+          const MAX_PAGES = 5;
+          const PAGE_SIZE = 100;
+
+          class CheckFailure extends Error {}
+          const fail = (message) => { throw new CheckFailure(message); };
+
+          let account;
+          let repositoryId;
+          let jwt;
+
+          // Validates the inputs inside main(), so a failure prints one message
+          // and no stack trace.
+          function prepare() {
+            // Same pattern as the Worker. A PKCS#1 key ("BEGIN RSA PRIVATE KEY")
+            // would pass a Node check but leave the Worker anonymous.
+            const pkcs8 = /^-----BEGIN PRIVATE KEY-----\s+[A-Za-z0-9+/=\s]+-----END PRIVATE KEY-----$/;
+            if (!/^[1-9]\d*$/.test(GH_APP_ID ?? "")) fail("GH_APP_ID must be the numeric App ID.");
+            if (!pkcs8.test((GH_APP_PRIVATE_KEY ?? "").trim())) {
+              fail("GH_APP_PRIVATE_KEY must be a PKCS#8 PEM that starts with BEGIN PRIVATE KEY. "
+                + "Convert the key with: openssl pkcs8 -topk8 -nocrypt -in key.pem -out key-pkcs8.pem");
+            }
+
+            // wrangler.jsonc allows comments. The pattern skips string literals so
+            // a URL such as "https://..." is not cut at the slashes.
+            const config = readFileSync("apps/edge_api/wrangler.jsonc", "utf8")
+              .replace(/"(?:\\.|[^"\\])*"|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (match) => (match.startsWith('"') ? match : ""));
+            let vars;
+            try {
+              vars = JSON.parse(config).vars ?? {};
+            } catch {
+              fail("apps/edge_api/wrangler.jsonc could not be read as JSON with comments.");
+            }
+            account = String(vars.GH_APP_INSTALLATION_ACCOUNT ?? "").trim().toLowerCase();
+            const repositoryText = String(vars.GH_APP_TOKEN_REPOSITORY_ID ?? "").trim();
+            if (!account) fail("wrangler.jsonc has no GH_APP_INSTALLATION_ACCOUNT.");
+            if (!/^[1-9]\d*$/.test(repositoryText) || !Number.isSafeInteger(Number(repositoryText))) {
+              fail("wrangler.jsonc has no valid GH_APP_TOKEN_REPOSITORY_ID.");
+            }
+            repositoryId = Number(repositoryText);
+
+            const part = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
+            const now = Math.floor(Date.now() / 1000);
+            const input = part({ alg: "RS256", typ: "JWT" }) + "." + part({ iat: now - 60, exp: now + 540, iss: GH_APP_ID });
+            try {
+              jwt = input + "." + sign("sha256", Buffer.from(input), GH_APP_PRIVATE_KEY).toString("base64url");
+            } catch {
+              fail("GH_APP_PRIVATE_KEY is not a usable RSA private key.");
+            }
+          }
+
+          async function github(path, credential, init = {}) {
+            return fetch(API + path, {
+              ...init,
+              headers: {
+                Authorization: "Bearer " + credential,
+                Accept: "application/vnd.github+json",
+                "User-Agent": "Lectale deploy",
+                ...(init.body === undefined ? {} : { "Content-Type": "application/json" }),
+              },
+              redirect: "manual",
+              signal: AbortSignal.timeout(30000),
+            });
+          }
+
+          async function findInstallation() {
+            for (let page = 1; page <= MAX_PAGES; page += 1) {
+              const response = await github("/app/installations?per_page=" + PAGE_SIZE + "&page=" + page, jwt);
+              if (response.status !== 200) fail("GitHub refused the App key (HTTP " + response.status + ").");
+              const items = await response.json();
+              if (!Array.isArray(items)) fail("GitHub returned an unexpected installation list.");
+              const found = items.find((item) => item?.account?.login?.toLowerCase() === account);
+              if (found) return found.id;
+              if (items.length < PAGE_SIZE) break;
+            }
+            return fail("The GitHub App is not installed on " + account + ".");
+          }
+
+          // Mirrors isScopedResponse in the Worker.
+          function scoped(payload) {
+            const repositories = payload?.repositories;
+            const permissions = payload?.permissions;
+            return payload?.repository_selection === "selected"
+              && Array.isArray(repositories) && repositories.length === 1
+              && repositories[0]?.id === repositoryId && repositories[0]?.private === false
+              && typeof permissions === "object" && permissions !== null && !Array.isArray(permissions)
+              && Object.keys(permissions).length === 2
+              && permissions.contents === "read" && permissions.metadata === "read";
+          }
+
+          async function main() {
+            prepare();
+            const installation = await findInstallation();
+            const response = await github("/app/installations/" + installation + "/access_tokens", jwt, {
+              method: "POST",
+              body: JSON.stringify({ repository_ids: [repositoryId], permissions: { contents: "read", metadata: "read" } }),
+            });
+            if (response.status !== 201) fail("GitHub refused the scoped token exchange (HTTP " + response.status + ").");
+            const payload = await response.json();
+            const token = payload?.token;
+            const tokenShape = typeof token === "string" && /^[A-Za-z0-9._~+/-]+=*$/.test(token);
+            try {
+              if (!tokenShape) fail("GitHub returned an unusable installation token.");
+              if (!scoped(payload)) {
+                fail("GitHub issued a token that is not limited to the one public repository with read-only contents and metadata.");
+              }
+              // Open question in the security review: can a scoped token read a
+              // public repository outside its scope? The answer decides whether
+              // the Worker keeps its anonymous retry. Reported, never fatal.
+              const outside = await github("/repos/octocat/Hello-World", token).catch(() => undefined);
+              console.log("Scoped token reading a public repository outside its scope: HTTP "
+                + (outside?.status ?? "no response") + ".");
+            } finally {
+              // Revoke even a rejected token: a broader grant must not stay live.
+              if (tokenShape) {
+                const revoked = await github("/installation/token", token, { method: "DELETE" }).catch(() => undefined);
+                console.log(revoked?.status === 204
+                  ? "The test token was revoked."
+                  : "The test token could not be revoked; it expires within an hour.");
+              }
+            }
+            console.log("GitHub accepted the App key and the scoped token.");
+          }
+
+          main().catch((error) => {
+            console.error(error instanceof CheckFailure ? error.message : "GitHub App check failed unexpectedly.");
+            process.exitCode = 1;
+          });
+          NODE
       - name: Deploy the Worker with the site and web app
         working-directory: apps/edge_api
         env:
@@ -52,3 +196,19 @@ jobs:
           npm ci
           npm run compile:schemas
           npx wrangler deploy
+      - name: Upload GitHub App secrets
+        working-directory: apps/edge_api
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          GH_APP_ID: ${{ secrets.GH_APP_ID }}
+          GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+        run: |
+          node --eval '
+            const { GH_APP_ID, GH_APP_PRIVATE_KEY } = process.env;
+            if (!GH_APP_ID || !GH_APP_PRIVATE_KEY) {
+              throw new Error("GitHub App secrets are missing.");
+            }
+            process.stdout.write(JSON.stringify({ GH_APP_ID, GH_APP_PRIVATE_KEY }));
+          ' | env -u GH_APP_ID -u GH_APP_PRIVATE_KEY npx wrangler secret bulk

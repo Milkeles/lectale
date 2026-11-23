@@ -3,6 +3,7 @@ import { requestId } from "hono/request-id";
 import { secureHeaders } from "hono/secure-headers";
 
 import { errorResponse } from "./errors";
+import { GitHubAppAuth } from "./github/app-auth";
 import type { GitHubReader } from "./github/reader";
 import type { PreviewCache } from "./preview/cache";
 import { previewErrorResponse } from "./preview/errors";
@@ -15,6 +16,7 @@ export function createApp(
   importLimiter?: Pick<RateLimit, "limit">,
 ) {
   const app = new Hono<{ Bindings: PreviewBindings }>().basePath("/api");
+  const githubAuth = new GitHubAppAuth();
 
   app.use(requestId());
   app.use(
@@ -26,13 +28,14 @@ export function createApp(
     }),
   );
 
-  // Deploys and uptime checks call this. It reads no binding, so a probe costs
-  // one request and almost no CPU.
+  // Deploys and uptime checks call this. It reads no binding and calls no
+  // upstream, so a probe costs one request and almost no CPU. The deploy
+  // workflow checks the GitHub App key with GitHub itself.
   app.get("/health", (c) =>
     c.json({ status: "ok" }, 200, { "Cache-Control": "no-store" }),
   );
 
-  registerPreviewRoutes(app, reader, cache, importLimiter);
+  registerPreviewRoutes(app, githubAuth, reader, cache, importLimiter);
 
   // Unknown routes answer with the standard envelope instead of Hono's plain
   // text, so clients only ever parse one error shape.

@@ -7,6 +7,10 @@ const head = "b".repeat(40);
 const repo = { id: 42, owner: { login: "Owner" }, name: "Repository", default_branch: "main", private: false };
 const repository = { id: 42, owner: "Owner", name: "Repository", defaultBranch: "main", private: false };
 
+function authHeader(outbound: { mock: { calls: Parameters<typeof fetch>[] } }, index: number): string | null {
+  return new Headers(outbound.mock.calls[index]?.[1]?.headers).get("Authorization");
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -15,10 +19,13 @@ afterEach(() => {
 describe("GitHub REST preview reader", () => {
   it("uses bounded REST metadata and raw for unauthenticated pinned ranges", async () => {
     const log = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const token = crypto.randomUUID();
     const outbound = vi.fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json(repo))
       .mockResolvedValueOnce(Response.json(repo))
+      .mockResolvedValueOnce(Response.json(repo))
       .mockResolvedValueOnce(new Response(head))
+      .mockResolvedValueOnce(Response.json(repo))
       .mockResolvedValueOnce(Response.json([
         { name: "slides.pdf", path: "files/slides.pdf", type: "file", size: 10, download_url: "ignored" },
         { name: "folder", path: "files/folder", type: "dir", size: 0 },
@@ -31,7 +38,7 @@ describe("GitHub REST preview reader", () => {
       .mockResolvedValueOnce(new Response("123", { status: 206 }));
     vi.stubGlobal("fetch", outbound);
 
-    const reader = new GitHubRestReader(async () => "ghs_test_token");
+    const reader = new GitHubRestReader(async () => token, { repositoryId: repo.id });
     expect(await reader.resolveRepository("owner", "repository")).toEqual(repository);
     expect(await reader.resolveRepositoryById(42)).toEqual(repository);
     expect(await reader.headCommit(repository)).toBe(head);
@@ -45,18 +52,151 @@ describe("GitHub REST preview reader", () => {
     expect(outbound.mock.calls.map(([url]) => String(url))).toEqual([
       "https://api.github.com/repos/owner/repository",
       "https://api.github.com/repositories/42",
+      // The scoped repository's visibility is confirmed before each read.
+      "https://api.github.com/repositories/42",
       "https://api.github.com/repositories/42/commits/HEAD",
+      "https://api.github.com/repositories/42",
       `https://api.github.com/repositories/42/contents/files?ref=${sha}`,
       `https://raw.githubusercontent.com/Owner/Repository/${sha}/files/slides.pdf`,
     ]);
-    const headHeaders = new Headers(outbound.mock.calls[2]?.[1]?.headers);
+    const headHeaders = new Headers(outbound.mock.calls[3]?.[1]?.headers);
     expect(headHeaders.get("Accept")).toBe("application/vnd.github.sha");
-    expect(headHeaders.get("Authorization")).toBe("Bearer ghs_test_token");
-    const headers = new Headers(outbound.mock.calls[4]?.[1]?.headers);
+    expect(headHeaders.get("Authorization") === `Bearer ${token}`).toBe(true);
+    const headers = new Headers(outbound.mock.calls[6]?.[1]?.headers);
     expect(headers.get("Range")).toBe("bytes=0-2");
     expect(headers.get("Authorization")).toBeNull();
     expect(headers.get("Cookie")).toBeNull();
     expect(log.mock.calls).toContainEqual(["GitHub preview metadata", { operation: "head", address: "id" }]);
+  });
+
+  it.each([401, 403, 404])("retries an authenticated %s anonymously for public repositories", async (status) => {
+    const token = crypto.randomUUID();
+    const outbound = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status }))
+      .mockResolvedValueOnce(Response.json(repo));
+    vi.stubGlobal("fetch", outbound);
+
+    expect(await new GitHubRestReader(async () => token).resolveRepository("owner", "repository")).toEqual(repository);
+    expect(outbound).toHaveBeenCalledTimes(2);
+    expect(new Headers(outbound.mock.calls[0]?.[1]?.headers).get("Authorization") === `Bearer ${token}`).toBe(true);
+    expect(new Headers(outbound.mock.calls[1]?.[1]?.headers).get("Authorization")).toBeNull();
+  });
+
+  it("does not retry an installation rate limit anonymously", async () => {
+    const outbound = vi.fn().mockResolvedValueOnce(new Response(null, {
+      status: 403,
+      headers: { "Retry-After": "120" },
+    }));
+    vi.stubGlobal("fetch", outbound);
+
+    await expect(new GitHubRestReader(async () => crypto.randomUUID()).resolveRepository("owner", "repository"))
+      .rejects.toMatchObject({ kind: "rate_limited", retryAfterSeconds: 120 });
+    expect(outbound).toHaveBeenCalledOnce();
+  });
+
+  it("never reads the scoped repository with the token once it has become private", async () => {
+    const outbound = vi.fn().mockResolvedValueOnce(Response.json({ ...repo, private: true }));
+    vi.stubGlobal("fetch", outbound);
+
+    await expect(new GitHubRestReader(async () => crypto.randomUUID(), { repositoryId: repo.id })
+      .listDirectory(repository, sha, "")).rejects.toMatchObject({ kind: "not_found" });
+    expect(outbound).toHaveBeenCalledOnce();
+    expect(new URL(String(outbound.mock.calls[0]?.[0])).pathname).toBe("/repositories/42");
+  });
+
+  it("skips the visibility re-check for a repository the token is not scoped to", async () => {
+    const outbound = vi.fn().mockResolvedValueOnce(Response.json([]));
+    vi.stubGlobal("fetch", outbound);
+
+    expect(await new GitHubRestReader(async () => crypto.randomUUID(), { repositoryId: 7 })
+      .listDirectory(repository, sha, "")).toEqual([]);
+    expect(outbound).toHaveBeenCalledOnce();
+  });
+
+  it("refuses a private repository on the name fallback when a token is set", async () => {
+    const token = crypto.randomUUID();
+    const outbound = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      // The name lookup now shows the repository as private.
+      .mockResolvedValueOnce(Response.json({ ...repo, private: true }));
+    vi.stubGlobal("fetch", outbound);
+
+    // The token is scoped elsewhere, as it is for every repository but one.
+    await expect(new GitHubRestReader(async () => token, { repositoryId: 7 }).headCommit(repository))
+      .rejects.toMatchObject({ kind: "repo_changed" });
+    expect(outbound.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+      "/repositories/42/commits/HEAD", "/repositories/42/commits/HEAD", "/repos/Owner/Repository",
+    ]);
+  });
+
+  it("reports a rejected token on 401 and still answers from the anonymous retry", async () => {
+    const token = crypto.randomUUID();
+    const rejected = vi.fn();
+    const outbound = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockResolvedValueOnce(Response.json(repo));
+    vi.stubGlobal("fetch", outbound);
+
+    expect(await new GitHubRestReader(async () => token, { rejected }).resolveRepository("owner", "repository"))
+      .toEqual(repository);
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(token);
+  });
+
+  it("pauses anonymous retries after a rate limit, keeps token reads going and leaves the global cooldown alone",
+    async () => {
+      const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-23T12:00:00Z"));
+      const start = Date.now();
+      const token = crypto.randomUUID();
+      const fallbackCooldown = { until: 0 };
+      const outbound = vi.fn<typeof fetch>()
+        .mockResolvedValueOnce(new Response(null, { status: 404 }))
+        .mockResolvedValueOnce(new Response(null, { status: 403, headers: { "Retry-After": "90" } }))
+        .mockResolvedValueOnce(new Response(null, { status: 404 }))
+        .mockResolvedValueOnce(Response.json(repo))
+        .mockResolvedValueOnce(new Response(null, { status: 404 }))
+        .mockResolvedValueOnce(Response.json(repo));
+      vi.stubGlobal("fetch", outbound);
+      // A new reader per request, as the routes create them.
+      const reader = () => new GitHubRestReader(async () => token, { fallbackCooldown });
+
+      const paused = { kind: "rate_limited", budget: "fallback" };
+      await expect(reader().resolveRepository("owner", "one")).rejects.toMatchObject({ ...paused, retryAfterSeconds: 90 });
+      expect(fallbackCooldown.until).toBe(start + 90_000);
+      await expect(reader().resolveRepository("owner", "two")).rejects.toMatchObject(paused);
+      expect(outbound).toHaveBeenCalledTimes(3);
+      expect(await reader().resolveRepository("owner", "repository")).toEqual(repository);
+      expect(authHeader(outbound, 3)).toBe(`Bearer ${token}`);
+
+      clock.mockReturnValue(start + 90_000 + 1);
+      expect(await reader().resolveRepository("owner", "repository")).toEqual(repository);
+      expect(outbound).toHaveBeenCalledTimes(6);
+      expect(authHeader(outbound, 5)).toBeNull();
+    });
+
+  it("answers a 401 during the paused retry with the same retryable 429", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-23T12:00:00Z"));
+    const fallbackCooldown = { until: Date.now() + 30_000 };
+    const token = crypto.randomUUID();
+    const rejected = vi.fn();
+    const outbound = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(null, { status: 401 }));
+    vi.stubGlobal("fetch", outbound);
+
+    await expect(new GitHubRestReader(async () => token, { fallbackCooldown, rejected })
+      .resolveRepository("owner", "paused"))
+      .rejects.toMatchObject({ kind: "rate_limited", budget: "fallback", retryAfterSeconds: 30 });
+    expect(rejected).toHaveBeenCalledExactlyOnceWith(token);
+    expect(outbound).toHaveBeenCalledOnce();
+  });
+
+  it("does not start the fallback cooldown for an ordinary anonymous denial", async () => {
+    const fallbackCooldown = { until: 0 };
+    vi.stubGlobal("fetch", vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 404 }))
+      .mockResolvedValueOnce(new Response(null, { status: 404 })));
+    await expect(new GitHubRestReader(async () => crypto.randomUUID(), { fallbackCooldown })
+      .resolveRepository("owner", "gone")).rejects.toMatchObject({ kind: "not_found" });
+    expect(fallbackCooldown.until).toBe(0);
   });
 
   it.each([["behind", true], ["identical", true], ["ahead", false], ["diverged", false]])(

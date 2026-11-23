@@ -10,11 +10,18 @@ const REST = "https://api.github.com";
 const RAW = "https://raw.githubusercontent.com";
 const METADATA_BYTES = 128 * 1024;
 const DIRECTORY_BYTES = 2 * 1024 * 1024;
+const MAX_FALLBACK_SECONDS = 86_400;
 
 class AddressUnavailable extends GitHubReadError {
   constructor() {
     super("not_found");
   }
+}
+
+interface MetadataOptions {
+  accept?: string;
+  repositoryRedirect?: boolean;
+  publicRepoId?: number;
 }
 
 function repositoryPath(owner: string, name: string): string {
@@ -101,22 +108,85 @@ function parseJson(text: string): unknown {
   }
 }
 
-/** Reads bounded REST metadata and unauthenticated, SHA-pinned raw files (ADR-0008). */
-export class GitHubRestReader implements GitHubReader {
-  constructor(private readonly tokenProvider: () => Promise<string | undefined> = async () => undefined) {}
+/** What the reader needs to know about its credential's scope (V4-SEC-04). */
+export interface TokenScope {
+  /** The only repository the token can read. Its visibility is re-checked after each read. */
+  repositoryId?: number | undefined;
+  /** Called with a token that GitHub refused with 401, so the provider can drop it. */
+  rejected?: (token: string) => void;
+  /** Pauses anonymous retries after one hit a rate limit. Shared across requests. */
+  fallbackCooldown?: { until: number };
+}
 
-  private async metadata(path: string, cap = METADATA_BYTES, accept?: string, repositoryRedirect = false): Promise<string> {
+/** Reads public REST metadata and anonymous, SHA-pinned raw files (V4-CORE-01, ADR-0008). */
+export class GitHubRestReader implements GitHubReader {
+  constructor(
+    private readonly tokenProvider: () => Promise<string | undefined> = async () => undefined,
+    private readonly scope: TokenScope = {},
+  ) {}
+
+  private readonly ownCooldown = { until: 0 };
+
+  private get fallbackCooldown(): { until: number } {
+    return this.scope.fallbackCooldown ?? this.ownCooldown;
+  }
+
+  /**
+   * The token was denied and the anonymous retry is paused, so the resource's
+   * state is unknown. A retryable 429 says so honestly and answers a private
+   * and a missing repository alike (SEC-005).
+   */
+  private fallbackPaused(): GitHubReadError {
+    const remaining = Math.max(1, Math.ceil((this.fallbackCooldown.until - Date.now()) / 1_000));
+    return new GitHubReadError("rate_limited", remaining, "fallback");
+  }
+
+  private async metadata(
+    path: string, cap = METADATA_BYTES, { publicRepoId, ...options }: MetadataOptions = {},
+  ): Promise<string> {
     const token = await this.tokenProvider();
-    const response = await request(`${REST}${path}`, {
-      ...(token ? { token } : {}), ...(accept ? { accept } : {}), repositoryRedirect,
-    });
-    if (response.status !== 200) return readFailure(response);
-    return readText(response, cap);
+    // The token is scoped to one repository, which can turn private within
+    // the hour, so its visibility is confirmed before the read: a private
+    // listing must not even be fetched or size-checked. Other repositories
+    // are unreadable to the token while private.
+    if (token && publicRepoId !== undefined && publicRepoId === this.scope.repositoryId) {
+      await this.resolveRepositoryById(publicRepoId);
+    }
+    const url = `${REST}${path}`;
+    const response = await request(url, token ? { ...options, token } : options);
+    if (response.status === 200) return readText(response, cap);
+    if (!token) return readFailure(response);
+
+    if (response.status === 401) {
+      void response.body?.cancel().catch(() => undefined);
+      this.scope.rejected?.(token);
+    } else {
+      try {
+        await readFailure(response);
+      } catch (error) {
+        // Installation scope can deny a public resource. Rate limits still take precedence (ERR-004).
+        if (!(error instanceof AddressUnavailable)) throw error;
+      }
+    }
+    if (this.fallbackCooldown.until > Date.now()) throw this.fallbackPaused();
+    const anonymous = await request(url, options);
+    if (anonymous.status === 200) return readText(anonymous, cap);
+    try {
+      return await readFailure(anonymous);
+    } catch (error) {
+      if (!(error instanceof GitHubReadError) || error.kind !== "rate_limited") throw error;
+      // Anonymous budget is shared by every visitor. Pausing only this path
+      // keeps token reads running and stops one flood of missing names from
+      // opening the global cooldown (V4-CACHE-05).
+      const seconds = Math.max(1, Math.min(error.retryAfterSeconds ?? 60, MAX_FALLBACK_SECONDS));
+      this.fallbackCooldown.until = Math.max(this.fallbackCooldown.until, Date.now() + seconds * 1_000);
+      throw this.fallbackPaused();
+    }
   }
 
   async resolveRepository(owner: string, name: string): Promise<GitHubRepository> {
     return parseRepository(parseJson(await this.metadata(`/repos/${repositoryPath(owner, name)}`,
-      METADATA_BYTES, undefined, true)));
+      METADATA_BYTES, { repositoryRedirect: true })));
   }
 
   async resolveRepositoryById(id: number): Promise<GitHubRepository> {
@@ -142,8 +212,11 @@ export class GitHubRestReader implements GitHubReader {
     repository: GitHubRepository, operation: string, suffix: string, cap?: number, accept?: string,
   ): Promise<string> {
     if (!isRepoId(repository.id)) throw new GitHubReadError("not_found");
+    const options = accept === undefined ? {} : { accept };
     try {
-      const body = await this.metadata(`/repositories/${repository.id}/${suffix}`, cap, accept);
+      const body = await this.metadata(`/repositories/${repository.id}/${suffix}`, cap, {
+        ...options, publicRepoId: repository.id,
+      });
       console.info("GitHub preview metadata", { operation, address: "id" });
       return body;
     } catch (error) {
@@ -154,7 +227,7 @@ export class GitHubRestReader implements GitHubReader {
     const { owner, name } = repository;
     let body: string;
     try {
-      body = await this.metadata(`/repos/${repositoryPath(owner, name)}/${suffix}`, cap, accept);
+      body = await this.metadata(`/repos/${repositoryPath(owner, name)}/${suffix}`, cap, options);
     } catch (error) {
       if (error instanceof GitHubReadError && error.kind !== "rate_limited") await this.confirmName(repository);
       throw error;

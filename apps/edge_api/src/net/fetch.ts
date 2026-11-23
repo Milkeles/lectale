@@ -10,20 +10,30 @@ function checkUrl(url: URL): void {
 }
 
 /**
- * Makes a bounded GitHub GET (V4-SEC-03). Headers are constructed here so
- * client credentials cannot cross the boundary. The optional token comes
- * from the server and is sent only to the REST API.
+ * Makes a bounded GitHub read or an installation token exchange (V4-SEC-03,
+ * V4-SEC-04). Constructs headers here and sends server credentials only to
+ * the REST API. Only a repository name-to-ID lookup may follow a redirect.
  */
 export async function fetchGitHub(
   address: string | URL,
-  options: { token?: string; range?: string; accept?: string; repositoryRedirect?: boolean } = {},
+  options: {
+    token?: string; range?: string; accept?: string; repositoryRedirect?: boolean;
+    method?: "POST"; body?: string;
+  } = {},
 ): Promise<Response> {
   let url = new URL(address);
   checkUrl(url);
+  const exchange = options.method === "POST";
+  if (exchange && (url.hostname !== "api.github.com"
+      || !/^\/app\/installations\/[1-9][0-9]*\/access_tokens$/u.test(url.pathname)
+      || url.search || url.hash)) {
+    throw new Error("Unexpected GitHub token exchange URL.");
+  }
   const headers = new Headers({ "User-Agent": "Lectale" });
   if (url.hostname === "api.github.com") {
     headers.set("Accept", options.accept ?? "application/vnd.github+json");
     if (options.token) headers.set("Authorization", `Bearer ${options.token}`);
+    if (exchange) headers.set("Content-Type", "application/json");
   } else {
     headers.set("Accept-Encoding", "identity");
     if (options.range !== undefined) headers.set("Range", options.range);
@@ -31,11 +41,15 @@ export async function fetchGitHub(
 
   const signal = AbortSignal.timeout(TIMEOUT_MS);
   const init: RequestInit = { headers, redirect: "manual", cache: "no-store", signal };
+  if (exchange) {
+    init.method = "POST";
+    if (options.body !== undefined) init.body = options.body;
+  }
   const response = await fetch(url, init);
   if (!REDIRECTS.has(response.status)) return response;
   const location = response.headers.get("Location");
   void response.body?.cancel().catch(() => undefined);
-  if (!location || !options.repositoryRedirect || url.hostname !== "api.github.com"
+  if (exchange || !location || !options.repositoryRedirect || url.hostname !== "api.github.com"
       || !/^\/repos\/[^/]+\/[^/]+$/u.test(url.pathname)) {
     throw new Error("Unexpected GitHub redirect.");
   }

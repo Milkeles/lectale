@@ -63,6 +63,26 @@ describe("GitHub outbound fetch", () => {
     expect(outbound).toHaveBeenCalledOnce();
   });
 
+  it("omits Authorization on raw reads even when a credential is supplied", async () => {
+    const outbound = vi.fn<typeof fetch>().mockResolvedValue(new Response("file"));
+    vi.stubGlobal("fetch", outbound);
+    await fetchGitHub("https://raw.githubusercontent.com/owner/repo/main/README.md", { token: crypto.randomUUID() });
+    expect(new Headers(outbound.mock.calls[0]?.[1]?.headers).get("Authorization")).toBeNull();
+  });
+
+  it("rejects POSTs outside the installation exchange and refuses exchange redirects", async () => {
+    const outbound = vi.fn().mockResolvedValue(new Response(null, {
+      status: 307, headers: { Location: "https://raw.githubusercontent.com/owner/repo/main/README.md" },
+    }));
+    vi.stubGlobal("fetch", outbound);
+    const options = { method: "POST", token: crypto.randomUUID() } as const;
+    await expect(fetchGitHub("https://api.github.com/repos/owner/repo", options)).rejects.toThrow("exchange URL");
+    expect(outbound).not.toHaveBeenCalled();
+    await expect(fetchGitHub("https://api.github.com/app/installations/42/access_tokens", options))
+      .rejects.toThrow("redirect");
+    expect(outbound).toHaveBeenCalledOnce();
+  });
+
   it("bounds a same-host redirect loop", async () => {
     const outbound = vi.fn().mockImplementation(async () =>
       new Response(null, { status: 302, headers: { Location: "/repositories/42" } }));

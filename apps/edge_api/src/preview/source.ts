@@ -31,6 +31,8 @@ export class PreviewSource {
     try {
       return await operation();
     } catch (error) {
+      // Only the anonymous retry is paused; reads with the token go on.
+      if (error instanceof GitHubReadError && error.budget === "fallback") throw error;
       if (error instanceof GitHubReadError && error.kind === "rate_limited") {
         const seconds = Math.max(1, Math.min(error.retryAfterSeconds ?? 60, MAX_RETRY_SECONDS));
         this.cooldown.until = Math.max(this.cooldown.until, Date.now() + seconds * 1_000);

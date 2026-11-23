@@ -5,6 +5,12 @@
   "name": "lectale",
   "main": "src/index.ts",
   "compatibility_date": "2026-11-20",
+  "vars": {
+    "GH_APP_INSTALLATION_ACCOUNT": "Milkeles",
+    // Milkeles/lectale, public. The installation token is limited to this
+    // repository ID (V4-SEC-04); without it the Worker stays anonymous.
+    "GH_APP_TOKEN_REPOSITORY_ID": "1466047676"
+  },
   "assets": {
     "directory": "./build/assets",
     "binding": "ASSETS",

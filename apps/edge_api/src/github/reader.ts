@@ -38,6 +38,11 @@ export class GitHubReadError extends Error {
   constructor(
     readonly kind: "not_found" | "rate_limited" | "upstream" | "repo_changed",
     readonly retryAfterSeconds?: number,
+    /**
+     * Which budget ran out. `fallback` is only the anonymous retry behind an
+     * installation token, so it must not open the shared cooldown.
+     */
+    readonly budget: "shared" | "fallback" = "shared",
   ) {
     super("GitHub read failed.");
     this.name = "GitHubReadError";

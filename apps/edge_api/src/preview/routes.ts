@@ -1,6 +1,7 @@
 import type { Context, Hono } from "hono";
 import { isSafeRepoPath } from "../contract/repo-path";
 import type { components } from "../generated/api";
+import type { GitHubAppAuth, GitHubAppBindings } from "../github/app-auth";
 import { commitShaPattern, GitHubReadError, isRepoId, type GitHubReader, type GitHubRepository } from "../github/reader";
 import { GitHubRestReader } from "../github/rest-reader";
 import { readBoundedBody } from "../net/bounded-body";
@@ -10,7 +11,8 @@ import { servePinnedFile } from "./file";
 import { coursePreview, README_PATH, resourceTarget } from "./pinned";
 import { PreviewSource } from "./source";
 
-export type PreviewBindings = Env & { GITHUB_PUBLIC_READ_TOKEN?: string };
+/** Worker bindings used by public preview routes, including optional App credentials. */
+export type PreviewBindings = Omit<Env, keyof GitHubAppBindings> & GitHubAppBindings;
 type WorkerEnv = { Bindings: PreviewBindings };
 type ImportCourseRequest = components["schemas"]["ImportCourseRequest"];
 type PreviewFolder = components["schemas"]["PreviewFolder"];
@@ -106,15 +108,23 @@ async function listFolder(
 /** Registers public-only, read-only preview routes (V4-CORE-01, ADR-0008). */
 export function registerPreviewRoutes(
   app: Hono<WorkerEnv>,
+  githubAuth: GitHubAppAuth,
   reader?: GitHubReader,
   cacheOverride?: PreviewCache,
   importLimiter?: Limiter,
 ): void {
   const memo = new PreviewMemo();
   const cooldown = { until: 0 };
+  // Separate from the global cooldown: a throttled anonymous retry must not
+  // block reads that carry the token (V4-CACHE-05).
+  const fallbackCooldown = { until: 0 };
   function sourceFor(c: Context<WorkerEnv>): PreviewSource {
     const cache = cacheOverride ?? (typeof caches === "undefined" ? undefined : caches.default);
-    const github = reader ?? new GitHubRestReader(async () => c.env?.GITHUB_PUBLIC_READ_TOKEN);
+    const github = reader ?? new GitHubRestReader(() => githubAuth.tokenFor(c.env), {
+      repositoryId: githubAuth.repositoryId(c.env),
+      rejected: (token) => githubAuth.dropToken(token),
+      fallbackCooldown,
+    });
     return new PreviewSource(new PreviewStore(c.req.url, cache, memo), github, cooldown);
   }
 
