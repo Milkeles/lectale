@@ -50,3 +50,7 @@ Both reviewers re-checked the fix round. They agree findings 1, 2, 5, 6, 7 and 8
 | The token cache kept a second copy of the PEM in its key (low) | Codex | It keys on a SHA-256 digest of the PEM |
 | The research note still described the health probe (low) | Claude | Updated |
 | Open question: can a scoped token read public repositories outside its scope? | Claude | The deploy check prints the status of reading `octocat/Hello-World` with the scoped token. If it is 200, a follow-up removes the anonymous retry on 403 and 404 and keeps it for 401 |
+
+## Round 3 (same day)
+
+Claude's security-reviewer confirmed that findings 3 and 4 and both lows are closed. The 429 path can't tell a private repository from a missing one: both make the same calls and get the same status, code and `Retry-After`. Nothing caches it. One new low: `checkCover` turned a throttled read into a `cover_format` warning, which the pinned cache then kept for 300 s. Fixed: `checkCover` rethrows `rate_limited`. A route test fails without the fix and passes with it.

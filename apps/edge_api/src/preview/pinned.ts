@@ -97,7 +97,9 @@ async function checkCover(
       return { code: "cover_too_small", message: "The course cover must be at least 600 × 900 pixels.", path };
     }
   } catch (error) {
-    if (!(error instanceof GitHubReadError)) throw error;
+    // A throttled read says nothing about the cover. Answering 429 keeps a
+    // false warning out of the 300-second pinned cache.
+    if (!(error instanceof GitHubReadError) || error.kind === "rate_limited") throw error;
     return unreadable;
   }
 }

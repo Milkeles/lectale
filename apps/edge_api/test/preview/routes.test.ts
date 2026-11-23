@@ -190,6 +190,26 @@ describe("POST /api/courses/import", () => {
       if (code === "cover_too_large") expect(open).toHaveBeenCalledOnce();
     });
 
+    it("answers 429 for a throttled cover read and caches no cover warning", async () => {
+      const bytes = new Array<number>(1_000).fill(0);
+      bytes.splice(0, png.length, ...png);
+      reader.setFile(path, bytes);
+      const list = reader.listDirectory.bind(reader);
+      const throttled = vi.spyOn(reader, "listDirectory").mockImplementation(async (repository, commit, folder) => {
+        if (folder === "assets") throw new GitHubReadError("rate_limited", 30, "fallback");
+        return list(repository, commit, folder);
+      });
+
+      const limited = await importCourse();
+      expect(limited.status).toBe(429);
+      throttled.mockRestore();
+      const response = await importCourse();
+      expect(response.status).toBe(200);
+      const data = await response.json();
+      expect(data).toMatchObject({ outline: { course: { cover: path } } });
+      expect(data).not.toHaveProperty("warnings");
+    });
+
     it("uses the placeholder when the cover path is a symlink", async () => {
       reader.setFile(path, "README.md", "120000");
       const open = vi.spyOn(reader, "openFile");
