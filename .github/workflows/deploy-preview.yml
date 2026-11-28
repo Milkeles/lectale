@@ -164,12 +164,14 @@ jobs:
               if (!scoped(payload)) {
                 fail("GitHub issued a token that is not limited to the one public repository with read-only contents and metadata.");
               }
-              // Open question in the security review: can a scoped token read a
-              // public repository outside its scope? The answer decides whether
-              // the Worker keeps its anonymous retry. Reported, never fatal.
-              const outside = await github("/repos/octocat/Hello-World", token).catch(() => undefined);
-              console.log("Scoped token reading a public repository outside its scope: HTTP "
-                + (outside?.status ?? "no response") + ".");
+              // The Worker answers a token's 403 or 404 as final, which holds
+              // only while a scoped token reads every public repository. Check
+              // each kind of read the preview makes. Reported, never fatal.
+              for (const path of ["", "/commits/HEAD", "/contents/"]) {
+                const outside = await github("/repos/octocat/Hello-World" + path, token).catch(() => undefined);
+                console.log("Scoped token reading octocat/Hello-World" + (path || " metadata") + ": HTTP "
+                  + (outside?.status ?? "no response") + ".");
+              }
             } finally {
               // Revoke even a rejected token: a broader grant must not stay live.
               if (tokenShape) {
