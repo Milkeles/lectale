@@ -1,0 +1,75 @@
+# Opens a release pull request from Conventional Commits on main. Merging it
+# bumps the semantic version, writes the changelog and tags the release.
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release_id:
+        description: ID of the client draft release
+        required: true
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release pull request
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # to push the release branch and the tags
+      pull-requests: write # to open and update the release pull request
+    outputs:
+      tag: ${{ steps.release.outputs['apps/flutter_client--tag_name'] }}
+      release_id: ${{ steps.release.outputs['apps/flutter_client--id'] }}
+      sha: ${{ steps.release.outputs['apps/flutter_client--sha'] }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: .github/release-please-config.json
+          manifest-file: .github/.release-please-manifest.json
+
+  dispatch:
+    name: Start the client release on its tag
+    needs: release-please
+    if: startsWith(needs.release-please.outputs.tag, 'lectale-v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: write # dispatch this workflow on the release tag
+      contents: read
+    steps:
+      # Reusable workflows inherit the caller's ref. Dispatch on the tag so
+      # GitHub applies the release environment's tag-only policy.
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag }}
+          RELEASE_ID: ${{ needs.release-please.outputs.release_id }}
+          RELEASE_SHA: ${{ needs.release-please.outputs.sha }}
+        run: |
+          tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" --jq '.object.sha')
+          test "$tag_sha" = "$RELEASE_SHA"
+          gh workflow run release-please.yml --repo "$GITHUB_REPOSITORY" \
+            --ref "$TAG" -f "release_id=$RELEASE_ID"
+
+  client:
+    name: Release the client
+    if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/lectale-v')
+    permissions:
+      contents: write # allow the called workflow to publish the draft
+      id-token: write # allow the called workflow to request a signing certificate
+      attestations: write # allow the called workflow to store provenance
+    uses: $/.github/workflows/release.yml
+    with:
+      release_id: ${{ inputs.release_id }}
+    secrets:
+      LITSE_UI_DEPLOY_KEY: ${{ secrets.LITSE_UI_DEPLOY_KEY }}

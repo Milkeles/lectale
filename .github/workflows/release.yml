@@ -1,27 +1,211 @@
-# Opens a release pull request from Conventional Commits on main. Merging it
-# bumps the semantic version, writes the changelog and tags the release.
-name: Release
+# Builds and publishes client assets for ADR-0013.
+name: Client release
 
 on:
-  push:
-    branches: [main]
+  workflow_call:
+    inputs:
+      release_id:
+        required: true
+        type: string
+    secrets:
+      LITSE_UI_DEPLOY_KEY:
+        required: true
 
 permissions: {}
 
-concurrency:
-  group: release
-  cancel-in-progress: false
-
 jobs:
-  release-please:
-    name: Release pull request
+  build:
+    if: github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/lectale-v')
+    name: Build ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: android, os: ubuntu-24.04, asset: app-release.apk }
+          - { target: linux, os: ubuntu-24.04, asset: lectale-linux-x64.tar.gz }
+          - { target: windows, os: windows-latest, asset: lectale-windows-x64.zip }
+          - { target: macos, os: macos-latest, asset: lectale-macos.tar.gz }
+          - { target: web, os: ubuntu-24.04, asset: lectale-web.zip }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - if: matrix.target == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev
+      - if: matrix.target == 'android'
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: jdx/mise-action@924e7c586e33d7d4bae9c14e26c5d22e2beb6e78 # v5.3.0
+        with:
+          install_args: flutter
+          cache: false
+      - uses: $/.github/actions/litse-ui-access
+        with:
+          deploy-key: ${{ secrets.LITSE_UI_DEPLOY_KEY }}
+      - run: flutter pub get --enforce-lockfile
+      - if: always()
+        run: rm -f ~/.ssh/litse_ui
+        shell: bash
+      - name: Build and package
+        working-directory: apps/flutter_client
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          ASSET: ${{ matrix.asset }}
+        run: |
+          case "$TARGET" in
+            android)
+              flutter build apk --release --no-pub
+              cp build/app/outputs/flutter-apk/app-release.apk "$ASSET"
+              ;;
+            linux)
+              flutter build linux --release --no-pub
+              tar -czf "$ASSET" -C build/linux/x64/release/bundle .
+              ;;
+            windows)
+              flutter build windows --release --no-pub
+              tar.exe -a -cf "$ASSET" -C build/windows/x64/runner/Release .
+              ;;
+            macos)
+              flutter build macos --release --no-pub
+              tar -czf "$ASSET" -C build/macos/Build/Products/Release lectale.app
+              ;;
+            web)
+              flutter build web --release --no-pub --base-href /app/
+              (cd build/web && zip -qr "../../$ASSET" .)
+              ;;
+          esac
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: client-build-${{ matrix.target }}
+          path: apps/flutter_client/${{ matrix.asset }}
+          retention-days: 7
+          if-no-files-found: error
+          overwrite: true
+
+  sign:
+    name: Sign and verify release assets
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: release
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: client-build-*
+          path: builds
+      - name: Sign and verify the Android APK
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          : "${ANDROID_KEYSTORE_BASE64:?Missing Android release keystore}"
+          : "${ANDROID_KEYSTORE_PASSWORD:?Missing Android release keystore password}"
+          umask 077
+          keystore="$RUNNER_TEMP/lectale-release.p12"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | openssl base64 -d -A -out "$keystore"
+          unset ANDROID_KEYSTORE_BASE64
+          mkdir release-assets
+          apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
+          test -x "$apksigner"
+          # apksigner replaces the signature from Gradle's default signing config.
+          "$apksigner" sign --ks "$keystore" --ks-type PKCS12 --ks-key-alias lectale \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD --out release-assets/lectale-android.apk \
+            builds/client-build-android/app-release.apk
+          unset ANDROID_KEYSTORE_PASSWORD
+          rm -f "$keystore"
+          "$apksigner" verify release-assets/lectale-android.apk
+      - name: Sign and verify checksums
+        shell: bash
+        env:
+          UPDATE_SIGNING_KEY: ${{ secrets.UPDATE_SIGNING_KEY }}
+        run: |
+          : "${UPDATE_SIGNING_KEY:?Missing update signing key}"
+          umask 077
+          key="$RUNNER_TEMP/lectale-update-key.pem"
+          public_key="$RUNNER_TEMP/lectale-update-public.pem"
+          printf '%s\n' "$UPDATE_SIGNING_KEY" > "$key"
+          unset UPDATE_SIGNING_KEY
+          openssl pkey -in "$key" -pubout -out "$public_key"
+          cp builds/client-build-linux/lectale-linux-x64.tar.gz \
+            builds/client-build-windows/lectale-windows-x64.zip \
+            builds/client-build-macos/lectale-macos.tar.gz \
+            builds/client-build-web/lectale-web.zip release-assets/
+          cd release-assets
+          sh ../tool/release/sign-and-verify.sh sign "$key" lectale-*
+          rm -f "$key"
+          sh ../tool/release/sign-and-verify.sh verify "$public_key" lectale-*
+      - name: Remove signing keys
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/lectale-release.p12" "$RUNNER_TEMP/lectale-update-key.pem" \
+            "$RUNNER_TEMP/lectale-update-public.pem"
+      - id: upload
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: client-verified-assets
+          path: release-assets/
+          retention-days: 7
+          if-no-files-found: error
+          overwrite: true
+
+  attest:
+    name: Attest verified release assets
+    needs: sign
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: write # to push the release branch and the tags
-      pull-requests: write # to open and update the release pull request
+      id-token: write # request the provenance signing certificate
+      attestations: write # store the provenance attestation
     steps:
-      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
-          config-file: .github/release-please-config.json
-          manifest-file: .github/.release-please-manifest.json
+          artifact-ids: ${{ needs.sign.outputs.artifact_id }}
+          path: release-assets
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: release-assets/*
+          create-storage-record: false
+
+  publish:
+    name: Attach assets and publish
+    needs: [sign, attest]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write # attach assets and publish the draft
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          artifact-ids: ${{ needs.sign.outputs.artifact_id }}
+          path: release-assets
+      - name: Attach assets and publish the draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ inputs.release_id }}
+        run: |
+          [[ "$RELEASE_ID" =~ ^[1-9][0-9]*$ ]]
+          endpoint="repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID"
+          gh api "$endpoint" | jq -e --arg tag "$GITHUB_REF_NAME" --arg sha "$GITHUB_SHA" \
+            '.tag_name == $tag and .target_commitish == $sha and .draft and (.prerelease | not)'
+          tag_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$GITHUB_REF_NAME" --jq '.object.sha')
+          test "$tag_sha" = "$GITHUB_SHA"
+          gh release upload "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --clobber release-assets/*
+          gh api --method PATCH "$endpoint" -F draft=false --silent

@@ -46,7 +46,19 @@ Once, before the first release that the update notice should see. Keep both priv
 
 ## How the release job uses them
 
-When release-please tags a `lectale-v*` release, the release job runs in the `release` environment. It builds each platform, signs the Android APK with the release key, writes `SHA256SUMS`, and signs that file with the update key (`openssl pkeyutl -sign -rawin`). Then it attaches everything to the GitHub release. The app checks the signature with the public key from step 2 before it offers any download.
+Release Please creates the client tag and a draft release, then dispatches the
+build on that tag. The signing job uses the tag-protected `release` environment.
+It replaces the Android APK's build-time signature with the release signature and
+verifies the resulting APK. It signs `SHA256SUMS` with Ed25519, writes the raw
+signature as base64 in `SHA256SUMS.sig`, and verifies both the signature and all
+five asset hashes. Signing files are restricted to the runner user and removed
+even if signing fails.
+
+After provenance attestation, the workflow attaches the verified assets and
+checksum files and publishes the draft. This order supports GitHub's immutable
+releases. The app checks the signature using the public key from step 2 before
+offering a download. If dispatch fails after the tag and draft exist, run
+**Release Please** on that tag with the draft's numeric release ID.
 
 ## To replace a key
 
