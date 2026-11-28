@@ -66,7 +66,7 @@ The owner can't test with screen readers or on real devices, so accessibility is
 
 ## Spikes (in parallel with M1)
 
-- [x] S1: Git LFS upload proof, done 2026-11-22. Direct browser upload fails (S3 refuses CORS) and direct uploads can't enforce size. Uploads through the Worker work on every platform for about 1.4 ms of CPU per 95 MB and no bandwidth charge, up to 100 MB per file (errata O3, `docs/research/2026-11-22-lfs-poc-results.md`). The owner's condition for buying the domain is met. The expiry check passed (403 after 15 minutes). The owner can delete the throwaway repository `lectale-lfs-test`.
+- [x] S1: Git LFS upload proof, done 2026-11-22. Direct browser upload fails (S3 refuses CORS) and direct uploads can't enforce size. Uploads through the Worker work on every platform for about 1.4 ms of CPU per 95 MB and no bandwidth charge, up to 100 MB per file (errata O3, `docs/research/2026-11-22-lfs-poc-results.md`). The owner's condition for buying the domain is met. The expiry check passed (403 after 15 minutes). The owner keeps `lectale-lfs-test` (private) as a sample repository for rendering tests, especially once accounts and private courses exist (2026-11-28). Agents may use it for tests; it is not to be deleted.
 - [ ] S2: GitHub App authentication on Workers. WebCrypto alone, no library (`docs/research/2026-11-23-github-app-auth.md`). Reviewed (`docs/security/reviews/2026-11-23-github-app-auth.md`); fix round in progress, then deploy and check whether a scoped token reads public repositories outside the installation.
 - [ ] S3: Content Security Policy that Flutter Web needs.
 
