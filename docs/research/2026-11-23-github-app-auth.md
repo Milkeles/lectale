@@ -40,5 +40,9 @@ is therefore GitHub's real answer, the same an anonymous read gets, so the
 Worker no longer retries those anonymously. Only a rejected token (401) falls
 back to one anonymous read, with its own cooldown.
 
+Confirmed for every read the preview makes on 2026-11-28 ("Deploy preview" run
+46154387264): with the scoped token, `octocat/Hello-World` answered HTTP 200
+for its metadata, `commits/HEAD` and `contents/`.
+
 [Installation token scope](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/generating-an-installation-access-token-for-a-github-app),
 [Get a repository](https://docs.github.com/en/rest/repos/repos#get-a-repository)
