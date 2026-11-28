@@ -73,7 +73,12 @@ The owner can't test with screen readers or on real devices, so accessibility is
 ## M2 follow-ups
 
 - [ ] M2b: outline resources load through `/api/preview/{repoId}/{sha}/content/{lessonId}/{resourceId}` instead of `/files/{path}`, so the Worker's per-resource checks apply (Codex, Course and Reader review).
-- [ ] The Course and Reader screens are on `claude/m2-preview` after the design re-review; then the app home and `/app/#/open` with the catalog entry.
+- [x] Course and Reader screens: merged to `main` (6caa5f5) and deployed after two design re-reviews and the security review (2026-11-28).
+- [ ] M2b PDF and notebook viewers (`spec/tasks/m2b-pdf-and-notebook-viewers.md`): frontend engineer, in progress.
+- [ ] M2b release job with signed checksums (`spec/tasks/m2b-release-workflow.md`): Codex, in progress. The in-app update notice follows once the owner pastes the public key.
+- [ ] M2b video and audio: researcher is comparing local video players first (UI-002 needs MP4 playback, which no ADR covers yet); then the consent-gated YouTube player and the audio player.
+- [ ] `/app/#/open` (Home): finish the interrupted review fixes on `worktree-agent-a5425f27399d93c22` (one unmerged WIP commit, dbf9d9f) and add the catalog entry.
+- [ ] litse-ui: primary button labels look lighter in dark mode (design review N8). Trace in `DcButton`.
 
 ## Dependencies
 
