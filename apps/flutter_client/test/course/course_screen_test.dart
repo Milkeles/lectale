@@ -176,9 +176,19 @@ void main() {
     await _open(tester, size: _phone);
 
     final authors = tester.getTopLeft(find.text('Authors'));
-    final names = tester.getTopLeft(find.text('Ada Lovelace'));
+    final names = tester.getTopLeft(find.text('Ada\u00A0Lovelace'));
     expect((authors.dy - names.dy).abs(), lessThan(8));
     expect(authors.dx, tester.getTopLeft(find.text('Level')).dx);
+  });
+
+  testWidgets("an author's name never splits across lines", (tester) async {
+    await _open(tester, size: _phone);
+
+    // Spaces inside a name are non-breaking.
+    expect(
+      find.textContaining('Grace\u00A0Hopper', findRichText: true),
+      findsOneWidget,
+    );
   });
 
   group('Contents', () {

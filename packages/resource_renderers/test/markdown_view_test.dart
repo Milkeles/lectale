@@ -326,6 +326,82 @@ void main() {
     }
   });
 
+  testWidgets('no bold weight or wght axis reaches the math, light or dark', (
+    tester,
+  ) async {
+    for (final brightness in Brightness.values) {
+      await pumpViewer(
+        tester,
+        (context, env) => MarkdownView(
+          source: r'A **bold** and $x^2 + \\bar{x} = \\frac{1}{n}$ here.',
+          environment: env,
+        ),
+        brightness: brightness,
+      );
+
+      // The formula is given its own style, not the paragraph's, so the
+      // reading text's pinned weight axis and the bold of nearby text can't
+      // reach it.
+      final style = tester.widget<Math>(find.byType(Math).first).textStyle!;
+      expect(style.inherit, isFalse, reason: brightness.name);
+      expect(style.fontWeight, FontWeight.w400, reason: brightness.name);
+      expect(style.fontVariations, isNull, reason: brightness.name);
+    }
+  });
+
+  testWidgets('a link is its text, with no inset around it', (tester) async {
+    await _pump(tester, '[one](https://one.example)');
+
+    final text = find.descendant(
+      of: find.byType(InlineLink),
+      matching: find.byType(Text),
+    );
+    expect(
+      tester.getSize(find.byType(InlineLink)).width,
+      tester.getSize(text).width,
+    );
+  });
+
+  testWidgets(
+    'a Markdown image has the image radius (7.5 dp in the app style)',
+    (tester) async {
+      final png = await makePng(tester, 100, 60);
+      await pumpViewer(
+        tester,
+        (context, env) =>
+            MarkdownView(source: '![Figure](fig.png)', environment: env),
+        host: FakeHost(files: {'file:fig.png': png}),
+      );
+      await settleImages(tester);
+
+      final clip = tester.widget<ClipRRect>(
+        find
+            .ancestor(of: find.byType(Image), matching: find.byType(ClipRRect))
+            .first,
+      );
+      expect(
+        clip.borderRadius,
+        BorderRadius.circular(
+          DcTheme.of(tester.element(find.byType(MarkdownView)))
+              .style
+              .radiusMedium,
+        ),
+      );
+    },
+  );
+
+  testWidgets(
+    'code and tables inset their scrollbar thumb by one space step (4.5 dp)',
+    (tester) async {
+      await _pump(tester, '```\nx\n```');
+
+      final bar = tester.widget<RawScrollbar>(find.byType(RawScrollbar));
+      final space = DcTheme.of(tester.element(find.byType(RawScrollbar))).style;
+      expect(bar.crossAxisMargin, space.space(1));
+      expect(bar.mainAxisMargin, space.space(1));
+    },
+  );
+
   test('withFontWeight keeps the other axes', () {
     final style = withFontWeight(
       const TextStyle(

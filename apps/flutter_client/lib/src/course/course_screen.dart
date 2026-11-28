@@ -370,7 +370,7 @@ class _Authors extends ConsumerWidget {
               alignment: PlaceholderAlignment.baseline,
               baseline: TextBaseline.alphabetic,
               child: InlineLink(
-                text: author.name,
+                text: _unbroken(author.name),
                 semanticLabel: ViewerCopy.externalLinkName(author.name),
                 style: metaTextStyle(theme).copyWith(color: link),
                 onPressed: () =>
@@ -387,9 +387,13 @@ class _Authors extends ConsumerWidget {
             ),
           );
       } else {
-        spans.add(TextSpan(text: author.name));
+        spans.add(TextSpan(text: _unbroken(author.name)));
       }
     }
     return Text.rich(TextSpan(children: spans));
   }
 }
+
+/// [name] with its spaces made non-breaking, so an author's name never
+/// splits across two lines.
+String _unbroken(String name) => name.replaceAll(' ', '\u00A0');

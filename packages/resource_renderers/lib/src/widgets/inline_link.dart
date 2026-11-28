@@ -33,29 +33,29 @@ class InlineLink extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(DcTheme.of(context).style.radiusSmall);
-    // A 2 dp inset keeps the focus ring off the text that follows the link.
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: MergeSemantics(
-        child: Semantics(
-          link: true,
-          label: semanticLabel,
-          child: DcPressable(
-            onPressed: onPressed,
-            isButton: false,
-            mouseCursor: SystemMouseCursors.click,
-            builder: (context, states, _) => DcFocusRing(
-              visible: states.contains(WidgetState.focused),
-              borderRadius: radius,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 24),
-                child: ExcludeSemantics(
-                  child: Text(
-                    text,
-                    style: style.copyWith(
-                      decoration: TextDecoration.underline,
-                      decorationColor: style.color,
-                    ),
+    return MergeSemantics(
+      child: Semantics(
+        link: true,
+        label: semanticLabel,
+        child: DcPressable(
+          onPressed: onPressed,
+          isButton: false,
+          mouseCursor: SystemMouseCursors.click,
+          builder: (context, states, _) => DcFocusRing(
+            visible: states.contains(WidgetState.focused),
+            borderRadius: radius,
+            // Drawn outside the box and 1 dp closer than a button's ring,
+            // so it clears the text that follows the link without
+            // padding the layout.
+            offset: 1,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 24),
+              child: ExcludeSemantics(
+                child: Text(
+                  text,
+                  style: style.copyWith(
+                    decoration: TextDecoration.underline,
+                    decorationColor: style.color,
                   ),
                 ),
               ),

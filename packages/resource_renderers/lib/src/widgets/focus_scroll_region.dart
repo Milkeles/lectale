@@ -93,7 +93,10 @@ class _FocusScrollRegionState extends State<FocusScrollRegion> {
         controller: _controller,
         thumbVisibility: true,
         thickness: 4,
-        crossAxisMargin: 2,
+        // Inset 4.5 dp from the edge and the ends, so the thumb clears the
+        // surface's rounded corners.
+        crossAxisMargin: DcTheme.of(context).style.space(1),
+        mainAxisMargin: DcTheme.of(context).style.space(1),
         radius: const Radius.circular(2),
         thumbColor: DcTheme.of(context).colors.mutedForeground,
         child: SingleChildScrollView(

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:devchat_ui/devchat_ui.dart';
 import 'package:flutter/widgets.dart';
 import 'package:resource_renderers/src/widgets/image_header.dart';
 
@@ -101,17 +102,23 @@ class _SizedImageState extends State<SizedImage> {
           image: true,
           label: widget.semanticLabel,
           excludeSemantics: true,
-          child: Image.memory(
-            widget.bytes,
-            width: width,
-            height: height,
-            fit: BoxFit.fill,
-            // Decoded at the shown size; the engine never decodes above the
-            // image's own size.
-            cacheWidth: (width * ratio).ceil(),
-            gaplessPlayback: true,
-            errorBuilder: (context, error, stackTrace) =>
-                widget.failed(context, error),
+          // The token plan's image radius, 7.5 dp.
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(
+              DcTheme.of(context).style.radiusMedium,
+            ),
+            child: Image.memory(
+              widget.bytes,
+              width: width,
+              height: height,
+              fit: BoxFit.fill,
+              // Decoded at the shown size; the engine never decodes above the
+              // image's own size.
+              cacheWidth: (width * ratio).ceil(),
+              gaplessPlayback: true,
+              errorBuilder: (context, error, stackTrace) =>
+                  widget.failed(context, error),
+            ),
           ),
         );
       },

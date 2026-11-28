@@ -1,9 +1,8 @@
 """Draws fixture/histogram.png: a histogram of exam scores with labelled axes.
 
 The fixture course's lesson text describes a histogram, so the figure is one.
-It has its own mid-tone ground, so it reads on the light and the dark page
-alike, with labels at 4.5 to 1 or better. Course authors' own figures keep
-their colors; only this owned asset is toned for both schemes.
+It is drawn the way a course author would commit it: white ground, dark
+labels, rounded corners.
 
 Run once, from this folder: python3 make_histogram.py
 """
@@ -11,13 +10,14 @@ Run once, from this folder: python3 make_histogram.py
 from PIL import Image, ImageDraw, ImageFont
 
 WIDTH, HEIGHT = 900, 520
-# One asset has to read on the light and the dark page, so it carries its own
-# mid-tone ground. Labels are off-white on it: 5.5 to 1, above the 4.5 to 1
-# that text needs. Bars are a light mulberry, 3.1 to 1 against the ground.
-GROUND = (95, 100, 95, 255)
-INK = (244, 241, 237, 255)
-BAR = (224, 167, 192, 255)
-GRID = (130, 135, 130, 255)
+# The way a course author would commit it: a white ground with dark labels
+# and rounded corners. On the dark page it is a light plate, which is the
+# realistic case the reader has to handle. Ink is 10 to 1 on white.
+GROUND = (255, 255, 255, 255)
+INK = (58, 62, 59, 255)
+BAR = (117, 62, 94, 255)
+GRID = (214, 214, 214, 255)
+RADIUS = 28
 
 font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 28)
 small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 26)
@@ -53,4 +53,7 @@ ImageDraw.Draw(y_label).text((180, 20), "Students", font=font, fill=INK, anchor=
 y_label = y_label.rotate(90, expand=True)
 img.alpha_composite(y_label, (6, int((top + bottom) / 2 - 180)))
 
-img.convert("RGB").save("fixture/histogram.png", optimize=True)
+mask = Image.new("L", (WIDTH, HEIGHT), 0)
+ImageDraw.Draw(mask).rounded_rectangle([0, 0, WIDTH - 1, HEIGHT - 1], RADIUS, fill=255)
+img.putalpha(mask)
+img.save("fixture/histogram.png", optimize=True)
