@@ -153,7 +153,7 @@ Names are illustrative. Regions are unbordered (C9); `|` is the ribbon, `*` the 
 ## 8. Interaction and accessibility
 
 - **Keyboard order:** skip link, Lectale home, Contents control, Contents (one tab stop), then main: In this lesson (one tab stop, roving focus), Download, viewer content (scroll regions, zoom controls, Load buttons, Copy), then Next and Previous in their visual order (Next first when stacked, Previous first when side by side).
-- **Button labels never truncate.** Labels wrap. Previous and Next sit side by side only when both full labels fit at the current text size; otherwise they stack full width, Next first. The same rule applies to Load buttons and every other button on Course and Reader.
+- **Button labels never truncate.** Labels wrap. Previous and Next sit side by side only when both full labels fit at the current text size; otherwise they stack, Next first: full width under 600 dp, natural width on wider windows (design re-review, 2026-11-28). The same rule applies to Load buttons and every other button on Course and Reader.
 - **Focus:** opening the screen puts focus on the h1. After Next or Previous, focus goes to the new h1 if the lesson changed, else to the new h2, and the page scrolls to the top (S8). Choosing a row in In this lesson moves focus to the h2.
 - **History:** a lesson change pushes a history entry; a file change within a lesson replaces it, so system Back leaves the lesson rather than replaying its files (S8).
 - **Shortcuts:** none beyond defaults (+, - and 0 on the image viewer); Next and Previous are not bound to arrow keys.

@@ -171,6 +171,16 @@ void main() {
     expect(find.byType(CourseCover), findsNothing);
   });
 
+  testWidgets('on a phone Authors sits beside its value like the other '
+      'facts', (tester) async {
+    await _open(tester, size: _phone);
+
+    final authors = tester.getTopLeft(find.text('Authors'));
+    final names = tester.getTopLeft(find.text('Ada Lovelace'));
+    expect((authors.dy - names.dy).abs(), lessThan(8));
+    expect(authors.dx, tester.getTopLeft(find.text('Level')).dx);
+  });
+
   group('Contents', () {
     testSemantics('wide: the pane is a nav with the ribbon on Overview', (
       tester,

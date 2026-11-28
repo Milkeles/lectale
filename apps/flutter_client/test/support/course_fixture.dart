@@ -191,6 +191,7 @@ void serveCourse(
   FakeHttpAdapter server, {
   bool readme = true,
   Map<String, Object?>? preview,
+  String? readmeText,
 }) {
   const base = '/api/preview/$fixtureRepoId/$fixtureSha';
   server
@@ -199,7 +200,7 @@ void serveCourse(
       base,
       FakeResponse(200, preview ?? fixturePreview(readme: readme)),
     )
-    ..on('GET', '$base/readme', const FakeResponse(200, fixtureReadme))
+    ..on('GET', '$base/readme', FakeResponse(200, readmeText ?? fixtureReadme))
     ..on(
       'GET',
       '$base/content/reading-data/notes',

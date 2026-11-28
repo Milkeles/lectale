@@ -79,4 +79,41 @@ void main() {
       brightness: Brightness.dark,
     );
   });
+
+  // Dark mode once lost bold, table-header weight and the italic of math
+  // variables (the variable font's weight axis was pinned at regular). The
+  // golden shows all three in one picture.
+  for (final (name, brightness) in [
+    ('light', Brightness.light),
+    ('dark', Brightness.dark),
+  ]) {
+    testWidgets('Markdown emphasis, table header and math, $name', (
+      tester,
+    ) async {
+      final server = FakeHttpAdapter();
+      serveCourse(
+        server,
+        readmeText:
+            'Plain text, then **bold text**, then *italic text*, and a '
+            r'formula $x^2 + \bar{x} = \frac{1}{n}\sum x_i$ inline.'
+            '\n\n'
+            '| Measure | Symbol |\n|---|---|\n| Mean | cell text |\n',
+      );
+      await pumpLectale(
+        tester,
+        server,
+        size: const Size(800, 640),
+        realFonts: true,
+        brightness: brightness,
+        initialLocation: fixtureCourse,
+      );
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 20));
+      }
+      await expectLater(
+        find.byType(WidgetsApp),
+        matchesGoldenFile('goldens/markdown_emphasis_$name.png'),
+      );
+    });
+  }
 }

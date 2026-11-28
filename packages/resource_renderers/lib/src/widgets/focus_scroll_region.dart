@@ -87,23 +87,33 @@ class _FocusScrollRegionState extends State<FocusScrollRegion> {
     return DcFocusRing(
       visible: _focused && _keyboard,
       borderRadius: BorderRadius.circular(style.radiusMedium),
-      child: SingleChildScrollView(
+      // A thin scrollbar stays visible while the content is wider than the
+      // window, so a cut-off line shows that it goes on.
+      child: RawScrollbar(
         controller: _controller,
-        scrollDirection: Axis.horizontal,
-        // The focus node sits inside the scroll view, so the arrow keys'
-        // scroll action finds this view from the focused element.
-        child: Focus(
-          // The region's own node carries the name and the focus flag, so a
-          // screen reader announces "Code, python" and not a line of code.
-          includeSemantics: false,
-          onKeyEvent: _onKey,
-          onFocusChange: (focused) => setState(() => _focused = focused),
-          child: Semantics(
-            container: true,
-            focusable: true,
-            focused: _focused,
-            label: widget.semanticLabel,
-            child: widget.child,
+        thumbVisibility: true,
+        thickness: 4,
+        crossAxisMargin: 2,
+        radius: const Radius.circular(2),
+        thumbColor: DcTheme.of(context).colors.mutedForeground,
+        child: SingleChildScrollView(
+          controller: _controller,
+          scrollDirection: Axis.horizontal,
+          // The focus node sits inside the scroll view, so the arrow keys'
+          // scroll action finds this view from the focused element.
+          child: Focus(
+            // The region's own node carries the name and the focus flag, so a
+            // screen reader announces "Code, python" and not a line of code.
+            includeSemantics: false,
+            onKeyEvent: _onKey,
+            onFocusChange: (focused) => setState(() => _focused = focused),
+            child: Semantics(
+              container: true,
+              focusable: true,
+              focused: _focused,
+              label: widget.semanticLabel,
+              child: widget.child,
+            ),
           ),
         ),
       ),

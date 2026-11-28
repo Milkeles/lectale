@@ -4,6 +4,7 @@ import 'package:markdown/markdown.dart' as md;
 import 'package:resource_renderers/src/markdown/inline_composer.dart';
 import 'package:resource_renderers/src/widgets/code_surface.dart';
 import 'package:resource_renderers/src/widgets/focus_scroll_region.dart';
+import 'package:resource_renderers/src/widgets/font_weight.dart';
 
 /// A heading of the document. It is a heading for assistive technology at
 /// its shifted level, and an anchor target: a `#link` scrolls to it and
@@ -151,8 +152,9 @@ class MarkdownTable extends StatelessWidget {
                           children: composer.spans(
                             cell.children,
                             header
-                                ? style.copyWith(
-                                    fontWeight: theme.typography.semibold,
+                                ? withFontWeight(
+                                    style,
+                                    theme.typography.semibold,
                                   )
                                 : style,
                           ),

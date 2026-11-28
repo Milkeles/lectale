@@ -44,6 +44,11 @@ class TestStyles implements ContentStyles {
     fontSize: 18,
     height: 30 / 18,
     color: _theme.colors.foreground,
+    // Pinned like the app's reading style, so the dark theme's regular
+    // weight (350) sits on the font's axis and a bare fontWeight can't win.
+    fontVariations: [
+      FontVariation('wght', _theme.typography.regular.value.toDouble()),
+    ],
   );
 
   @override

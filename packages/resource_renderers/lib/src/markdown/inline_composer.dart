@@ -8,6 +8,7 @@ import 'package:resource_renderers/src/host.dart';
 import 'package:resource_renderers/src/markdown/math_syntax.dart';
 import 'package:resource_renderers/src/repository_path.dart';
 import 'package:resource_renderers/src/widgets/content_image.dart';
+import 'package:resource_renderers/src/widgets/font_weight.dart';
 import 'package:resource_renderers/src/widgets/inline_link.dart';
 
 /// The visible and accessible text of [node], with an image's description in
@@ -84,7 +85,7 @@ class InlineComposer {
       case 'strong':
         return spans(
           node.children,
-          style.copyWith(fontWeight: _theme.typography.semibold),
+          withFontWeight(style, _theme.typography.semibold),
         );
       case 'em':
         return spans(
@@ -235,7 +236,15 @@ class MathFormula extends StatelessWidget {
     final math = Math.tex(
       tex,
       mathStyle: display ? MathStyle.display : MathStyle.text,
-      textStyle: TextStyle(color: style.color, fontSize: style.fontSize),
+      // Not inherited: the paragraph's pinned weight axis, lighter in dark
+      // mode, would make the formula's italic variables upright.
+      textStyle: TextStyle(
+        inherit: false,
+        color: style.color,
+        fontSize: style.fontSize,
+        fontWeight: FontWeight.w400,
+        fontStyle: FontStyle.normal,
+      ),
     );
     if (math.parseError != null) {
       return Semantics(

@@ -30,6 +30,7 @@ export 'src/viewers/file_card.dart'
 export 'src/viewers/text_loading.dart' show inlineTextLimit;
 export 'src/widgets/content_image.dart' show ContentImage;
 export 'src/widgets/download_button.dart' show DownloadButton;
+export 'src/widgets/font_weight.dart' show withFontWeight;
 export 'src/widgets/image_header.dart'
     show
         ImageNotRaster,

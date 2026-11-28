@@ -98,29 +98,33 @@ class FileCard extends StatelessWidget {
                 ? ViewerCopy.downloadPdf
                 : ViewerCopy.download,
           );
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: theme.colors.card,
-        borderRadius: BorderRadius.circular(style.radiusLarge),
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(style.space(4)),
-        // The action sits beside the details when there is room, and below
-        // them on a phone.
-        child: LayoutBuilder(
-          builder: (context, constraints) => constraints.maxWidth >= 480
-              ? Row(
-                  spacing: style.space(4),
-                  children: [
-                    Expanded(child: details),
-                    ?action,
-                  ],
-                )
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  spacing: style.space(3),
-                  children: [details, ?action],
-                ),
+    // The card fills the column, on a phone as on a wide window.
+    return SizedBox(
+      width: double.infinity,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: theme.colors.card,
+          borderRadius: BorderRadius.circular(style.radiusLarge),
+        ),
+        child: Padding(
+          padding: EdgeInsets.all(style.space(4)),
+          // The action sits beside the details when there is room, and below
+          // them on a phone.
+          child: LayoutBuilder(
+            builder: (context, constraints) => constraints.maxWidth >= 480
+                ? Row(
+                    spacing: style.space(4),
+                    children: [
+                      Expanded(child: details),
+                      ?action,
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    spacing: style.space(3),
+                    children: [details, ?action],
+                  ),
+          ),
         ),
       ),
     );

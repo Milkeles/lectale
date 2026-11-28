@@ -7,6 +7,7 @@ import 'package:resource_renderers/src/markdown/inline_composer.dart';
 import 'package:resource_renderers/src/markdown/markdown_blocks.dart';
 import 'package:resource_renderers/src/markdown/math_syntax.dart';
 import 'package:resource_renderers/src/repository_path.dart';
+import 'package:resource_renderers/src/widgets/font_weight.dart';
 
 /// Course Markdown as widgets, without HTML.
 ///
@@ -129,7 +130,7 @@ class _MarkdownViewState extends State<MarkdownView> {
         a: reading.copyWith(color: env.styles.link),
         code: composer.codeStyle(reading),
         em: reading.copyWith(fontStyle: FontStyle.italic),
-        strong: reading.copyWith(fontWeight: theme.typography.semibold),
+        strong: withFontWeight(reading, theme.typography.semibold),
         del: reading.copyWith(decoration: TextDecoration.lineThrough),
         blockquote: reading,
         blockquotePadding: EdgeInsets.all(style.space(3)),

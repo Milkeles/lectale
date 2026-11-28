@@ -667,6 +667,120 @@ void main() {
     });
   });
 
+  group('design re-review', () {
+    Future<bool> sideBySide(
+      WidgetTester tester,
+      String location,
+      Brightness brightness,
+      String previous,
+      String next,
+    ) async {
+      await _open(tester, location, realFonts: true, brightness: brightness);
+      final a = tester.getTopLeft(find.text(previous)).dy;
+      final b = tester.getTopLeft(find.text(next)).dy;
+      return (a - b).abs() < 8;
+    }
+
+    for (final (name, location, previous, next) in [
+      (
+        'testing to the assignment',
+        _slides,
+        'Previous lesson: Summaries',
+        'Next assignment: Homework 1',
+      ),
+      (
+        'the code lesson',
+        _script,
+        'Previous lesson: Reading data',
+        'Next lesson: Testing ideas',
+      ),
+      (
+        'the second file',
+        _survey,
+        'Previous file: Data and its shape',
+        'Next lesson: Summaries',
+      ),
+    ]) {
+      testWidgets('light and dark pick the same footer layout: $name', (
+        tester,
+      ) async {
+        // The footer is measured from the real buttons, so the dark theme's
+        // lighter weights can't tip it into another layout.
+        final light = await sideBySide(
+          tester,
+          location,
+          Brightness.light,
+          previous,
+          next,
+        );
+        await tester.pumpWidget(const SizedBox());
+        final dark = await sideBySide(
+          tester,
+          location,
+          Brightness.dark,
+          previous,
+          next,
+        );
+
+        expect(dark, light);
+      });
+    }
+
+    testWidgets('both labels sit side by side in a 576 dp column when they '
+        'fit', (tester) async {
+      await _open(tester, _slides, realFonts: true);
+
+      final previous = tester.getRect(
+        find.widgetWithText(DcButton, 'Previous lesson: Summaries'),
+      );
+      final next = tester.getRect(
+        find.widgetWithText(DcButton, 'Next assignment: Homework 1'),
+      );
+      expect(previous.center.dy, closeTo(next.center.dy, 1));
+      expect(next.left - previous.right, greaterThanOrEqualTo(18));
+      expect(next.right - previous.left, lessThanOrEqualTo(576));
+    });
+
+    testWidgets('a lone Next is full width on a phone', (tester) async {
+      await _open(tester, _notes, size: _phone);
+
+      final next = tester.getRect(
+        find.widgetWithText(DcButton, 'Next file: Survey results'),
+      );
+      expect(next.width, closeTo(360 - 2 * 18, 1));
+    });
+
+    testWidgets('the end note is reading text, 18 on 30', (tester) async {
+      await _open(tester, _brief);
+
+      final note = tester.widget<Text>(
+        find.text("You've reached the end of this course."),
+      );
+      expect(note.style!.fontSize, 18);
+      expect(note.style!.height, closeTo(30 / 18, 0.001));
+    });
+
+    testWidgets('the file card fills the column on a phone', (tester) async {
+      await _open(tester, _slides, size: _phone);
+
+      final card = tester.getRect(
+        find
+            .ancestor(
+              of: find.text('testing.pdf'),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      expect(card.width, closeTo(360 - 2 * 18, 1));
+    });
+
+    testWidgets('code gets a visible scrollbar cue', (tester) async {
+      await _open(tester, _script, size: _phone);
+
+      expect(find.byType(RawScrollbar), findsWidgets);
+    });
+  });
+
   group('accessibility', () {
     for (final (name, size, scale, brightness) in [
       ('1440 light', _wide, 1.0, Brightness.light),

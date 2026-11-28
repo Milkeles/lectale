@@ -169,7 +169,8 @@ class _CourseBody extends ConsumerWidget {
 
     return Padding(
       padding: EdgeInsets.only(
-        top: wide ? style.space(6) : style.space(3.5),
+        // Wide: the first line shares a cap line with the pane's first row.
+        top: wide ? style.space(3) : style.space(3.5),
         bottom: style.space(12),
       ),
       child: Column(
@@ -322,16 +323,21 @@ class _Facts extends StatelessWidget {
       children: [
         for (final (label, value) in rows)
           MergeSemantics(
-            child: Wrap(
+            // The value wraps inside its own column, so every fact reads as
+            // a label and value side by side, on a phone too.
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 SizedBox(
                   width: 96,
                   child: Text(label, style: metaTextStyle(theme)),
                 ),
-                DefaultTextStyle.merge(
-                  style: metaTextStyle(theme)
-                      .copyWith(color: theme.colors.foreground),
-                  child: value,
+                Expanded(
+                  child: DefaultTextStyle.merge(
+                    style: metaTextStyle(theme)
+                        .copyWith(color: theme.colors.foreground),
+                    child: value,
+                  ),
                 ),
               ],
             ),

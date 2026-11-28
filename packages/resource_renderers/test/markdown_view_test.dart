@@ -1,3 +1,5 @@
+import 'package:devchat_ui/devchat_ui.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
@@ -267,5 +269,73 @@ void main() {
     );
 
     await expectAccessible(tester);
+  });
+
+  group('weight on the variable font axis', () {
+    Iterable<TextStyle> stylesOf(WidgetTester tester, String text) sync* {
+      for (final paragraph in tester.renderObjectList<RenderParagraph>(
+        find.byType(RichText),
+      )) {
+        TextStyle? found;
+        paragraph.text.visitChildren((span) {
+          if (span is TextSpan && span.text == text) {
+            found = span.style;
+          }
+          return true;
+        });
+        if (found != null) {
+          yield found!;
+        }
+      }
+    }
+
+    for (final brightness in Brightness.values) {
+      testWidgets('bold sets the weight and the axis, ${brightness.name}', (
+        tester,
+      ) async {
+        await pumpViewer(
+          tester,
+          (context, env) => MarkdownView(
+            source: 'A **bold** word.\n\n| Head |\n|---|\n| cell |',
+            environment: env,
+          ),
+          brightness: brightness,
+        );
+
+        final semibold = DcTheme.of(tester.element(find.byType(MarkdownView)))
+            .typography
+            .semibold;
+        final regular = DcTheme.of(tester.element(find.byType(MarkdownView)))
+            .typography
+            .regular;
+        for (final text in ['bold', 'Head']) {
+          final style = stylesOf(tester, text).first;
+          expect(style.fontWeight, semibold, reason: text);
+          final axis = style.fontVariations!.singleWhere(
+            (v) => v.axis == 'wght',
+          );
+          expect(axis.value, semibold.value.toDouble(), reason: text);
+        }
+        // Plain text keeps the regular weight on its axis.
+        final plain = stylesOf(tester, 'cell').first;
+        expect(
+          plain.fontVariations!.singleWhere((v) => v.axis == 'wght').value,
+          regular.value.toDouble(),
+        );
+      });
+    }
+  });
+
+  test('withFontWeight keeps the other axes', () {
+    final style = withFontWeight(
+      const TextStyle(
+        fontVariations: [FontVariation('wght', 350), FontVariation('opsz', 18)],
+      ),
+      FontWeight.w600,
+    );
+
+    expect(style.fontWeight, FontWeight.w600);
+    final axes = {for (final v in style.fontVariations!) v.axis: v.value};
+    expect(axes, {'wght': 600.0, 'opsz': 18.0});
   });
 }

@@ -240,7 +240,7 @@ class _Lesson extends ConsumerWidget {
       padding: EdgeInsets.only(
         top: MediaQuery.sizeOf(context).width < Breakpoints.compact
             ? style.space(3.5)
-            : style.space(6),
+            : style.space(3),
         bottom: style.space(12),
       ),
       child: Column(

@@ -2,9 +2,11 @@ import 'package:devchat_ui/devchat_ui.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 import 'package:lectale/src/app/layout.dart';
+import 'package:lectale/src/app/reading_text.dart';
 import 'package:lectale/src/preview/outline_model.dart';
 import 'package:lectale/src/preview/preview_copy.dart';
 import 'package:lectale/src/preview/preview_navigation.dart';
+import 'package:lectale/src/widgets/step_footer.dart';
 
 /// Previous and Next, at the end of the lesson (reader.md §5, S8).
 ///
@@ -58,6 +60,7 @@ class LessonStepsBar extends StatelessWidget {
             child: Text(previousLabel),
           );
 
+    final phone = MediaQuery.sizeOf(context).width < Breakpoints.compact;
     return Semantics(
       container: true,
       explicitChildNodes: true,
@@ -67,82 +70,22 @@ class LessonStepsBar extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (after == null) ...[
-            Text(
-              PreviewCopy.endNote,
-              style: theme.typography.body.copyWith(
-                color: theme.colors.foreground,
-              ),
-            ),
+            // The calm end of the course is reading text (reader.md §5).
+            Text(PreviewCopy.endNote, style: ReadingStyles.of(context).reading),
             SizedBox(height: style.space(3)),
           ],
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final sideBySide =
-                  previous != null &&
-                  _fitsTogether(
-                    context,
-                    constraints.maxWidth,
-                    previousLabel!,
-                    nextLabel,
-                  );
-              if (previous == null) {
-                return Align(
-                  alignment: AlignmentDirectional.centerStart,
-                  child: next,
-                );
-              }
-              if (sideBySide) {
-                return Row(
-                  spacing: style.space(3),
-                  children: [previous, const Spacer(), next],
-                );
-              }
-              // Stacked, Next comes first. Full width only on a phone; on a
-              // wider window the buttons keep their own width and share the
-              // start edge, so the footer never turns into a banner.
-              final phone =
-                  MediaQuery.sizeOf(context).width < Breakpoints.compact;
-              return Column(
-                crossAxisAlignment: phone
-                    ? CrossAxisAlignment.stretch
-                    : CrossAxisAlignment.start,
-                spacing: style.space(3),
-                children: [next, previous],
-              );
-            },
+          // Both full labels side by side when they fit with an 18 dp gap,
+          // measured from the real buttons; else stacked, Next first, full
+          // width only on a phone.
+          StepFooter(
+            next: next,
+            previous: previous,
+            gap: style.space(4),
+            stackGap: style.space(3),
+            stretch: phone,
           ),
         ],
       ),
     );
-  }
-
-  /// Whether both labels fit on one line each beside one another, with the
-  /// buttons' padding, at the current text size.
-  bool _fitsTogether(
-    BuildContext context,
-    double available,
-    String previousLabel,
-    String nextLabel,
-  ) {
-    if (MediaQuery.sizeOf(context).width < Breakpoints.compact) {
-      return false;
-    }
-    final theme = DcTheme.of(context);
-    final scaler = MediaQuery.textScalerOf(context);
-    double width(String text) {
-      final painter = TextPainter(
-        text: TextSpan(text: text, style: theme.typography.label),
-        textDirection: Directionality.of(context),
-        textScaler: scaler,
-      )..layout();
-      final result = painter.width;
-      painter.dispose();
-      return result;
-    }
-
-    // 24 dp of padding on each side of a label, and a 13.5 dp gap.
-    const padding = 48.0;
-    return width(previousLabel) + width(nextLabel) + 2 * padding + 13.5 + 8 <=
-        available;
   }
 }
